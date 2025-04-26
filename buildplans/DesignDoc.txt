@@ -1,0 +1,424 @@
+D&D Party Management Simulation
+Design Document – Final Draft (Updated)
+
+Game Overview
+A high-level management simulation game based on OD&D/AD&D rules. Players oversee a pool of adventurers and are tasked with keeping them alive, funded, and progressing through dungeons while developing supporting town infrastructure. There is no "win" state — the world persists and evolves, with a long-term dream of procedural dungeons forming from retired adventurers.
+
+Visual Style & User Interface
+Minimalist 1-bit (black and white) sprites and graphics
+
+
+Each adventurer is represented by a 1-bit sprite themed by class
+
+
+Color customization for adventurers (via picker or preset colors)
+
+
+Clean 2D UI, focused on functionality and legibility
+
+
+Dungeon lairs displayed as minimalist expanding network graphs
+
+
+Hover to reveal detailed info on dungeon nodes
+
+
+Thematic news feed (e.g., town crier scroll) for event notifications
+
+
+Reports and stats displayed via MS-DOS-style lists or compact cards
+
+
+Expedition reports styled like Paradox-style ledgers with large fonts
+
+
+
+Core Gameplay Loop
+Choose adventurers from a fixed pool of 20
+
+
+Create parties (2–9 members each; multiple parties supported)
+
+
+Assign goals: treasure, XP, clearing, or exploration
+
+
+Send them on expeditions (minimal direct control)
+
+
+Resolve outcomes via simulations and reports
+
+
+Use returns to upgrade adventurers or invest in town facilities
+
+
+
+Player Decisions
+Form optimal parties with complementary skills
+
+
+Choose expedition targets and goals
+
+
+Decide when to invest in town roles or expeditions
+
+
+Manage gold for upkeep, gear, and facility development
+
+
+Assign high-level characters to town roles as infrastructure evolves
+
+
+
+Game Systems
+Adventurers
+20 pre-generated characters
+
+
+No player-created adventurers
+
+
+Adventurer stats:
+
+
+Class (Fighter, Cleric, Magic-User, Elf, Dwarf, Hobbit)
+
+
+Level (start at 1)
+
+
+XP (1gp = 1xp; monsters grant 100xp/HD)
+
+
+HP, Equipment, Money, Spells (for spellcasters)
+
+
+Demi-humans:
+
+
+Elves are dual-class F/MU
+
+
+Racial level caps, but unique advantages
+
+
+Character Advancement
+Automatic level-ups per OD&D XP thresholds
+
+
+Spells randomly acquired per level-up
+
+
+Followers gained automatically at high levels
+
+
+Hit points, saving throws, and attack bonuses improve per OD&D
+
+
+Character Death & Recovery
+Death is permanent unless resurrection is available
+
+
+Resurrection: Requires high-level cleric + proper temple staffing
+
+
+Cost follows OD&D rules
+
+
+Non-resurrected adventurers are interred via town Temple system
+
+
+Fail states include death, petrification, charm, etc.
+
+
+
+Parties
+Create/edit multiple adventuring parties (2–9 members)
+
+
+Success affected by party composition
+
+
+Treasure split options: equal share, by level, or other methods
+
+
+
+Time Management
+Dungeon expeditions: 1-week cycle (3 prep, 1 delve, 3 return)
+
+
+Healing: 2 days per HP
+
+
+Recruitment: 1 week
+
+
+Game is turn-based with auto-progression (like OOTP)
+
+
+Future optional real-time bonus mode: real-time weekly delves
+
+
+
+Economy & Risk Management
+Monthly upkeep: 1% of XP in gold
+
+
+Key risk loop:
+
+
+Treasure vs. exploration
+
+
+Upgrades vs. savings
+
+
+Town support vs. dungeon delving
+
+
+Gold uses:
+
+
+Buying gear
+
+
+Upkeep
+
+
+Hiring henchmen (1d6 × 100 gp/week)
+
+
+(Future) Carousing
+
+
+
+Dungeon Structure
+Procedurally generated lair network
+
+
+Each lair:
+
+
+Dominant monster type
+
+
+Exploration and danger level
+
+
+Treasure level
+
+
+Connections to deeper areas
+
+
+Travel is node-to-node, affected by exploration and encumbrance
+
+
+Example dungeon levels and monster types:
+
+
+Level 1: Kobold, Goblin, Skeleton, Orc
+
+
+Level 2: Hobgoblin, Zombie, Theurgist, Ghoul
+
+
+...
+
+
+Level 6: Dragon, Giant, Vampire, Demon Lord
+
+
+
+Encounter System (Simulated)
+Encounters checked every 10 in-game minutes
+
+
+Resolution steps:
+
+
+Surprise roll
+
+
+Initiative
+
+
+Action choice: fight, flee, parlay
+
+
+Simulation of OD&D-style combat
+
+
+Players observe, not direct, combat
+
+
+
+Parlay System
+2d6 Reaction Table:
+
+
+2: Fight
+
+
+3–5: Fight or flee
+
+
+6–8: Uncertain
+
+
+9–11: Join (roll loyalty)
+
+
+12: Join (loyalty +2)
+
+
+
+Expedition Reporting System
+Detailed logs with options for quick or comprehensive review
+
+
+Logs include:
+
+
+Encounter rolls/results
+
+
+Damage, spells, deaths
+
+
+Treasure and XP earned
+
+
+Notifications for key events
+
+
+Persistent archive for long-term tracking
+
+
+
+Dungeon Expedition Goals
+Treasure Hunting – Prioritize loot, leave when full
+
+
+Clearing – Eradicate/diplomatically remove monsters
+
+
+XP Gain – Seek easy fights and treasure
+
+
+Exploration – Reveal more dungeon structure
+
+
+
+Town Development
+Characters can be assigned to infrastructure (non-adventuring)
+
+
+Examples:
+
+
+Temple – Clerics (Lvl 2+) provide healing; high-levels can resurrect
+
+
+Wizard Tower – Spell research and item crafting
+
+
+Fighter Strongholds/Baronies – Tax income, attract retainers
+
+
+Facility roster still in development; each class to have contributions at lower and name levels
+
+
+
+Magic & Spells
+Magic-users receive randomly assigned spells
+
+
+Strategic management of party synergy is essential
+
+
+No manual spell choice: players adapt to randomness
+
+
+
+Gameplay Milestones
+First treasure returned
+
+
+First monster defeated
+
+
+Lair cleared
+
+
+New dungeon area discovered
+
+
+100% lair exploration
+
+
+Facility unlocked or constructed
+
+
+
+MVP Features
+Party/adventurer management
+
+
+Simulated dungeon delves
+
+
+Economic system with upkeep
+
+
+Automatic character advancement
+
+
+Basic town development (e.g., Temple)
+
+
+1-bit UI with color customization
+
+
+Procedural dungeon as graph
+
+
+Detailed expedition logging
+
+
+
+Future Features (Should Have)
+Henchmen and hirelings
+
+
+Full OD&D turn timing
+
+
+Parlay system
+
+
+Carousing system
+
+
+
+Future Features (Could Have)
+Dungeon faction dynamics
+
+
+Multiple world dungeons with travel time
+
+
+Adventurer-generated dungeons
+
+
+Magic item creation personalities
+
+
+Advanced tactical combat system
+
+
+
+Would you like this exported as a PDF, or want help drafting supporting visuals or systems next?
+
+
+
