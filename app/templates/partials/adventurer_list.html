@@ -1,0 +1,42 @@
+<table class="min-w-full bg-white">
+    <thead>
+        <tr>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Name</th>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Class</th>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Level</th>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">HP</th>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">XP</th>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Gold</th>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Status</th>
+            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for adventurer in adventurers %}
+        <tr>
+            <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.name }}</td>
+            <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.adventurer_class.value }}</td>
+            <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.level }}</td>
+            <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.hp_current }}/{{ adventurer.hp_max }}</td>
+            <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.xp }}</td>
+            <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.gold }}</td>
+            <td class="py-2 px-4 border-b border-gray-200">
+                {% if adventurer.is_available %}
+                    <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">Available</span>
+                {% else %}
+                    <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs">On Expedition</span>
+                {% endif %}
+            </td>
+            <td class="py-2 px-4 border-b border-gray-200">
+                <button class="text-blue-600 hover:text-blue-800"
+                        hx-get="/adventurers/{{ adventurer.id }}"
+                        hx-target="#modal-content"
+                        hx-trigger="click"
+                        onclick="document.getElementById('modal').classList.remove('hidden')">
+                    View
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

@@ -1,0 +1,45 @@
+<div class="space-y-4">
+    <h3 class="font-bold">Add Adventurer to {{ party.name }}</h3>
+    
+    {% if available_adventurers %}
+        <form hx-post="/parties/add-member/" hx-target="#party-list" hx-swap="outerHTML" class="space-y-4">
+            <input type="hidden" name="party_id" value="{{ party.id }}">
+            
+            <div>
+                <label for="adventurer_id" class="block text-sm font-medium text-gray-700">Select Adventurer</label>
+                <select id="adventurer_id" name="adventurer_id" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    {% for adventurer in available_adventurers %}
+                        <option value="{{ adventurer.id }}">
+                            {{ adventurer.name }} - Lvl {{ adventurer.level }} {{ adventurer.adventurer_class.value }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="flex justify-end">
+                <button type="button" 
+                        class="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                        onclick="document.getElementById('modal').classList.add('hidden')">
+                    Cancel
+                </button>
+                <button type="submit" 
+                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Add to Party
+                </button>
+            </div>
+        </form>
+    {% else %}
+        <div class="bg-yellow-100 p-4 rounded text-yellow-800">
+            <p>No available adventurers to add.</p>
+            <p class="mt-2">Create new adventurers or wait for current ones to return from expeditions.</p>
+        </div>
+        
+        <div class="flex justify-end">
+            <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                    onclick="document.getElementById('modal').classList.add('hidden')">
+                Close
+            </button>
+        </div>
+    {% endif %}
+</div>

@@ -1,0 +1,84 @@
+<div class="space-y-4">
+    <div class="flex justify-between items-center">
+        <h3 class="font-bold text-xl">{{ adventurer.name }}</h3>
+        <span class="{% if adventurer.is_available %}bg-green-100 text-green-800{% else %}bg-orange-100 text-orange-800{% endif %} px-2 py-1 rounded-full text-xs">
+            {% if adventurer.is_available %}Available{% else %}On Expedition{% endif %}
+        </span>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <span class="text-gray-600">Class:</span>
+            <span class="font-medium">{{ adventurer.adventurer_class.value }}</span>
+        </div>
+        <div>
+            <span class="text-gray-600">Level:</span>
+            <span class="font-medium">{{ adventurer.level }}</span>
+        </div>
+        <div>
+            <span class="text-gray-600">HP:</span>
+            <span class="font-medium">{{ adventurer.hp_current }}/{{ adventurer.hp_max }}</span>
+        </div>
+        <div>
+            <span class="text-gray-600">XP:</span>
+            <span class="font-medium">{{ adventurer.xp }}</span>
+        </div>
+        <div>
+            <span class="text-gray-600">Gold:</span>
+            <span class="font-medium">{{ adventurer.gold }}</span>
+        </div>
+    </div>
+    
+    <div>
+        <h4 class="font-semibold mb-2">Party Memberships</h4>
+        {% if adventurer.parties %}
+            <ul class="space-y-2">
+                {% for party in adventurer.parties %}
+                <li class="bg-gray-100 p-2 rounded">
+                    <div class="flex justify-between">
+                        <span>{{ party.name }}</span>
+                        <button class="text-blue-600 hover:text-blue-800"
+                                hx-get="/parties/{{ party.id }}"
+                                hx-target="#modal-content">
+                            View Party
+                        </button>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-gray-500">Not a member of any party</p>
+        {% endif %}
+    </div>
+    
+    <div>
+        <h4 class="font-semibold mb-2">Recent Expeditions</h4>
+        {% if adventurer.expedition_logs %}
+            <div class="space-y-2 max-h-40 overflow-y-auto">
+                {% for log in adventurer.expedition_logs|sort(attribute='id', reverse=True) %}
+                <div class="bg-gray-100 p-2 rounded">
+                    <div class="flex justify-between">
+                        <span>{{ log.expedition.started_at.strftime('%Y-%m-%d') }}</span>
+                        <span class="{% if log.status == 'alive' %}text-green-600{% else %}text-red-600{% endif %}">
+                            {{ log.status|capitalize }}
+                        </span>
+                    </div>
+                    <div class="text-sm">
+                        <span>XP: +{{ log.xp_share }}</span>
+                        <span class="ml-4">HP: {{ log.hp_change }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-gray-500">No expedition history</p>
+        {% endif %}
+    </div>
+    
+    <div class="flex justify-end mt-4">
+        <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                onclick="document.getElementById('modal').classList.add('hidden')">
+            Close
+        </button>
+    </div>
+</div>

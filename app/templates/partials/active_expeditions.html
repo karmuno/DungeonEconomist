@@ -1,0 +1,47 @@
+{% if active_expeditions %}
+    <div class="space-y-6">
+        {% for expedition in active_expeditions %}
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 class="text-xl font-bold">{{ expedition.party.name }}</h2>
+                    <p class="text-sm text-gray-600">Started: {{ expedition.started_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
+                <button class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                        hx-get="/expeditions/{{ expedition.id }}/advance"
+                        hx-target="#expedition-{{ expedition.id }}-log">
+                    Advance Turn
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    {% set progress = expedition.node_results|length * 10 %}
+                    {% if progress > 100 %}{% set progress = 100 %}{% endif %}
+                    <div class="bg-blue-600 h-4 rounded-full" style="width: {{ progress }}%"></div>
+                </div>
+                <div class="flex justify-between text-sm mt-1">
+                    <span>Turn {{ expedition.node_results|length }}</span>
+                    <span>{{ progress }}% complete</span>
+                </div>
+            </div>
+            
+            <div id="expedition-{{ expedition.id }}-log" class="space-y-2 max-h-60 overflow-y-auto bg-white p-3 rounded">
+                <!-- Log entries will be loaded here -->
+                <p class="text-center text-gray-500">Click "Advance Turn" to progress the expedition</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="bg-gray-100 p-6 rounded-lg text-center">
+        <p class="mb-4">No active expeditions.</p>
+        <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                hx-get="/expeditions/create-form"
+                hx-target="#modal-content"
+                hx-trigger="click"
+                onclick="document.getElementById('modal').classList.remove('hidden')">
+            Launch Expedition
+        </button>
+    </div>
+{% endif %}

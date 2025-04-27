@@ -1,0 +1,90 @@
+<div class="space-y-4">
+    <h3 class="font-bold">Launch Expedition</h3>
+    
+    {% if party %}
+        {% if party.members|length > 0 %}
+            <form hx-post="/expeditions/" hx-target="#expedition-content" class="space-y-4">
+                <input type="hidden" name="party_id" value="{{ party.id }}">
+                
+                <div>
+                    <label for="dungeon_level" class="block text-sm font-medium text-gray-700">Dungeon Level</label>
+                    <div class="flex items-center mt-1">
+                        <input type="range" id="dungeon_level" name="dungeon_level" min="1" max="6" value="1"
+                               class="flex-grow mr-2"
+                               oninput="document.getElementById('level-value').innerText = this.value">
+                        <span id="level-value" class="bg-gray-200 px-2 py-1 rounded w-6 text-center">1</span>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>Safer</span>
+                        <span>Riskier</span>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-100 p-3 rounded">
+                    <h4 class="font-medium mb-2">Party Members ({{ party.members|length }})</h4>
+                    <div class="space-y-1 max-h-40 overflow-y-auto">
+                        {% for member in party.members %}
+                            <div class="flex justify-between items-center bg-white p-2 rounded text-sm">
+                                <span>{{ member.name }}</span>
+                                <span>Lvl {{ member.level }} {{ member.adventurer_class.value }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button type="button" 
+                            class="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                            onclick="document.getElementById('modal').classList.add('hidden')">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                        Launch Expedition
+                    </button>
+                </div>
+            </form>
+        {% else %}
+            <div class="bg-yellow-100 p-4 rounded text-yellow-800">
+                <p>This party has no members.</p>
+                <p class="mt-2">Add adventurers to the party before launching an expedition.</p>
+            </div>
+            
+            <div class="flex justify-end">
+                <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                        onclick="document.getElementById('modal').classList.add('hidden')">
+                    Close
+                </button>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="space-y-4">
+            <p>Select a party to launch on expedition:</p>
+            
+            {% if parties %}
+                <div class="space-y-2 max-h-60 overflow-y-auto">
+                    {% for party in parties %}
+                        <button class="w-full text-left bg-gray-100 p-3 rounded hover:bg-gray-200"
+                                hx-get="/expeditions/create-form?party_id={{ party.id }}"
+                                hx-target="#modal-content">
+                            <div class="font-medium">{{ party.name }}</div>
+                            <div class="text-sm text-gray-600">{{ party.members|length }} members</div>
+                        </button>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="bg-yellow-100 p-4 rounded text-yellow-800">
+                    <p>No parties available.</p>
+                    <p class="mt-2">Create a party first before launching an expedition.</p>
+                </div>
+            {% endif %}
+            
+            <div class="flex justify-end">
+                <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                        onclick="document.getElementById('modal').classList.add('hidden')">
+                    Close
+                </button>
+            </div>
+        </div>
+    {% endif %}
+</div>
