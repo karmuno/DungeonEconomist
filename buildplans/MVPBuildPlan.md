@@ -1,9 +1,9 @@
 # MVP Build Plan
 
 ## Next Steps
-1. Add party equipment/loadout handling
-2. Implement XP tracking and level-up system
-3. Create healing/recovery mechanics
+1. Implement XP tracking and level-up system
+2. Create healing/recovery mechanics
+3. Implement gold/treasure distribution
 
 ## Complete Task List
 
@@ -32,7 +32,7 @@
 - [x] Create API endpoint to add adventurers to parties
 - [x] Create API endpoint to remove adventurers from parties
 - [x] Implement party expedition status tracking
-- [ ] Add party equipment/loadout handling
+- [x] Add party equipment/loadout handling
 
 ### Character Progression
 - [ ] Implement XP tracking and storage
@@ -63,4 +63,4 @@
 - [ ] Multiple interconnected dungeon nodes
 - [ ] Character death and permadeath mechanics
 - [ ] Town infrastructure assignments
-- [ ] Equipment and inventory management
+- [ ] More advanced equipment and inventory management

@@ -11,6 +11,24 @@ class AdventurerClass(str, Enum):
     DWARF = 'Dwarf'
     HOBBIT = 'Hobbit'
     
+class EquipmentType(str, Enum):
+    WEAPON = 'Weapon'
+    ARMOR = 'Armor'
+    SHIELD = 'Shield'
+    MAGIC_ITEM = 'Magic Item'
+    POTION = 'Potion'
+    TOOL = 'Tool'
+    MISCELLANEOUS = 'Miscellaneous'
+
+class SupplyType(str, Enum):
+    FOOD = 'Food'
+    WATER = 'Water'
+    LIGHT = 'Light'
+    MEDICAL = 'Medical'
+    TOOL = 'Tool'
+    ADVENTURE = 'Adventure'
+    MISCELLANEOUS = 'Miscellaneous'
+    
 class EncounterType(str, Enum):
     MONSTER = "Monster"
     TRAP = "Trap/Hazard"
@@ -24,6 +42,55 @@ class CombatOutcome(str, Enum):
     RETREAT = "Retreat"
     DISASTER = "Disaster"
 
+class EquipmentBase(BaseModel):
+    name: str
+    equipment_type: EquipmentType
+    description: Optional[str] = None
+    cost: int = 0
+    weight: float = 0
+    properties: Optional[Dict[str, Any]] = None
+
+class EquipmentCreate(EquipmentBase):
+    pass
+
+class EquipmentOut(EquipmentBase):
+    id: int
+    
+    class Config:
+        from_attributes = True
+
+class AdventurerEquipmentOut(BaseModel):
+    equipment: EquipmentOut
+    equipped: bool = False
+    quantity: int = 1
+    
+    class Config:
+        from_attributes = True
+
+class SupplyBase(BaseModel):
+    name: str
+    supply_type: SupplyType
+    description: Optional[str] = None
+    cost: int = 0
+    weight: float = 0
+    uses_per_unit: int = 1
+
+class SupplyCreate(SupplyBase):
+    pass
+
+class SupplyOut(SupplyBase):
+    id: int
+    
+    class Config:
+        from_attributes = True
+
+class PartySupplyOut(BaseModel):
+    supply: SupplyOut
+    quantity: int = 1
+    
+    class Config:
+        from_attributes = True
+
 class AdventurerOut(BaseModel):
     id: int
     name: str
@@ -36,6 +103,8 @@ class AdventurerOut(BaseModel):
     is_available: bool
     on_expedition: bool = False
     expedition_status: Optional[str] = None
+    carry_capacity: int = 150
+    equipment: Optional[List[AdventurerEquipmentOut]] = None
 
     class Config:
         from_attributes = True
@@ -45,19 +114,22 @@ class AdventurerCreate(BaseModel):
     adventurer_class: AdventurerClass
     level: int = 1
     hp_max: int = 10
+    carry_capacity: Optional[int] = None
     
 class PartyBase(BaseModel):
     name: str
     
 class PartyCreate(PartyBase):
-    pass
+    funds: int = 0
     
 class PartyOut(PartyBase):
     id: int
     created_at: Optional[datetime] = None
     on_expedition: bool = False
     current_expedition_id: Optional[int] = None
+    funds: int = 0
     members: List[AdventurerOut] = []
+    supplies: Optional[List[PartySupplyOut]] = None
     
     class Config:
         from_attributes = True
@@ -65,15 +137,30 @@ class PartyOut(PartyBase):
 class PartyStatusUpdate(BaseModel):
     on_expedition: bool
     current_expedition_id: Optional[int] = None
+
+class PartyFundsUpdate(BaseModel):
+    amount: int  # Positive to add funds, negative to remove funds
         
 class PartyMemberOperation(BaseModel):
     party_id: int
     adventurer_id: int
     
+class EquipmentOperation(BaseModel):
+    adventurer_id: int
+    equipment_id: int
+    quantity: int = 1
+    equip: Optional[bool] = None
+    
+class SupplyOperation(BaseModel):
+    party_id: int
+    supply_id: int
+    quantity: int = 1
+    
 # --- Expedition schemas ---
 class ExpeditionCreate(BaseModel):
     party_id: int
     dungeon_level: int = 1
+    supplies_to_bring: Optional[List[Dict[str, int]]] = None  # List of {supply_id: quantity} pairs
     
 class TreasureItem(BaseModel):
     gold: int
@@ -116,6 +203,8 @@ class ExpeditionResult(BaseModel):
     xp_earned: float
     xp_per_party_member: float
     resources_used: Dict[str, Any]
+    supplies_consumed: Optional[Dict[str, int]] = None
+    equipment_lost: Optional[Dict[str, List[int]]] = None
     dead_members: List[str] = []
     party_status: PartyStatus
     log: List[TurnLog] = []

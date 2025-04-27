@@ -8,11 +8,17 @@ from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import json
 
-from app.models import Base, Adventurer, Party, DungeonNode, Expedition, ExpeditionNodeResult, ExpeditionLog
+from app.models import (
+    Base, Adventurer, Party, DungeonNode, Expedition, 
+    ExpeditionNodeResult, ExpeditionLog, Equipment, Supply,
+    EquipmentType, SupplyType, adventurer_equipment, party_supply
+)
 from app.schemas import (
     AdventurerOut, AdventurerCreate, PartyCreate, 
     PartyOut, PartyMemberOperation, ExpeditionCreate,
-    ExpeditionResult, TurnResult
+    ExpeditionResult, TurnResult, EquipmentOut, EquipmentCreate,
+    SupplyOut, SupplyCreate, EquipmentOperation, SupplyOperation,
+    PartyFundsUpdate, AdventurerEquipmentOut, PartySupplyOut
 )
 from app.simulator import DungeonSimulator
 
@@ -214,6 +220,373 @@ def remove_adventurer_from_party(operation: PartyMemberOperation, db: Session = 
     db.refresh(party)
     return party
 
+# --- Equipment and Supply Endpoints ---
+@app.post("/equipment/", response_model=EquipmentOut)
+def create_equipment(equipment: EquipmentCreate, db: Session = Depends(get_db)):
+    """Create a new equipment item"""
+    db_equipment = Equipment(
+        name=equipment.name,
+        equipment_type=equipment.equipment_type,
+        description=equipment.description,
+        cost=equipment.cost,
+        weight=equipment.weight,
+        properties=equipment.properties
+    )
+    db.add(db_equipment)
+    db.commit()
+    db.refresh(db_equipment)
+    return db_equipment
+
+@app.get("/equipment/", response_model=List[EquipmentOut])
+def list_equipment(
+    type_filter: Optional[EquipmentType] = None, 
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db)
+):
+    """List all equipment items, optionally filtered by type"""
+    query = db.query(Equipment)
+    if type_filter:
+        query = query.filter(Equipment.equipment_type == type_filter)
+    return query.offset(skip).limit(limit).all()
+
+@app.get("/equipment/{equipment_id}", response_model=EquipmentOut)
+def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
+    """Get a specific equipment item by ID"""
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+    return equipment
+
+@app.post("/adventurers/{adventurer_id}/equipment", response_model=AdventurerOut)
+def add_equipment_to_adventurer(
+    adventurer_id: int, 
+    operation: EquipmentOperation, 
+    db: Session = Depends(get_db)
+):
+    """Add equipment to an adventurer's inventory"""
+    # Check if adventurer exists
+    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
+    if not adventurer:
+        raise HTTPException(status_code=404, detail="Adventurer not found")
+    
+    # Check if equipment exists
+    equipment = db.query(Equipment).filter(Equipment.id == operation.equipment_id).first()
+    if not equipment:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+    
+    # Check if adventurer is on expedition
+    if adventurer.on_expedition:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot modify equipment for adventurer currently on expedition"
+        )
+    
+    # Check if the adventurer already has this equipment
+    stmt = adventurer_equipment.select().where(
+        adventurer_equipment.c.adventurer_id == adventurer_id,
+        adventurer_equipment.c.equipment_id == operation.equipment_id
+    )
+    result = db.execute(stmt).first()
+    
+    if result:
+        # Update existing association
+        stmt = adventurer_equipment.update().where(
+            adventurer_equipment.c.adventurer_id == adventurer_id,
+            adventurer_equipment.c.equipment_id == operation.equipment_id
+        ).values(
+            quantity=result.quantity + operation.quantity
+        )
+        db.execute(stmt)
+    else:
+        # Create new association
+        stmt = adventurer_equipment.insert().values(
+            adventurer_id=adventurer_id,
+            equipment_id=operation.equipment_id,
+            quantity=operation.quantity,
+            equipped=operation.equip if operation.equip is not None else False
+        )
+        db.execute(stmt)
+    
+    db.commit()
+    db.refresh(adventurer)
+    return adventurer
+
+@app.put("/adventurers/{adventurer_id}/equipment/{equipment_id}/equip", response_model=AdventurerOut)
+def toggle_equipment_equipped(
+    adventurer_id: int, 
+    equipment_id: int, 
+    equip: bool = True, 
+    db: Session = Depends(get_db)
+):
+    """Toggle whether an equipment item is equipped or not"""
+    # Check if adventurer exists
+    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
+    if not adventurer:
+        raise HTTPException(status_code=404, detail="Adventurer not found")
+    
+    # Check if adventurer is on expedition
+    if adventurer.on_expedition:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot modify equipment for adventurer currently on expedition"
+        )
+    
+    # Check if the adventurer has this equipment
+    stmt = adventurer_equipment.select().where(
+        adventurer_equipment.c.adventurer_id == adventurer_id,
+        adventurer_equipment.c.equipment_id == equipment_id
+    )
+    result = db.execute(stmt).first()
+    
+    if not result:
+        raise HTTPException(
+            status_code=404, 
+            detail="Equipment not found in adventurer's inventory"
+        )
+    
+    # Update equipped status
+    stmt = adventurer_equipment.update().where(
+        adventurer_equipment.c.adventurer_id == adventurer_id,
+        adventurer_equipment.c.equipment_id == equipment_id
+    ).values(equipped=equip)
+    db.execute(stmt)
+    
+    db.commit()
+    db.refresh(adventurer)
+    return adventurer
+
+@app.delete("/adventurers/{adventurer_id}/equipment/{equipment_id}")
+def remove_equipment_from_adventurer(
+    adventurer_id: int, 
+    equipment_id: int, 
+    quantity: int = 1, 
+    db: Session = Depends(get_db)
+):
+    """Remove equipment from an adventurer's inventory"""
+    # Check if adventurer exists
+    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
+    if not adventurer:
+        raise HTTPException(status_code=404, detail="Adventurer not found")
+    
+    # Check if adventurer is on expedition
+    if adventurer.on_expedition:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot modify equipment for adventurer currently on expedition"
+        )
+    
+    # Check if the adventurer has this equipment
+    stmt = adventurer_equipment.select().where(
+        adventurer_equipment.c.adventurer_id == adventurer_id,
+        adventurer_equipment.c.equipment_id == equipment_id
+    )
+    result = db.execute(stmt).first()
+    
+    if not result:
+        raise HTTPException(
+            status_code=404, 
+            detail="Equipment not found in adventurer's inventory"
+        )
+    
+    # Update or delete based on quantity
+    if result.quantity <= quantity:
+        # Remove entirely
+        stmt = adventurer_equipment.delete().where(
+            adventurer_equipment.c.adventurer_id == adventurer_id,
+            adventurer_equipment.c.equipment_id == equipment_id
+        )
+    else:
+        # Update quantity
+        stmt = adventurer_equipment.update().where(
+            adventurer_equipment.c.adventurer_id == adventurer_id,
+            adventurer_equipment.c.equipment_id == equipment_id
+        ).values(quantity=result.quantity - quantity)
+    
+    db.execute(stmt)
+    db.commit()
+    
+    return {"message": "Equipment removed successfully"}
+
+@app.post("/supplies/", response_model=SupplyOut)
+def create_supply(supply: SupplyCreate, db: Session = Depends(get_db)):
+    """Create a new supply item"""
+    db_supply = Supply(
+        name=supply.name,
+        supply_type=supply.supply_type,
+        description=supply.description,
+        cost=supply.cost,
+        weight=supply.weight,
+        uses_per_unit=supply.uses_per_unit
+    )
+    db.add(db_supply)
+    db.commit()
+    db.refresh(db_supply)
+    return db_supply
+
+@app.get("/supplies/", response_model=List[SupplyOut])
+def list_supplies(
+    type_filter: Optional[SupplyType] = None, 
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db)
+):
+    """List all supply items, optionally filtered by type"""
+    query = db.query(Supply)
+    if type_filter:
+        query = query.filter(Supply.supply_type == type_filter)
+    return query.offset(skip).limit(limit).all()
+
+@app.get("/supplies/{supply_id}", response_model=SupplyOut)
+def get_supply(supply_id: int, db: Session = Depends(get_db)):
+    """Get a specific supply item by ID"""
+    supply = db.query(Supply).filter(Supply.id == supply_id).first()
+    if not supply:
+        raise HTTPException(status_code=404, detail="Supply not found")
+    return supply
+
+@app.post("/parties/{party_id}/supplies", response_model=PartyOut)
+def add_supply_to_party(
+    party_id: int, 
+    operation: SupplyOperation, 
+    db: Session = Depends(get_db)
+):
+    """Add supplies to a party's inventory"""
+    # Check if party exists
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    
+    # Check if party is on expedition
+    if party.on_expedition:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot modify supplies for party currently on expedition"
+        )
+    
+    # Check if supply exists
+    supply = db.query(Supply).filter(Supply.id == operation.supply_id).first()
+    if not supply:
+        raise HTTPException(status_code=404, detail="Supply not found")
+    
+    # Check if party has enough funds
+    total_cost = supply.cost * operation.quantity
+    if total_cost > party.funds:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not enough funds. Required: {total_cost}, Available: {party.funds}"
+        )
+    
+    # Check if the party already has this supply
+    stmt = party_supply.select().where(
+        party_supply.c.party_id == party_id,
+        party_supply.c.supply_id == operation.supply_id
+    )
+    result = db.execute(stmt).first()
+    
+    if result:
+        # Update existing association
+        stmt = party_supply.update().where(
+            party_supply.c.party_id == party_id,
+            party_supply.c.supply_id == operation.supply_id
+        ).values(
+            quantity=result.quantity + operation.quantity
+        )
+        db.execute(stmt)
+    else:
+        # Create new association
+        stmt = party_supply.insert().values(
+            party_id=party_id,
+            supply_id=operation.supply_id,
+            quantity=operation.quantity
+        )
+        db.execute(stmt)
+    
+    # Deduct funds
+    party.funds -= total_cost
+    
+    db.commit()
+    db.refresh(party)
+    return party
+
+@app.delete("/parties/{party_id}/supplies/{supply_id}")
+def remove_supply_from_party(
+    party_id: int, 
+    supply_id: int, 
+    quantity: int = 1, 
+    db: Session = Depends(get_db)
+):
+    """Remove supplies from a party's inventory"""
+    # Check if party exists
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    
+    # Check if party is on expedition
+    if party.on_expedition:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot modify supplies for party currently on expedition"
+        )
+    
+    # Check if the party has this supply
+    stmt = party_supply.select().where(
+        party_supply.c.party_id == party_id,
+        party_supply.c.supply_id == supply_id
+    )
+    result = db.execute(stmt).first()
+    
+    if not result:
+        raise HTTPException(
+            status_code=404, 
+            detail="Supply not found in party's inventory"
+        )
+    
+    # Update or delete based on quantity
+    if result.quantity <= quantity:
+        # Remove entirely
+        stmt = party_supply.delete().where(
+            party_supply.c.party_id == party_id,
+            party_supply.c.supply_id == supply_id
+        )
+    else:
+        # Update quantity
+        stmt = party_supply.update().where(
+            party_supply.c.party_id == party_id,
+            party_supply.c.supply_id == supply_id
+        ).values(quantity=result.quantity - quantity)
+    
+    db.execute(stmt)
+    db.commit()
+    
+    return {"message": "Supply removed successfully"}
+
+@app.put("/parties/{party_id}/funds", response_model=PartyOut)
+def update_party_funds(
+    party_id: int, 
+    funds_update: PartyFundsUpdate, 
+    db: Session = Depends(get_db)
+):
+    """Update a party's funds (add or remove gold)"""
+    # Check if party exists
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    
+    # If removing funds, check if party has enough
+    if funds_update.amount < 0 and abs(funds_update.amount) > party.funds:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not enough funds. Attempting to remove {abs(funds_update.amount)}, Available: {party.funds}"
+        )
+    
+    # Update funds
+    party.funds += funds_update.amount
+    
+    db.commit()
+    db.refresh(party)
+    return party
+
 # Create shared simulator instance
 simulator = DungeonSimulator()
 
@@ -234,9 +607,64 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Party is already on an expedition")
     
+    # Process supplies to bring on expedition
+    supplies_to_bring = {}
+    if expedition_data.supplies_to_bring:
+        for supply_data in expedition_data.supplies_to_bring:
+            for supply_id_str, quantity in supply_data.items():
+                try:
+                    supply_id = int(supply_id_str)
+                    # Verify supply exists and party has enough
+                    stmt = party_supply.select().where(
+                        party_supply.c.party_id == party.id,
+                        party_supply.c.supply_id == supply_id
+                    )
+                    result = db.execute(stmt).first()
+                    
+                    if not result:
+                        supply = db.query(Supply).filter(Supply.id == supply_id).first()
+                        if not supply:
+                            raise HTTPException(
+                                status_code=404, 
+                                detail=f"Supply with ID {supply_id} not found"
+                            )
+                        raise HTTPException(
+                            status_code=400, 
+                            detail=f"Party does not have supply: {supply.name}"
+                        )
+                    
+                    if result.quantity < quantity:
+                        supply = db.query(Supply).filter(Supply.id == supply_id).first()
+                        raise HTTPException(
+                            status_code=400, 
+                            detail=f"Not enough {supply.name}, have {result.quantity}, requested {quantity}"
+                        )
+                    
+                    supplies_to_bring[supply_id] = quantity
+                except ValueError:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Invalid supply ID: {supply_id_str}"
+                    )
+    
     # Convert party to format needed for simulator
     party_members = []
     for member in party.members:
+        # Get equipment for member
+        equipment_list = []
+        for assoc in db.query(adventurer_equipment).filter(
+            adventurer_equipment.c.adventurer_id == member.id,
+            adventurer_equipment.c.equipped == True
+        ).all():
+            equipment = db.query(Equipment).filter(Equipment.id == assoc.equipment_id).first()
+            if equipment:
+                equipment_list.append({
+                    "id": equipment.id,
+                    "name": equipment.name,
+                    "type": equipment.equipment_type.value,
+                    "properties": equipment.properties or {}
+                })
+        
         party_members.append({
             "id": member.id,
             "name": member.name,
@@ -245,6 +673,7 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
             "hit_points": member.hp_max,
             "current_hp": member.hp_current,
             "xp": member.xp,
+            "equipment": equipment_list
         })
     
     # Add party to simulator if not already there
@@ -268,7 +697,9 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     db_expedition = Expedition(
         party_id=party.id,
         started_at=datetime.now(),
-        result="in_progress"
+        result="in_progress",
+        supplies_consumed={},  # Will be populated after expedition
+        equipment_lost={}  # Will be populated after expedition
     )
     db.add(db_expedition)
     db.commit()
@@ -284,6 +715,24 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
         member.expedition_status = "active"
         member.is_available = False
     
+    # Consume supplies brought on expedition (remove from inventory)
+    supplies_consumed = {}
+    for supply_id, quantity in supplies_to_bring.items():
+        # Get supply info
+        supply = db.query(Supply).filter(Supply.id == supply_id).first()
+        if supply:
+            # Record for expedition result
+            supplies_consumed[supply.name] = quantity
+            
+            # Update party's supply inventory
+            stmt = party_supply.update().where(
+                party_supply.c.party_id == party.id,
+                party_supply.c.supply_id == supply_id
+            ).values(
+                quantity=party_supply.c.quantity - quantity
+            )
+            db.execute(stmt)
+    
     db.commit()
     
     # Run expedition to completion
@@ -292,6 +741,48 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     # Update expedition in database
     db_expedition.finished_at = datetime.now()
     db_expedition.result = "completed"
+    db_expedition.supplies_consumed = supplies_consumed
+    
+    # Handle potential equipment loss during expedition
+    # For this implementation, we'll have a 5% chance per adventurer to lose one equipped item
+    equipment_lost = {}
+    for member in party.members:
+        import random
+        if random.random() < 0.05:  # 5% chance to lose equipment
+            # Get one random equipped item
+            stmt = adventurer_equipment.select().where(
+                adventurer_equipment.c.adventurer_id == member.id,
+                adventurer_equipment.c.equipped == True
+            )
+            equipped_items = list(db.execute(stmt).all())
+            
+            if equipped_items:
+                lost_item = random.choice(equipped_items)
+                equipment = db.query(Equipment).filter(Equipment.id == lost_item.equipment_id).first()
+                
+                if equipment:
+                    # Record the loss for the expedition
+                    if member.name not in equipment_lost:
+                        equipment_lost[member.name] = []
+                    equipment_lost[member.name].append(equipment.name)
+                    
+                    # Remove the equipment from the adventurer
+                    if lost_item.quantity <= 1:
+                        # Remove entirely
+                        stmt = adventurer_equipment.delete().where(
+                            adventurer_equipment.c.adventurer_id == member.id,
+                            adventurer_equipment.c.equipment_id == lost_item.equipment_id
+                        )
+                    else:
+                        # Update quantity
+                        stmt = adventurer_equipment.update().where(
+                            adventurer_equipment.c.adventurer_id == member.id,
+                            adventurer_equipment.c.equipment_id == lost_item.equipment_id
+                        ).values(quantity=lost_item.quantity - 1)
+                    
+                    db.execute(stmt)
+    
+    db_expedition.equipment_lost = equipment_lost
     
     # Reset party expedition status
     party.on_expedition = False
@@ -334,8 +825,15 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
         # Reset expedition status but keep availability restricted for recovery period
         member.on_expedition = False
         member.is_available = member.hp_current > (member.hp_max / 2)  # Only available if over half health
+    
+    # Add treasure to party funds
+    party.funds += result["treasure_total"]
             
     db.commit()
+    
+    # Add supplies and equipment info to the result
+    result["supplies_consumed"] = supplies_consumed
+    result["equipment_lost"] = equipment_lost
     
     # Return full expedition results
     return result
