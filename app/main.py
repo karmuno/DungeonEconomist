@@ -1,10 +1,14 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from datetime import datetime
 
 from app.models import Base, Adventurer, Party, DungeonNode, Expedition
-from app.schemas import AdventurerOut
+from app.schemas import (
+    AdventurerOut, AdventurerCreate, PartyCreate, 
+    PartyOut, PartyMemberOperation
+)
 
 DATABASE_URL = "sqlite:///./data/db.sqlite"
 
@@ -42,10 +46,19 @@ def get_db():
         db.close()
 
 # --- Adventurer Endpoints ---
-@app.post("/adventurers/", response_model=None)
-def create_adventurer(name: str, adventurer_class: str, db: Session = Depends(get_db)):
-    # TODO: validate class enum
-    adv = Adventurer(name=name, adventurer_class=adventurer_class)
+@app.post("/adventurers/", response_model=AdventurerOut)
+def create_adventurer(adventurer: AdventurerCreate, db: Session = Depends(get_db)):
+    # Create new adventurer with initial stats
+    adv = Adventurer(
+        name=adventurer.name,
+        adventurer_class=adventurer.adventurer_class,
+        level=adventurer.level,
+        hp_max=adventurer.hp_max,
+        hp_current=adventurer.hp_max,  # Start with full HP
+        xp=0,
+        gold=0,
+        is_available=True
+    )
     db.add(adv)
     db.commit()
     db.refresh(adv)
@@ -56,17 +69,73 @@ def list_adventurers(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     return db.query(Adventurer).offset(skip).limit(limit).all()
 
 # --- Party Endpoints ---
-@app.post("/parties/", response_model=None)
-def create_party(name: str = "New Party", db: Session = Depends(get_db)):
-    party = Party(name=name)
-    db.add(party)
+@app.post("/parties/", response_model=PartyOut)
+def create_party(party: PartyCreate, db: Session = Depends(get_db)):
+    new_party = Party(name=party.name, created_at=datetime.now())
+    db.add(new_party)
+    db.commit()
+    db.refresh(new_party)
+    return new_party
+
+@app.get("/parties/", response_model=list[PartyOut])
+def list_parties(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return db.query(Party).offset(skip).limit(limit).all()
+
+@app.get("/parties/{party_id}", response_model=PartyOut)
+def get_party(party_id: int, db: Session = Depends(get_db)):
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if party is None:
+        raise HTTPException(status_code=404, detail="Party not found")
+    return party
+
+@app.post("/parties/add-member/", response_model=PartyOut)
+def add_adventurer_to_party(operation: PartyMemberOperation, db: Session = Depends(get_db)):
+    # Check if party exists
+    party = db.query(Party).filter(Party.id == operation.party_id).first()
+    if party is None:
+        raise HTTPException(status_code=404, detail="Party not found")
+    
+    # Check if adventurer exists and is available
+    adventurer = db.query(Adventurer).filter(
+        Adventurer.id == operation.adventurer_id,
+        Adventurer.is_available == True
+    ).first()
+    if adventurer is None:
+        raise HTTPException(
+            status_code=404, 
+            detail="Adventurer not found or already assigned to an expedition"
+        )
+    
+    # Add adventurer to party
+    party.members.append(adventurer)
     db.commit()
     db.refresh(party)
     return party
 
-@app.get("/parties/", response_model=list)
-def list_parties(db: Session = Depends(get_db)):
-    return db.query(Party).all()
+@app.post("/parties/remove-member/", response_model=PartyOut)
+def remove_adventurer_from_party(operation: PartyMemberOperation, db: Session = Depends(get_db)):
+    # Check if party exists
+    party = db.query(Party).filter(Party.id == operation.party_id).first()
+    if party is None:
+        raise HTTPException(status_code=404, detail="Party not found")
+    
+    # Check if adventurer exists and is in the party
+    adventurer = db.query(Adventurer).filter(Adventurer.id == operation.adventurer_id).first()
+    if adventurer is None:
+        raise HTTPException(status_code=404, detail="Adventurer not found")
+    
+    # Check if adventurer is in the party
+    if adventurer not in party.members:
+        raise HTTPException(
+            status_code=400,
+            detail="Adventurer is not a member of this party"
+        )
+    
+    # Remove adventurer from party
+    party.members.remove(adventurer)
+    db.commit()
+    db.refresh(party)
+    return party
 
 # --- Expedition Endpoints (skeleton) ---
 @app.post("/expeditions/", response_model=None)

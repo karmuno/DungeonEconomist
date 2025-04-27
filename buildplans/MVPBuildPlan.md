@@ -1,9 +1,9 @@
 # MVP Build Plan
 
 ## Next Steps
-1. Complete simulator.py with basic expedition and encounter logic. Import what you need from expedition.py.
-2. Create API endpoints for party management (add/remove adventurers)
-3. Implement frontend templates with HTMX for basic interaction
+1. Build expedition results endpoint
+2. Implement frontend templates with HTMX for basic interaction
+3. Implement party expedition status tracking
 
 ## Complete Task List
 
@@ -14,17 +14,17 @@
 - [x] Implement basic API structure with FastAPI
 - [x] Build seed script for adventurer pool
 
-### Simulation Engine
-- [ ] Implement expedition engine in simulator.py
-- [ ] Create encounter roll system
-- [ ] Implement combat outcome calculation
-- [ ] Design treasure and XP distribution logic
-- [ ] Add expedition logging functionality
+### Simulation Engine (Completed)
+- [x] Implement expedition engine in simulator.py
+- [x] Create encounter roll system
+- [x] Implement combat outcome calculation
+- [x] Design treasure and XP distribution logic
+- [x] Add expedition logging functionality
 - [ ] Build expedition results endpoint
 
 ### Party Management
-- [ ] Create API endpoint to add adventurers to parties
-- [ ] Create API endpoint to remove adventurers from parties
+- [x] Create API endpoint to add adventurers to parties
+- [x] Create API endpoint to remove adventurers from parties
 - [ ] Implement party expedition status tracking
 - [ ] Add party equipment/loadout handling
 
