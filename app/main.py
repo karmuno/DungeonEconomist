@@ -1179,6 +1179,14 @@ def index(request: Request, db: Session = Depends(get_db)):
     # Get recent expeditions
     recent_expeditions = db.query(Expedition).order_by(Expedition.started_at.desc()).limit(5).all()
     
+    # Get player treasury (use first player for now, or create one if none exists)
+    player = db.query(Player).first()
+    if not player:
+        player = Player(name="Default Player", treasury=0, total_score=0)
+        db.add(player)
+        db.commit()
+        db.refresh(player)
+    
     return templates.TemplateResponse(
         "index.html", 
         {
@@ -1186,7 +1194,9 @@ def index(request: Request, db: Session = Depends(get_db)):
             "adventurer_count": adventurer_count,
             "party_count": party_count,
             "expedition_count": expedition_count,
-            "recent_expeditions": recent_expeditions
+            "recent_expeditions": recent_expeditions,
+            "treasury_gold": player.treasury,
+            "total_score": player.total_score
         }
     )
 
@@ -1194,17 +1204,30 @@ def index(request: Request, db: Session = Depends(get_db)):
 def adventurers_page(request: Request, db: Session = Depends(get_db)):
     """Render the adventurers page"""
     adventurers = db.query(Adventurer).all()
+    
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "adventurers.html", 
-        {"request": request, "adventurers": adventurers}
+        {"request": request, "adventurers": adventurers, "treasury_gold": treasury_gold}
     )
 
 @app.get("/adventurers/create-form", response_class=HTMLResponse)
-def adventurer_create_form(request: Request):
+def adventurer_create_form(request: Request, db: Session = Depends(get_db)):
     """Return the adventurer creation form"""
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "partials/adventurer_form.html", 
-        {"request": request}
+        {"request": request, "treasury_gold": treasury_gold}
     )
 
 @app.get("/adventurers/filter", response_class=HTMLResponse)
@@ -1238,9 +1261,15 @@ def filter_adventurers(
     
     adventurers = query.all()
     
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "partials/adventurer_list.html", 
-        {"request": request, "adventurers": adventurers}
+        {"request": request, "adventurers": adventurers, "treasury_gold": treasury_gold}
     )
 
 @app.get("/adventurers/search", response_class=HTMLResponse)
@@ -1250,10 +1279,16 @@ def search_adventurers(request: Request, search: str = "", db: Session = Depends
         adventurers = db.query(Adventurer).filter(Adventurer.name.ilike(f"%{search}%")).all()
     else:
         adventurers = db.query(Adventurer).all()
+    
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
         
     return templates.TemplateResponse(
         "partials/adventurer_list.html", 
-        {"request": request, "adventurers": adventurers}
+        {"request": request, "adventurers": adventurers, "treasury_gold": treasury_gold}
     )
 
 @app.get("/adventurers/{adventurer_id}", response_class=HTMLResponse)
@@ -1262,27 +1297,46 @@ def get_adventurer_details(request: Request, adventurer_id: int, db: Session = D
     adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
     if not adventurer:
         raise HTTPException(status_code=404, detail="Adventurer not found")
+    
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
         
     return templates.TemplateResponse(
         "partials/adventurer_details.html", 
-        {"request": request, "adventurer": adventurer}
+        {"request": request, "adventurer": adventurer, "treasury_gold": treasury_gold}
     )
 
 @app.get("/parties", response_class=HTMLResponse)
 def parties_page(request: Request, db: Session = Depends(get_db)):
     """Render the parties page"""
     parties = db.query(Party).all()
+    
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "parties.html", 
-        {"request": request, "parties": parties}
+        {"request": request, "parties": parties, "treasury_gold": treasury_gold}
     )
 
 @app.get("/parties/create-form", response_class=HTMLResponse)
-def party_create_form(request: Request):
+def party_create_form(request: Request, db: Session = Depends(get_db)):
     """Return the party creation form"""
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "partials/party_form.html", 
-        {"request": request}
+        {"request": request, "treasury_gold": treasury_gold}
     )
 
 @app.get("/parties/{party_id}/add-member-form", response_class=HTMLResponse)
@@ -1298,9 +1352,15 @@ def add_party_member_form(request: Request, party_id: int, db: Session = Depends
         ~Adventurer.parties.any(Party.id == party_id)
     ).all()
     
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "partials/add_party_member.html", 
-        {"request": request, "party": party, "available_adventurers": available_adventurers}
+        {"request": request, "party": party, "available_adventurers": available_adventurers, "treasury_gold": treasury_gold}
     )
 
 @app.get("/expeditions", response_class=HTMLResponse)
@@ -1308,9 +1368,15 @@ def expeditions_page(request: Request, db: Session = Depends(get_db)):
     """Render the expeditions page"""
     active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
     
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "expeditions.html", 
-        {"request": request, "active_expeditions": active_expeditions}
+        {"request": request, "active_expeditions": active_expeditions, "treasury_gold": treasury_gold}
     )
 
 @app.get("/expeditions/active", response_class=HTMLResponse)
@@ -1326,9 +1392,15 @@ def active_expeditions(request: Request, db: Session = Depends(get_db)):
         if party.current_expedition_id:
             expedition_parties[party.current_expedition_id] = party
     
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "partials/active_expeditions.html", 
-        {"request": request, "active_expeditions": active_expeditions, "expedition_parties": expedition_parties}
+        {"request": request, "active_expeditions": active_expeditions, "expedition_parties": expedition_parties, "treasury_gold": treasury_gold}
     )
 
 @app.get("/expeditions/completed", response_class=HTMLResponse)
@@ -1336,9 +1408,15 @@ def completed_expeditions(request: Request, db: Session = Depends(get_db)):
     """Return completed expeditions for the expeditions page"""
     completed_expeditions = db.query(Expedition).filter(Expedition.result == "completed").order_by(Expedition.finished_at.desc()).all()
     
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "partials/completed_expeditions.html", 
-        {"request": request, "completed_expeditions": completed_expeditions}
+        {"request": request, "completed_expeditions": completed_expeditions, "treasury_gold": treasury_gold}
     )
 
 @app.get("/expeditions/create-form", response_class=HTMLResponse)
@@ -1354,9 +1432,45 @@ def expedition_create_form(request: Request, party_id: int = None, db: Session =
     else:
         parties = db.query(Party).all()
     
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "partials/expedition_form.html", 
-        {"request": request, "party": party, "parties": parties}
+        {"request": request, "party": party, "parties": parties, "treasury_gold": treasury_gold}
+    )
+
+@app.get("/players", response_class=HTMLResponse)
+def players_page(request: Request, db: Session = Depends(get_db)):
+    """Render the players page"""
+    players = db.query(Player).all()
+    
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
+    return templates.TemplateResponse(
+        "players.html", 
+        {"request": request, "players": players, "treasury_gold": treasury_gold}
+    )
+
+@app.get("/players/create-form", response_class=HTMLResponse)
+def player_create_form(request: Request, db: Session = Depends(get_db)):
+    """Return the player creation form"""
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
+    return templates.TemplateResponse(
+        "partials/player_form.html", 
+        {"request": request, "treasury_gold": treasury_gold}
     )
 
 @app.get("/expeditions/{expedition_id}", response_class=HTMLResponse)
@@ -1396,9 +1510,15 @@ def expedition_details(request: Request, expedition_id: int, db: Session = Depen
             "log": []
         }
     
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
     return templates.TemplateResponse(
         "expedition_result.html", 
-        {"request": request, "expedition": expedition, "expedition_results": expedition_results}
+        {"request": request, "expedition": expedition, "expedition_results": expedition_results, "treasury_gold": treasury_gold}
     )
 
 if __name__ == "__main__":
