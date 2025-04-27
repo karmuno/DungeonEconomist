@@ -1,12 +1,14 @@
 # MVP Build Plan
 
 ## Next Steps
+1. Add treasury counter to UI for score tracking
+2. Create healing/recovery mechanics
+3. Implement upkeep costs between expeditions
+
+## Completed Tasks
 1. ~~Implement treasury system with loot split (70/30)~~ ✅
 2. ~~Create Player model with treasury tracking~~ ✅
-3. Add treasury counter to UI for score tracking
-4. Create healing/recovery mechanics
-5. Implement gold/treasure distribution
-6. Create upkeep costs between expeditions
+3. ~~Implement gold/treasure distribution~~ ✅
 
 ## Complete Task List
 
