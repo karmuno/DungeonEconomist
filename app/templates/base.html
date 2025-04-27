@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Venturekeep{% endblock %}</title>
+    
+    <!-- HTMX for dynamic content -->
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    
+    <!-- Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <header class="bg-gray-800 text-white shadow-md">
+        <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <a href="/" class="text-xl font-bold">Venturekeep</a>
+            <ul class="flex space-x-6">
+                <li><a href="/" class="hover:text-gray-300">Home</a></li>
+                <li><a href="/adventurers" class="hover:text-gray-300">Adventurers</a></li>
+                <li><a href="/parties" class="hover:text-gray-300">Parties</a></li>
+                <li><a href="/expeditions" class="hover:text-gray-300">Expeditions</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main class="container mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <footer class="bg-gray-800 text-white mt-auto py-4">
+        <div class="container mx-auto px-4 text-center">
+            <p>Venturekeep - A D&D Party Management Simulation</p>
+        </div>
+    </footer>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

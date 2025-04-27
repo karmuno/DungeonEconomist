@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Venturekeep - Home{% endblock %}
+
+{% block content %}
+<div class="bg-white shadow-md rounded-lg p-6">
+    <h1 class="text-3xl font-bold mb-6">Welcome to Venturekeep</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-2">Adventurer Pool</h2>
+            <p class="mb-4">Manage your roster of available adventurers.</p>
+            <div class="flex justify-between">
+                <span class="text-xl">{{ adventurer_count }}</span>
+                <a href="/adventurers" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">View</a>
+            </div>
+        </div>
+        
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-2">Active Parties</h2>
+            <p class="mb-4">Form and manage adventuring parties.</p>
+            <div class="flex justify-between">
+                <span class="text-xl">{{ party_count }}</span>
+                <a href="/parties" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">View</a>
+            </div>
+        </div>
+        
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-2">Expeditions</h2>
+            <p class="mb-4">Send parties on dungeon expeditions.</p>
+            <div class="flex justify-between">
+                <span class="text-xl">{{ expedition_count }}</span>
+                <a href="/expeditions" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">View</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-gray-100 p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-bold mb-4">Recent Expedition Results</h2>
+        {% if recent_expeditions %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white">
+                    <thead>
+                        <tr>
+                            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Party</th>
+                            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Date</th>
+                            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Result</th>
+                            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Treasure</th>
+                            <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for expedition in recent_expeditions %}
+                        <tr>
+                            <td class="py-2 px-4 border-b border-gray-200">{{ expedition.party.name }}</td>
+                            <td class="py-2 px-4 border-b border-gray-200">{{ expedition.started_at.strftime('%Y-%m-%d') }}</td>
+                            <td class="py-2 px-4 border-b border-gray-200">{{ expedition.result }}</td>
+                            <td class="py-2 px-4 border-b border-gray-200">
+                                {% set total_loot = expedition.node_results|sum(attribute='loot') %}
+                                {{ total_loot }} gold
+                            </td>
+                            <td class="py-2 px-4 border-b border-gray-200">
+                                <a href="/expeditions/{{ expedition.id }}" class="text-blue-600 hover:underline">View</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p>No expeditions have been completed yet.</p>
+            <a href="/expeditions/new" class="inline-block mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Launch Expedition
+            </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

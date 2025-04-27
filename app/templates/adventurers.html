@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Adventurers - Venturekeep{% endblock %}
+
+{% block content %}
+<div class="bg-white shadow-md rounded-lg p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Adventurers</h1>
+        <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                hx-get="/adventurers/create-form"
+                hx-target="#modal-content"
+                hx-trigger="click"
+                onclick="document.getElementById('modal').classList.remove('hidden')">
+            New Adventurer
+        </button>
+    </div>
+    
+    <!-- Filters -->
+    <div class="mb-6 bg-gray-100 p-4 rounded-lg">
+        <h2 class="text-lg font-semibold mb-2">Filters</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="class-filter" class="block text-sm font-medium text-gray-700">Class</label>
+                <select id="class-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                        hx-get="/adventurers/filter" 
+                        hx-target="#adventurer-list"
+                        hx-include="[name='availability-filter']">
+                    <option value="">All Classes</option>
+                    <option value="Fighter">Fighter</option>
+                    <option value="Cleric">Cleric</option>
+                    <option value="Magic-User">Magic-User</option>
+                    <option value="Thief">Thief</option>
+                    <option value="Elf">Elf</option>
+                    <option value="Dwarf">Dwarf</option>
+                    <option value="Hobbit">Hobbit</option>
+                </select>
+            </div>
+            <div>
+                <label for="availability-filter" class="block text-sm font-medium text-gray-700">Availability</label>
+                <select id="availability-filter" name="availability-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                        hx-get="/adventurers/filter" 
+                        hx-target="#adventurer-list"
+                        hx-include="#class-filter">
+                    <option value="">All</option>
+                    <option value="available">Available</option>
+                    <option value="unavailable">On Expedition</option>
+                </select>
+            </div>
+            <div>
+                <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
+                <input type="text" id="search" placeholder="Search by name..." 
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                       hx-get="/adventurers/search"
+                       hx-target="#adventurer-list"
+                       hx-trigger="keyup changed delay:500ms">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Adventurer List -->
+    <div id="adventurer-list" class="overflow-x-auto">
+        <table class="min-w-full bg-white">
+            <thead>
+                <tr>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Name</th>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Class</th>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Level</th>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">HP</th>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">XP</th>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Gold</th>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Status</th>
+                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for adventurer in adventurers %}
+                <tr>
+                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.name }}</td>
+                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.adventurer_class.value }}</td>
+                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.level }}</td>
+                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.hp_current }}/{{ adventurer.hp_max }}</td>
+                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.xp }}</td>
+                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.gold }}</td>
+                    <td class="py-2 px-4 border-b border-gray-200">
+                        {% if adventurer.is_available %}
+                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">Available</span>
+                        {% else %}
+                            <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs">On Expedition</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-2 px-4 border-b border-gray-200">
+                        <button class="text-blue-600 hover:text-blue-800"
+                                hx-get="/adventurers/{{ adventurer.id }}"
+                                hx-target="#modal-content"
+                                hx-trigger="click"
+                                onclick="document.getElementById('modal').classList.remove('hidden')">
+                            View
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold" id="modal-title">Adventurer Details</h2>
+            <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div id="modal-content">
+            <!-- Content will be loaded here -->
+        </div>
+    </div>
+</div>
+{% endblock %}

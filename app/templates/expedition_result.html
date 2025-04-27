@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Expedition Results - Venturekeep{% endblock %}
+
+{% block content %}
+<div class="bg-white shadow-md rounded-lg p-6">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold">Expedition Report</h1>
+            <p class="text-gray-600">Party: {{ expedition.party.name }}</p>
+        </div>
+        <div class="flex space-x-2">
+            <a href="/expeditions" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                Back to Expeditions
+            </a>
+        </div>
+    </div>
+    
+    <!-- Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-2">Details</h2>
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="font-medium">Started:</span>
+                    <span>{{ expedition.started_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Finished:</span>
+                    <span>{{ expedition.finished_at.strftime('%Y-%m-%d %H:%M') if expedition.finished_at else 'In progress' }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Duration:</span>
+                    <span>{{ expedition.node_results|length }} turns</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Dungeon Level:</span>
+                    <span>{{ expedition_results.dungeon_level }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Status:</span>
+                    <span class="{% if expedition.result == 'completed' %}text-green-600{% else %}text-orange-600{% endif %}">
+                        {{ expedition.result|capitalize }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-2">Rewards</h2>
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="font-medium">Gold:</span>
+                    <span>{{ expedition_results.treasure_total }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">XP:</span>
+                    <span>{{ expedition_results.xp_earned }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">XP Per Member:</span>
+                    <span>{{ expedition_results.xp_per_party_member }}</span>
+                </div>
+                {% if expedition_results.special_items %}
+                <div>
+                    <span class="font-medium">Special Items:</span>
+                    <ul class="list-disc list-inside mt-1">
+                        {% for item in expedition_results.special_items %}
+                            {% if item %}
+                            <li>{{ item }}</li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="bg-gray-100 p-4 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-2">Party Status</h2>
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="font-medium">Members:</span>
+                    <span>{{ expedition_results.party_status.members_alive }}/{{ expedition_results.party_status.members_total }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">HP Remaining:</span>
+                    <span>{{ expedition_results.party_status.hp_current }}/{{ expedition_results.party_status.hp_max }}</span>
+                </div>
+                <div>
+                    <div class="w-full bg-gray-200 rounded-full h-4 mt-1">
+                        <div class="{% if expedition_results.party_status.hp_percentage > 50 %}bg-green-600{% elif expedition_results.party_status.hp_percentage > 25 %}bg-yellow-500{% else %}bg-red-600{% endif %} h-4 rounded-full" 
+                             style="width: {{ expedition_results.party_status.hp_percentage }}%">
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <span class="font-medium">Resources Used:</span>
+                    <ul class="list-disc list-inside mt-1">
+                        <li>HP Lost: {{ expedition_results.resources_used.hp_lost }}</li>
+                        <li>Spells: {{ expedition_results.resources_used.spells_used }}</li>
+                        <li>Supplies: {{ expedition_results.resources_used.supplies_used }}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Expedition Log -->
+    <div class="bg-gray-100 p-4 rounded-lg shadow mb-8">
+        <h2 class="text-xl font-bold mb-4">Expedition Log</h2>
+        <div class="space-y-4">
+            {% for turn in expedition_results.log %}
+            <div class="bg-white p-3 rounded shadow">
+                <h3 class="font-bold text-lg">Turn {{ turn.turn }}</h3>
+                {% if turn.events %}
+                    <div class="ml-4 space-y-3 mt-2">
+                        {% for event in turn.events %}
+                        <div>
+                            <p class="font-medium">{{ event.type.value }}</p>
+                            {% if event.combat %}
+                                <div class="ml-4 text-sm">
+                                    <p>Battle with {{ event.combat.monster_type }} - {{ event.combat.outcome.value }}</p>
+                                    <p>HP Lost: {{ event.combat.hp_lost }}</p>
+                                    <p>XP Earned: {{ event.combat.xp_earned }}</p>
+                                </div>
+                            {% endif %}
+                            
+                            {% if event.trap_damage %}
+                                <div class="ml-4 text-sm">
+                                    <p>Damage taken: {{ event.trap_damage }}</p>
+                                </div>
+                            {% endif %}
+                            
+                            {% if event.treasure %}
+                                <div class="ml-4 text-sm">
+                                    <p>Gold: {{ event.treasure.gold }}</p>
+                                    {% if event.treasure.special_item %}
+                                        <p>Found: {{ event.treasure.special_item }}</p>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-gray-500 ml-4 mt-2">No encounters this turn</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Party Members Status -->
+    <div class="bg-gray-100 p-4 rounded-lg shadow">
+        <h2 class="text-xl font-bold mb-4">Party Members</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for member in expedition.party.members %}
+            {% set log = member.expedition_logs|selectattr('expedition_id', 'equalto', expedition.id)|first %}
+            <div class="bg-white p-3 rounded shadow">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-bold">{{ member.name }}</h3>
+                        <p class="text-sm">{{ member.adventurer_class.value }} (Level {{ member.level }})</p>
+                    </div>
+                    <div class="{% if log and log.status == 'dead' %}bg-red-100 text-red-800{% else %}bg-green-100 text-green-800{% endif %} px-2 py-1 rounded-full text-xs">
+                        {{ log.status|capitalize if log else 'Unknown' }}
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <div class="flex justify-between text-sm">
+                        <span>HP: {{ member.hp_current }}/{{ member.hp_max }}</span>
+                        <span>XP: {{ member.xp }}</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div class="{% if member.hp_current/member.hp_max > 0.5 %}bg-green-600{% elif member.hp_current/member.hp_max > 0.25 %}bg-yellow-500{% else %}bg-red-600{% endif %} h-2 rounded-full" 
+                             style="width: {{ (member.hp_current/member.hp_max*100)|int }}%">
+                        </div>
+                    </div>
+                </div>
+                {% if log %}
+                <div class="mt-2 text-sm">
+                    <p>XP Gained: {{ log.xp_share }}</p>
+                    <p>HP Change: {{ log.hp_change }}</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
