@@ -2,8 +2,8 @@
 
 ## Next Steps
 1. Implement party formation interface 
-2. Implement upkeep costs between expeditions
-3. Add more advanced equipment management
+2. Build expedition launch and management screens
+3. Design expedition log viewer
 
 ## Complete Task List
 
