@@ -3,12 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
+import json
 
-from app.models import Base, Adventurer, Party, DungeonNode, Expedition
+from app.models import Base, Adventurer, Party, DungeonNode, Expedition, ExpeditionNodeResult, ExpeditionLog
 from app.schemas import (
     AdventurerOut, AdventurerCreate, PartyCreate, 
-    PartyOut, PartyMemberOperation
+    PartyOut, PartyMemberOperation, ExpeditionCreate,
+    ExpeditionResult, TurnResult
 )
+from app.simulator import DungeonSimulator
 
 DATABASE_URL = "sqlite:///./data/db.sqlite"
 
@@ -137,22 +140,127 @@ def remove_adventurer_from_party(operation: PartyMemberOperation, db: Session = 
     db.refresh(party)
     return party
 
-# --- Expedition Endpoints (skeleton) ---
-@app.post("/expeditions/", response_model=None)
-def launch_expedition(party_id: int, db: Session = Depends(get_db)):
-    # TODO: implement expedition logic in simulator
-    party = db.query(Party).get(party_id)
+# Create shared simulator instance
+simulator = DungeonSimulator()
+
+# --- Expedition Endpoints ---
+@app.post("/expeditions/", response_model=ExpeditionResult)
+def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(get_db)):
+    """Launch a new expedition with a party to a dungeon"""
+    # Check if party exists
+    party = db.query(Party).filter(Party.id == expedition_data.party_id).first()
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
-    expedition = Expedition(party_id=party_id)
-    db.add(expedition)
+    
+    # Check if party has members
+    if not party.members:
+        raise HTTPException(status_code=400, detail="Party has no members")
+    
+    # Convert party to format needed for simulator
+    party_members = []
+    for member in party.members:
+        party_members.append({
+            "id": member.id,
+            "name": member.name,
+            "character_class": member.adventurer_class.value,
+            "level": member.level,
+            "hit_points": member.hp_max,
+            "current_hp": member.hp_current,
+            "xp": member.xp,
+        })
+    
+    # Add party to simulator if not already there
+    party_id = expedition_data.party_id
+    simulator_party_idx = None
+    for idx, sim_party in enumerate(simulator.parties):
+        if len(sim_party) > 0 and sim_party[0].get("id") == party_members[0]["id"]:
+            simulator_party_idx = idx
+            break
+    
+    if simulator_party_idx is None:
+        simulator_party_idx = simulator.add_party(party_members)
+    
+    # Start expedition in simulator
+    expedition_id = simulator.start_expedition(
+        simulator_party_idx, 
+        dungeon_level=expedition_data.dungeon_level
+    )
+    
+    # Create expedition record in database
+    db_expedition = Expedition(
+        party_id=party.id,
+        started_at=datetime.now(),
+        result="in_progress"
+    )
+    db.add(db_expedition)
     db.commit()
-    db.refresh(expedition)
-    return expedition
+    db.refresh(db_expedition)
+    
+    # Run expedition to completion
+    result = simulator.run_expedition_to_completion(expedition_id)
+    
+    # Update expedition in database
+    db_expedition.finished_at = datetime.now()
+    db_expedition.result = "completed"
+    
+    # Store the detailed results as JSON in the log field
+    for node_result in result["log"]:
+        exp_node = ExpeditionNodeResult(
+            expedition_id=db_expedition.id,
+            node_id=1,  # Default node for now
+            success=True,
+            xp_earned=int(result["xp_earned"] / len(result["log"])),
+            loot=int(result["treasure_total"] / len(result["log"])),
+            log=json.dumps(node_result)
+        )
+        db.add(exp_node)
+    
+    # Store individual adventurer logs
+    for member in party.members:
+        is_dead = member.name in result["dead_members"]
+        log = ExpeditionLog(
+            expedition_id=db_expedition.id,
+            adventurer_id=member.id,
+            xp_share=int(result["xp_per_party_member"]),
+            hp_change=-10 if is_dead else -5,  # Simplified HP loss
+            status="dead" if is_dead else "alive"
+        )
+        db.add(log)
+        
+        # Update adventurer stats
+        member.xp += int(result["xp_per_party_member"])
+        if is_dead:
+            member.hp_current = 1  # Reduced to 1 HP if dead
+        else:
+            member.hp_current = max(1, member.hp_current - 5)  # Some HP loss
+            
+    db.commit()
+    
+    # Return full expedition results
+    return result
+
+@app.get("/expeditions/{expedition_id}", response_model=ExpeditionResult)
+def get_expedition_results(expedition_id: int):
+    """Get detailed results of an expedition"""
+    try:
+        result = simulator.get_expedition_results(expedition_id)
+        return result
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Expedition not found")
 
 @app.get("/expeditions/", response_model=list)
 def list_expeditions(db: Session = Depends(get_db)):
+    """List all expeditions in the database"""
     return db.query(Expedition).all()
+
+@app.post("/expeditions/{expedition_id}/advance", response_model=TurnResult)
+def advance_expedition_turn(expedition_id: int):
+    """Advance an expedition by one turn"""
+    try:
+        result = simulator.advance_turn(expedition_id)
+        return result
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Expedition not found or already completed")
 
 # Root
 @app.get("/")

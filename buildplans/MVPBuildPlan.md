@@ -1,9 +1,9 @@
 # MVP Build Plan
 
 ## Next Steps
-1. Build expedition results endpoint
-2. Implement frontend templates with HTMX for basic interaction
-3. Implement party expedition status tracking
+1. Implement frontend templates with HTMX for basic interaction
+2. Implement party expedition status tracking
+3. Add party equipment/loadout handling
 
 ## Complete Task List
 
@@ -20,7 +20,7 @@
 - [x] Implement combat outcome calculation
 - [x] Design treasure and XP distribution logic
 - [x] Add expedition logging functionality
-- [ ] Build expedition results endpoint
+- [x] Build expedition results endpoint
 
 ### Party Management
 - [x] Create API endpoint to add adventurers to parties
