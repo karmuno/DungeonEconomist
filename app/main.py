@@ -817,6 +817,13 @@ def advance_game_time(request: Request,
         Adventurer.on_expedition == False
     ).count()
     
+    # Get healing adventurers to display
+    healing_adventurers = db.query(Adventurer).filter(
+        Adventurer.is_available == False,
+        Adventurer.on_expedition == False,
+        Adventurer.expedition_status.in_(["healing", "injured"])
+    ).all()
+    
     # Return updated time panel HTML
     return templates.TemplateResponse(
         "partials/time_panel.html", 
@@ -825,7 +832,8 @@ def advance_game_time(request: Request,
             "game_time": game_time,
             "active_expeditions": active_expeditions,
             "unavailable_adventurers": unavailable_adventurers,
-            "expeditions_returned": expeditions_returned
+            "expeditions_returned": expeditions_returned,
+            "healing_adventurers": healing_adventurers
         }
     )
 
@@ -903,6 +911,10 @@ def apply_expedition_results(expedition_id: int, result: dict, db: Session):
             player.total_score += loot_split["player_treasury"]
     
     # Update adventurers
+    # Get current game day for healing calculations
+    game_time = db.query(GameTime).first()
+    current_day = game_time.current_day if game_time else 1
+    
     xp_per_member = xp_earned // max(1, len(party.members))
     for member in party.members:
         member.xp += xp_per_member
@@ -913,16 +925,28 @@ def apply_expedition_results(expedition_id: int, result: dict, db: Session):
             member.hp_current = 1  # Nearly dead, needs healing
             member.expedition_status = "injured"
             member.is_available = False
+            
+            # Calculate healing time (2 days per HP needed to recover)
+            hp_to_recover = member.hp_max - member.hp_current
+            healing_days = hp_to_recover * 2
+            member.healing_until_day = current_day + healing_days
         else:
             # Some damage from expedition
             hp_loss = min(member.hp_current - 1, int(member.hp_max * 0.3))
             member.hp_current -= hp_loss
             
-            # Set status based on health
-            if member.hp_current < member.hp_max * 0.5:
-                member.expedition_status = "resting"
+            # If adventurer took damage, enter healing state
+            if hp_loss > 0:
+                # Calculate days needed to heal (2 days per HP)
+                hp_to_recover = member.hp_max - member.hp_current
+                healing_days = hp_to_recover * 2
+                
+                # Set healing status and completion day
+                member.expedition_status = "healing"
+                member.healing_until_day = current_day + healing_days
                 member.is_available = False
             else:
+                # No damage taken, adventurer is available
                 member.expedition_status = "available"
                 member.is_available = True
 
@@ -985,24 +1009,41 @@ def skip_until_ready(request: Request, db: Session = Depends(get_db)):
         check_returning_expeditions(old_day, game_time.current_day, db)
         expeditions_returned = process_returns(db)
         
-        # Make resting adventurers available if they've had enough rest
+        # Make resting/healing adventurers available if they've completed healing
         resting_adventurers = db.query(Adventurer).filter(
             Adventurer.is_available == False,
             Adventurer.on_expedition == False
         ).all()
         
         for adventurer in resting_adventurers:
-            # Heal adventurers during the time skip
-            hp_recovery = min(
-                adventurer.hp_max - adventurer.hp_current,  # Can't go above max
-                int(adventurer.hp_max * 0.1 * days_to_advance)  # 10% per day
-            )
-            adventurer.hp_current += hp_recovery
-            
-            # If above 50% health, make available
-            if adventurer.hp_current >= (adventurer.hp_max * 0.5):
-                adventurer.is_available = True
-                adventurer.expedition_status = "available"
+            if adventurer.expedition_status == "healing" and adventurer.healing_until_day:
+                # Check if the healing period is complete
+                if game_time.current_day >= adventurer.healing_until_day:
+                    # Healing period complete, restore to full health
+                    adventurer.hp_current = adventurer.hp_max
+                    adventurer.expedition_status = "available"
+                    adventurer.is_available = True
+                    adventurer.healing_until_day = None
+                else:
+                    # Still healing, calculate progress based on days passed
+                    days_healing = min(days_to_advance, adventurer.healing_until_day - (game_time.current_day - days_to_advance))
+                    hp_to_recover = adventurer.hp_max - adventurer.hp_current
+                    hp_recovery = min(hp_to_recover, days_healing // 2)  # 1 HP per 2 days
+                    
+                    if hp_recovery > 0:
+                        adventurer.hp_current += hp_recovery
+            else:
+                # Legacy code for adventurers with old statuses
+                hp_recovery = min(
+                    adventurer.hp_max - adventurer.hp_current,  # Can't go above max
+                    int(adventurer.hp_max * 0.1 * days_to_advance)  # Legacy: 10% per day
+                )
+                adventurer.hp_current += hp_recovery
+                
+                # If above 50% health, make available
+                if adventurer.hp_current >= (adventurer.hp_max * 0.5):
+                    adventurer.is_available = True
+                    adventurer.expedition_status = "available"
     
     db.commit()
     db.refresh(game_time)
@@ -1017,6 +1058,13 @@ def skip_until_ready(request: Request, db: Session = Depends(get_db)):
         Adventurer.on_expedition == False
     ).count()
     
+    # Get healing adventurers to display
+    healing_adventurers = db.query(Adventurer).filter(
+        Adventurer.is_available == False,
+        Adventurer.on_expedition == False,
+        Adventurer.expedition_status.in_(["healing", "injured"])
+    ).all()
+    
     # Return updated time panel HTML
     return templates.TemplateResponse(
         "partials/time_panel.html", 
@@ -1025,7 +1073,8 @@ def skip_until_ready(request: Request, db: Session = Depends(get_db)):
             "game_time": game_time,
             "active_expeditions": active_expeditions,
             "unavailable_adventurers": unavailable_adventurers,
-            "expeditions_returned": expeditions_returned
+            "expeditions_returned": expeditions_returned,
+            "healing_adventurers": healing_adventurers
         }
     )
 

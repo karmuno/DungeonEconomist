@@ -115,7 +115,8 @@ class Adventurer(Base):
     gold = Column(Integer, default=0)
     is_available = Column(Boolean, default=True)
     on_expedition = Column(Boolean, default=False)
-    expedition_status = Column(String, nullable=True)  # e.g., 'active', 'injured', 'resting'
+    expedition_status = Column(String, nullable=True)  # e.g., 'active', 'injured', 'resting', 'healing'
+    healing_until_day = Column(Integer, nullable=True)  # Game day when healing will be complete
     carry_capacity = Column(Integer, default=150)  # in pounds/units
 
     parties = relationship('Party', secondary=party_adventurer, back_populates='members')

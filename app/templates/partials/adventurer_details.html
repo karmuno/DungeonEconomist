@@ -1,8 +1,37 @@
 <div class="space-y-4">
     <div class="flex justify-between items-center">
         <h3 class="font-bold text-xl">{{ adventurer.name }}</h3>
-        <span class="{% if adventurer.is_available %}bg-green-100 text-green-800{% else %}bg-orange-100 text-orange-800{% endif %} px-2 py-1 rounded-full text-xs">
-            {% if adventurer.is_available %}Available{% else %}On Expedition{% endif %}
+        <span class="
+            {% if adventurer.is_available %}
+                bg-green-100 text-green-800
+            {% elif adventurer.on_expedition %}
+                bg-orange-100 text-orange-800
+            {% elif adventurer.expedition_status == 'healing' %}
+                bg-red-100 text-red-800
+            {% elif adventurer.expedition_status == 'injured' %}
+                bg-red-100 text-red-800
+            {% else %}
+                bg-yellow-100 text-yellow-800
+            {% endif %} px-2 py-1 rounded-full text-xs">
+            {% if adventurer.is_available %}
+                Available
+            {% elif adventurer.on_expedition %}
+                On Expedition
+            {% elif adventurer.expedition_status == 'healing' %}
+                Healing
+                {% if adventurer.healing_until_day %}
+                    (until Day {{ adventurer.healing_until_day }})
+                {% endif %}
+            {% elif adventurer.expedition_status == 'injured' %}
+                Injured
+                {% if adventurer.healing_until_day %}
+                    (until Day {{ adventurer.healing_until_day }})
+                {% endif %}
+            {% elif adventurer.expedition_status == 'resting' %}
+                Resting
+            {% else %}
+                Unavailable
+            {% endif %}
         </span>
     </div>
     

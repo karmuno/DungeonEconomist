@@ -110,6 +110,7 @@ class AdventurerOut(BaseModel):
     is_available: bool
     on_expedition: bool = False
     expedition_status: Optional[str] = None
+    healing_until_day: Optional[int] = None
     carry_capacity: int = 150
     equipment: Optional[List[AdventurerEquipmentOut]] = None
     next_level_xp: Optional[int] = None

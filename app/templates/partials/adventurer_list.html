@@ -23,8 +23,16 @@
             <td class="py-2 px-4 border-b border-gray-200">
                 {% if adventurer.is_available %}
                     <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">Available</span>
-                {% else %}
+                {% elif adventurer.on_expedition %}
                     <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs">On Expedition</span>
+                {% elif adventurer.expedition_status == "healing" %}
+                    <span class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">Healing</span>
+                {% elif adventurer.expedition_status == "injured" %}
+                    <span class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">Injured</span>
+                {% elif adventurer.expedition_status == "resting" %}
+                    <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">Resting</span>
+                {% else %}
+                    <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">Unavailable</span>
                 {% endif %}
             </td>
             <td class="py-2 px-4 border-b border-gray-200">

@@ -24,11 +24,23 @@
             {% endif %}
         </div>
         <div class="bg-white rounded p-3 shadow-sm">
-            <h3 class="font-bold text-blue-600">Resting Adventurers</h3>
+            <h3 class="font-bold text-blue-600">Injured/Healing Adventurers</h3>
             <p class="text-2xl">{{ unavailable_adventurers }}</p>
             {% if expeditions_returned %}
                 <div class="mt-2 text-green-600 font-bold">
                     {{ expeditions_returned }} expeditions just returned!
+                </div>
+            {% endif %}
+            {% if healing_adventurers %}
+                <div class="mt-2 text-sm">
+                    {% for adv in healing_adventurers %}
+                        <div class="mb-1">
+                            {{ adv.name }} - {{ adv.expedition_status|capitalize }}
+                            {% if adv.healing_until_day %}
+                                ({{ adv.healing_until_day - game_time.current_day }} days left)
+                            {% endif %}
+                        </div>
+                    {% endfor %}
                 </div>
             {% endif %}
         </div>
