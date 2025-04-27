@@ -32,6 +32,8 @@ class Adventurer(Base):
     hp_max = Column(Integer, default=10)
     gold = Column(Integer, default=0)
     is_available = Column(Boolean, default=True)
+    on_expedition = Column(Boolean, default=False)
+    expedition_status = Column(String, nullable=True)  # e.g., 'active', 'injured', 'resting'
 
     parties = relationship('Party', secondary=party_adventurer, back_populates='members')
     expedition_logs = relationship('ExpeditionLog', back_populates='adventurer')
@@ -42,9 +44,12 @@ class Party(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, default='New Party')
     created_at = Column(DateTime)
+    on_expedition = Column(Boolean, default=False)
+    current_expedition_id = Column(Integer, ForeignKey('expeditions.id', ondelete='SET NULL'), nullable=True)
 
     members = relationship('Adventurer', secondary=party_adventurer, back_populates='parties')
-    expeditions = relationship('Expedition', back_populates='party')
+    expeditions = relationship('Expedition', foreign_keys='Expedition.party_id', back_populates='party')
+    current_expedition = relationship('Expedition', foreign_keys='Party.current_expedition_id', post_update=True)
 
 class DungeonNode(Base):
     __tablename__ = 'dungeon_nodes'

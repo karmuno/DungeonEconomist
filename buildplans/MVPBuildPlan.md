@@ -1,9 +1,9 @@
 # MVP Build Plan
 
 ## Next Steps
-1. Implement frontend templates with HTMX for basic interaction
-2. Implement party expedition status tracking
-3. Add party equipment/loadout handling
+1. Add party equipment/loadout handling
+2. Implement XP tracking and level-up system
+3. Create healing/recovery mechanics
 
 ## Complete Task List
 
@@ -22,10 +22,16 @@
 - [x] Add expedition logging functionality
 - [x] Build expedition results endpoint
 
+### Frontend (Completed)
+- [x] Create HTMX-based templates for viewing adventurers
+- [x] Implement party formation interface
+- [x] Build expedition launch and management screens
+- [x] Design expedition log viewer
+
 ### Party Management
 - [x] Create API endpoint to add adventurers to parties
 - [x] Create API endpoint to remove adventurers from parties
-- [ ] Implement party expedition status tracking
+- [x] Implement party expedition status tracking
 - [ ] Add party equipment/loadout handling
 
 ### Character Progression

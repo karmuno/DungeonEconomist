@@ -34,6 +34,8 @@ class AdventurerOut(BaseModel):
     hp_max: int
     gold: int
     is_available: bool
+    on_expedition: bool = False
+    expedition_status: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -53,10 +55,16 @@ class PartyCreate(PartyBase):
 class PartyOut(PartyBase):
     id: int
     created_at: Optional[datetime] = None
+    on_expedition: bool = False
+    current_expedition_id: Optional[int] = None
     members: List[AdventurerOut] = []
     
     class Config:
         from_attributes = True
+
+class PartyStatusUpdate(BaseModel):
+    on_expedition: bool
+    current_expedition_id: Optional[int] = None
         
 class PartyMemberOperation(BaseModel):
     party_id: int
