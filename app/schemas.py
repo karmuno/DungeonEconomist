@@ -185,6 +185,7 @@ class SupplyOperation(BaseModel):
 class ExpeditionCreate(BaseModel):
     party_id: int
     dungeon_level: int = 1
+    duration_days: int = 7
     supplies_to_bring: Optional[List[Dict[str, int]]] = None  # List of {supply_id: quantity} pairs
     
 class TreasureItem(BaseModel):
@@ -222,11 +223,19 @@ class AdventurerLevelUpInfo(BaseModel):
     current_level: int
     next_level: int
 
+class GameTimeInfo(BaseModel):
+    current_day: int
+    day_started_at: datetime
+    last_updated: datetime
+
 class ExpeditionResult(BaseModel):
     expedition_id: int
     party_id: int
     dungeon_level: int
     turns: int
+    start_day: int
+    duration_days: int
+    return_day: int
     start_time: datetime
     end_time: Optional[datetime] = None
     treasure_total: int

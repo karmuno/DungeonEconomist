@@ -8,8 +8,9 @@ Venturekeep - A D&D Party Management Simulation using FastAPI, SQLAlchemy, and S
 ## Build Commands
 - Run server: `python -m app.main`
 - Run tests: `pytest tests/`
-- Run single test: `pytest tests/sest_sim.py::test_name`
-- Seed adventurers: `python -m app.seed_adventurers`
+- Run single test: `pytest tests/test_sim.py::test_name`
+- Seed adventurers: `python -m app.seed_adventurers` 
+- Seed equipment: `python -m app.seed_equipment`
 - Lint code: `flake8`
 - Type check: `mypy .`
 

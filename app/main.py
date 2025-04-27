@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Body, Request
+from fastapi import FastAPI, HTTPException, Depends, Body, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -6,13 +6,14 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
+from typing import List, Optional
 import json
 
 from app.models import (
     Base, Adventurer, Party, DungeonNode, Expedition, 
     ExpeditionNodeResult, ExpeditionLog, Equipment, Supply,
     EquipmentType, SupplyType, adventurer_equipment, party_supply,
-    Player
+    Player, GameTime
 )
 from app.schemas import (
     AdventurerOut, AdventurerCreate, PartyCreate, 
@@ -20,7 +21,7 @@ from app.schemas import (
     ExpeditionResult, TurnResult, EquipmentOut, EquipmentCreate,
     SupplyOut, SupplyCreate, EquipmentOperation, SupplyOperation,
     PartyFundsUpdate, AdventurerEquipmentOut, PartySupplyOut,
-    LevelUpResult, PlayerCreate, PlayerOut, PlayerBase
+    LevelUpResult, PlayerCreate, PlayerOut, PlayerBase, GameTimeInfo
 )
 from app.simulator import DungeonSimulator, calculate_loot_split
 from app.progression import (
@@ -38,6 +39,34 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+# Initialize game time if not exists
+def initialize_database():
+    db = SessionLocal()
+    try:
+        # Check if we need to initialize game time
+        game_time = db.query(GameTime).first()
+        if not game_time:
+            game_time = GameTime()
+            db.add(game_time)
+            db.commit()
+        
+        # Update existing expeditions if they don't have time data
+        expeditions = db.query(Expedition).all()
+        for expedition in expeditions:
+            if not hasattr(expedition, 'start_day') or expedition.start_day is None:
+                expedition.start_day = game_time.current_day
+                expedition.duration_days = 7
+                expedition.return_day = game_time.current_day + 7
+        
+        db.commit()
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+    finally:
+        db.close()
+
+# Initialize database on startup
+initialize_database()
 
 # FastAPI app
 app = FastAPI(
@@ -741,6 +770,265 @@ def update_party_funds(
 # Create shared simulator instance
 simulator = DungeonSimulator()
 
+# --- Game Time Endpoints ---
+@app.get("/time/", response_model=GameTimeInfo)
+def get_game_time(db: Session = Depends(get_db)):
+    """Get the current game time"""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    return game_time
+
+@app.post("/time/advance/", response_class=HTMLResponse)
+def advance_game_time(request: Request,
+                      days: int = Form(1),
+                      db: Session = Depends(get_db)):
+    """Advance the game time by a specified number of days"""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
+    old_day = game_time.current_day
+    game_time.current_day += days
+    game_time.last_updated = datetime.now()
+    
+    # Check all expeditions if they have returned
+    check_returning_expeditions(old_day, game_time.current_day, db)
+    
+    db.commit()
+    db.refresh(game_time)
+    
+    # Count expeditions returned today for UI feedback
+    expeditions_returned = process_returns(db)
+    
+    # Get updated data for the time panel
+    active_expeditions = db.query(Expedition).filter(
+        Expedition.result == "in_progress"
+    ).all()
+    
+    unavailable_adventurers = db.query(Adventurer).filter(
+        Adventurer.is_available == False,
+        Adventurer.on_expedition == False
+    ).count()
+    
+    # Return updated time panel HTML
+    return templates.TemplateResponse(
+        "partials/time_panel.html", 
+        {
+            "request": request,
+            "game_time": game_time,
+            "active_expeditions": active_expeditions,
+            "unavailable_adventurers": unavailable_adventurers,
+            "expeditions_returned": expeditions_returned
+        }
+    )
+
+def check_returning_expeditions(old_day: int, new_day: int, db: Session):
+    """Check if any expeditions should return between the old and new days"""
+    # Find all in-progress expeditions that should return within the time span
+    returning_expeditions = db.query(Expedition).filter(
+        Expedition.result == "in_progress",
+        Expedition.return_day > old_day,
+        Expedition.return_day <= new_day
+    ).all()
+    
+    for expedition in returning_expeditions:
+        process_expedition_return(expedition, db)
+
+def process_expedition_return(expedition: Expedition, db: Session):
+    """Process the return of an expedition"""
+    # Set expedition as completed
+    expedition.result = "completed"
+    expedition.finished_at = datetime.now()
+    
+    # Get the party
+    party = db.query(Party).filter(Party.id == expedition.party_id).first()
+    if party:
+        # Update party status
+        party.on_expedition = False
+        party.current_expedition_id = None
+        
+        # Update all adventurers in the party
+        for member in party.members:
+            member.on_expedition = False
+            # Set the adventurer status based on health
+            if member.hp_current <= member.hp_max * 0.3:
+                member.expedition_status = "injured"
+                member.is_available = False
+            else:
+                member.expedition_status = "resting"
+                member.is_available = True
+    
+    # Run the expedition in the simulator to generate results
+    # This is a simplified version - the real implementation would have proper results generation
+    result = simulator.run_expedition_to_completion(expedition.id)
+    
+    # Apply expedition results (treasure, XP, etc.)
+    apply_expedition_results(expedition.id, result, db)
+    
+    db.commit()
+
+def apply_expedition_results(expedition_id: int, result: dict, db: Session):
+    """Apply the results of a completed expedition"""
+    expedition = db.query(Expedition).filter(Expedition.id == expedition_id).first()
+    if not expedition:
+        return
+    
+    party = db.query(Party).filter(Party.id == expedition.party_id).first()
+    if not party:
+        return
+    
+    # Process loot and XP
+    # This is simplified - real implementation would have more detailed processing
+    total_loot = result.get("treasure_total", 0)
+    xp_earned = result.get("xp_earned", 0)
+    
+    # Calculate loot splits (player gets 30%, party gets 70%)
+    loot_split = calculate_loot_split(total_loot, len(party.members), player_split=0.3)
+    
+    # Update party funds
+    party.funds += loot_split["adventurers_share"]
+    
+    # Update player treasury if party has a player
+    if party.player_id:
+        player = db.query(Player).filter(Player.id == party.player_id).first()
+        if player:
+            player.treasury += loot_split["player_treasury"]
+            player.total_score += loot_split["player_treasury"]
+    
+    # Update adventurers
+    xp_per_member = xp_earned // max(1, len(party.members))
+    for member in party.members:
+        member.xp += xp_per_member
+        member.gold += loot_split["individual_share"]
+        
+        # Handle injuries - simplified version
+        if member.name in result.get("dead_members", []):
+            member.hp_current = 1  # Nearly dead, needs healing
+            member.expedition_status = "injured"
+            member.is_available = False
+        else:
+            # Some damage from expedition
+            hp_loss = min(member.hp_current - 1, int(member.hp_max * 0.3))
+            member.hp_current -= hp_loss
+            
+            # Set status based on health
+            if member.hp_current < member.hp_max * 0.5:
+                member.expedition_status = "resting"
+                member.is_available = False
+            else:
+                member.expedition_status = "available"
+                member.is_available = True
+
+def process_returns(db: Session):
+    """Check for and process any expeditions that should return today"""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        return 0
+        
+    # Find expeditions that should return today
+    returning_expeditions = db.query(Expedition).filter(
+        Expedition.result == "in_progress",
+        Expedition.return_day == game_time.current_day
+    ).all()
+    
+    for expedition in returning_expeditions:
+        process_expedition_return(expedition, db)
+    
+    return len(returning_expeditions)
+
+@app.post("/time/skip-until-ready", response_class=HTMLResponse)
+def skip_until_ready(request: Request, db: Session = Depends(get_db)):
+    """Skip time until all expeditions have returned and all adventurers are available"""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
+    # Get the farthest return date of any expedition
+    farthest_expedition = db.query(Expedition).filter(
+        Expedition.result == "in_progress"
+    ).order_by(Expedition.return_day.desc()).first()
+    
+    # Check if we have any expeditions to wait for
+    days_to_advance = 0
+    expeditions_returned = 0
+    
+    if farthest_expedition:
+        days_to_advance = max(0, farthest_expedition.return_day - game_time.current_day)
+    
+    # If no expeditions but we have resting adventurers, skip a week to heal them
+    if days_to_advance == 0:
+        unavailable_adventurers = db.query(Adventurer).filter(
+            Adventurer.is_available == False,
+            Adventurer.on_expedition == False
+        ).count()
+        
+        if unavailable_adventurers > 0:
+            days_to_advance = 7  # Advance a week to heal adventurers
+    
+    # If anything to advance, do so
+    if days_to_advance > 0:
+        old_day = game_time.current_day
+        game_time.current_day += days_to_advance
+        game_time.last_updated = datetime.now()
+        
+        # Check expeditions that have returned
+        check_returning_expeditions(old_day, game_time.current_day, db)
+        expeditions_returned = process_returns(db)
+        
+        # Make resting adventurers available if they've had enough rest
+        resting_adventurers = db.query(Adventurer).filter(
+            Adventurer.is_available == False,
+            Adventurer.on_expedition == False
+        ).all()
+        
+        for adventurer in resting_adventurers:
+            # Heal adventurers during the time skip
+            hp_recovery = min(
+                adventurer.hp_max - adventurer.hp_current,  # Can't go above max
+                int(adventurer.hp_max * 0.1 * days_to_advance)  # 10% per day
+            )
+            adventurer.hp_current += hp_recovery
+            
+            # If above 50% health, make available
+            if adventurer.hp_current >= (adventurer.hp_max * 0.5):
+                adventurer.is_available = True
+                adventurer.expedition_status = "available"
+    
+    db.commit()
+    db.refresh(game_time)
+    
+    # Get updated data for the time panel
+    active_expeditions = db.query(Expedition).filter(
+        Expedition.result == "in_progress"
+    ).all()
+    
+    unavailable_adventurers = db.query(Adventurer).filter(
+        Adventurer.is_available == False,
+        Adventurer.on_expedition == False
+    ).count()
+    
+    # Return updated time panel HTML
+    return templates.TemplateResponse(
+        "partials/time_panel.html", 
+        {
+            "request": request,
+            "game_time": game_time,
+            "active_expeditions": active_expeditions,
+            "unavailable_adventurers": unavailable_adventurers,
+            "expeditions_returned": expeditions_returned
+        }
+    )
+
 # --- Expedition Endpoints ---
 @app.post("/expeditions/", response_model=ExpeditionResult)
 def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(get_db)):
@@ -757,6 +1045,18 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     # Check if party is already on an expedition
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Party is already on an expedition")
+    
+    # Get the current game day for timing the expedition
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
+    current_day = game_time.current_day
+    duration_days = expedition_data.duration_days if hasattr(expedition_data, 'duration_days') else 7
+    return_day = current_day + duration_days
     
     # Process supplies to bring on expedition
     supplies_to_bring = {}
@@ -847,6 +1147,9 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     # Create expedition record in database
     db_expedition = Expedition(
         party_id=party.id,
+        start_day=current_day,
+        duration_days=duration_days,
+        return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
         supplies_consumed={},  # Will be populated after expedition
@@ -886,131 +1189,39 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     
     db.commit()
     
-    # Run expedition to completion
-    result = simulator.run_expedition_to_completion(expedition_id)
+    # In the time-based system, don't run the expedition immediately
+    # Instead, return a placeholder result that tells the UI it's in progress
+    result = {
+        "expedition_id": db_expedition.id,
+        "party_id": party.id,
+        "dungeon_level": expedition_data.dungeon_level,
+        "turns": 0,  # No turns completed yet
+        "start_day": current_day,
+        "duration_days": duration_days,
+        "return_day": return_day,
+        "start_time": db_expedition.started_at,
+        "end_time": None,  # Not finished yet
+        "treasure_total": 0,  # Unknown until completion
+        "special_items": [],
+        "xp_earned": 0,  # Unknown until completion
+        "xp_per_party_member": 0,  # Unknown until completion
+        "resources_used": {"hp_lost": 0, "spells_used": 0, "supplies_used": 0},
+        "supplies_consumed": supplies_consumed,
+        "equipment_lost": {},  # Unknown until completion
+        "dead_members": [],  # Unknown until completion
+        "party_status": {
+            "members_total": len(party.members),
+            "members_alive": len(party.members),
+            "members_dead": 0,
+            "hp_current": sum(m.hp_current for m in party.members),
+            "hp_max": sum(m.hp_max for m in party.members),
+            "hp_percentage": (sum(m.hp_current for m in party.members) / 
+                             sum(m.hp_max for m in party.members)) * 100 if sum(m.hp_max for m in party.members) > 0 else 0
+        },
+        "log": []  # Will be populated during expedition
+    }
     
-    # Update expedition in database
-    db_expedition.finished_at = datetime.now()
-    db_expedition.result = "completed"
-    db_expedition.supplies_consumed = supplies_consumed
-    
-    # Handle potential equipment loss during expedition
-    # For this implementation, we'll have a 5% chance per adventurer to lose one equipped item
-    equipment_lost = {}
-    for member in party.members:
-        import random
-        if random.random() < 0.05:  # 5% chance to lose equipment
-            # Get one random equipped item
-            stmt = adventurer_equipment.select().where(
-                adventurer_equipment.c.adventurer_id == member.id,
-                adventurer_equipment.c.equipped == True
-            )
-            equipped_items = list(db.execute(stmt).all())
-            
-            if equipped_items:
-                lost_item = random.choice(equipped_items)
-                equipment = db.query(Equipment).filter(Equipment.id == lost_item.equipment_id).first()
-                
-                if equipment:
-                    # Record the loss for the expedition
-                    if member.name not in equipment_lost:
-                        equipment_lost[member.name] = []
-                    equipment_lost[member.name].append(equipment.name)
-                    
-                    # Remove the equipment from the adventurer
-                    if lost_item.quantity <= 1:
-                        # Remove entirely
-                        stmt = adventurer_equipment.delete().where(
-                            adventurer_equipment.c.adventurer_id == member.id,
-                            adventurer_equipment.c.equipment_id == lost_item.equipment_id
-                        )
-                    else:
-                        # Update quantity
-                        stmt = adventurer_equipment.update().where(
-                            adventurer_equipment.c.adventurer_id == member.id,
-                            adventurer_equipment.c.equipment_id == lost_item.equipment_id
-                        ).values(quantity=lost_item.quantity - 1)
-                    
-                    db.execute(stmt)
-    
-    db_expedition.equipment_lost = equipment_lost
-    
-    # Reset party expedition status
-    party.on_expedition = False
-    party.current_expedition_id = None
-    
-    # Store the detailed results as JSON in the log field
-    for node_result in result["log"]:
-        exp_node = ExpeditionNodeResult(
-            expedition_id=db_expedition.id,
-            node_id=1,  # Default node for now
-            success=True,
-            xp_earned=int(result["xp_earned"] / len(result["log"])),
-            loot=int(result["treasure_total"] / len(result["log"])),
-            log=json.dumps(node_result)
-        )
-        db.add(exp_node)
-    
-    # Store individual adventurer logs
-    for member in party.members:
-        is_dead = member.name in result["dead_members"]
-        log = ExpeditionLog(
-            expedition_id=db_expedition.id,
-            adventurer_id=member.id,
-            xp_share=int(result["xp_per_party_member"]),
-            hp_change=-10 if is_dead else -5,  # Simplified HP loss
-            status="dead" if is_dead else "alive"
-        )
-        db.add(log)
-        
-        # Update adventurer stats
-        member.xp += int(result["xp_per_party_member"])
-        
-        if is_dead:
-            member.hp_current = 1  # Reduced to 1 HP if dead
-            member.expedition_status = "injured"
-        else:
-            member.hp_current = max(1, member.hp_current - 5)  # Some HP loss
-            member.expedition_status = "resting"
-        
-        # Reset expedition status but keep availability restricted for recovery period
-        member.on_expedition = False
-        member.is_available = member.hp_current > (member.hp_max / 2)  # Only available if over half health
-    
-    # Calculate loot split (70% to party/adventurers, 30% to player treasury)
-    total_loot = result["treasure_total"]
-    party_size = len(party.members)
-    
-    # Use the loot split calculation function
-    loot_split = calculate_loot_split(total_loot, party_size, player_split=0.3)
-    
-    # Add adventurers' share to party funds
-    party.funds += loot_split["adventurers_share"]
-    
-    # Add treasury share to player if party is associated with a player
-    if party.player_id:
-        player = db.query(Player).filter(Player.id == party.player_id).first()
-        if player:
-            # Add to player's treasury
-            player.treasury += loot_split["player_treasury"]
-            # Add to total score (keeps track of all gold ever collected)
-            player.total_score += loot_split["player_treasury"]
-            
-    # Update individual adventurer gold amounts
-    if loot_split["individual_share"] > 0:
-        for member in party.members:
-            member.gold += loot_split["individual_share"]
-    
-    # Add the loot split information to the result
-    result["loot_split"] = loot_split
-            
-    db.commit()
-    
-    # Add supplies and equipment info to the result
-    result["supplies_consumed"] = supplies_consumed
-    result["equipment_lost"] = equipment_lost
-    
-    # Return full expedition results
+    # Return expedition status
     return result
 
 @app.get("/expeditions/{expedition_id}", response_model=ExpeditionResult)
@@ -1021,14 +1232,72 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
     if not db_expedition:
         raise HTTPException(status_code=404, detail="Expedition not found")
     
+    # Get the current game day
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
+    # Get party data
+    party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
+    
+    # If expedition is still in progress, return a status update
+    if db_expedition.result == "in_progress":
+        days_elapsed = max(0, min(game_time.current_day - db_expedition.start_day, db_expedition.duration_days))
+        progress_percentage = (days_elapsed / db_expedition.duration_days) * 100
+        days_remaining = max(0, db_expedition.return_day - game_time.current_day)
+        
+        # Create a result object for in-progress expedition
+        result = {
+            "expedition_id": expedition_id,
+            "party_id": db_expedition.party_id,
+            "dungeon_level": 1,  # Default
+            "turns": days_elapsed,  # Use days as turns for display
+            "start_day": db_expedition.start_day,
+            "duration_days": db_expedition.duration_days,
+            "return_day": db_expedition.return_day,
+            "start_time": db_expedition.started_at,
+            "end_time": None,  # Not finished yet
+            "treasure_total": 0,  # Unknown until completion
+            "special_items": [],
+            "xp_earned": 0,
+            "xp_per_party_member": 0,
+            "resources_used": {"hp_lost": 0, "spells_used": 0, "supplies_used": 0},
+            "supplies_consumed": db_expedition.supplies_consumed or {},
+            "equipment_lost": {},
+            "dead_members": [],
+            "party_status": {
+                "members_total": len(party.members) if party else 0,
+                "members_alive": len(party.members) if party else 0,
+                "members_dead": 0,
+                "hp_current": sum(m.hp_current for m in party.members) if party else 0,
+                "hp_max": sum(m.hp_max for m in party.members) if party else 0,
+                "hp_percentage": (sum(m.hp_current for m in party.members) / 
+                                 sum(m.hp_max for m in party.members)) * 100 if party and sum(m.hp_max for m in party.members) > 0 else 0
+            },
+            "log": [],
+            "days_remaining": days_remaining,
+            "progress_percentage": progress_percentage,
+            "party_members_ready_for_level_up": []
+        }
+        
+        return result
+    
+    # For completed expeditions, return full results
     try:
         # Try to get results from simulator
         result = simulator.get_expedition_results(expedition_id)
         
+        # Add time data to the results
+        result["start_day"] = db_expedition.start_day
+        result["duration_days"] = db_expedition.duration_days
+        result["return_day"] = db_expedition.return_day
+        
         # Add level-up eligibility for party members
         if "party_members_ready_for_level_up" not in result:
             # Get party and check for members who can level up
-            party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
             if party:
                 members_ready = []
                 for member in party.members:
@@ -1044,7 +1313,6 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
         return result
     except ValueError:
         # If not in simulator, create a response from database records
-        party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
         node_results = db.query(ExpeditionNodeResult).filter(
             ExpeditionNodeResult.expedition_id == expedition_id
         ).all()
@@ -1090,6 +1358,9 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
             "party_id": db_expedition.party_id,
             "dungeon_level": 1,  # Default
             "turns": len(node_results),
+            "start_day": db_expedition.start_day,
+            "duration_days": db_expedition.duration_days,
+            "return_day": db_expedition.return_day,
             "start_time": db_expedition.started_at,
             "end_time": db_expedition.finished_at,
             "treasure_total": sum(node.loot for node in node_results),
@@ -1097,6 +1368,8 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
             "xp_earned": sum(node.xp_earned for node in node_results),
             "xp_per_party_member": sum(node.xp_earned for node in node_results) / max(1, len(party.members)) if party else 0,
             "resources_used": {"hp_lost": 0, "spells_used": 0, "supplies_used": 0},
+            "supplies_consumed": db_expedition.supplies_consumed or {},
+            "equipment_lost": db_expedition.equipment_lost or {},
             "dead_members": [log.adventurer.name for log in expedition_logs if log.status == "dead"],
             "party_status": party_status,
             "log": log,
@@ -1187,6 +1460,25 @@ def index(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(player)
     
+    # Get current game day
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
+    # Get active expeditions for time panel
+    active_expeditions = db.query(Expedition).filter(
+        Expedition.result == "in_progress"
+    ).all()
+    
+    # Check if any adventurers are unavailable due to rest/recovery
+    unavailable_adventurers = db.query(Adventurer).filter(
+        Adventurer.is_available == False,
+        Adventurer.on_expedition == False
+    ).count()
+    
     return templates.TemplateResponse(
         "index.html", 
         {
@@ -1196,7 +1488,10 @@ def index(request: Request, db: Session = Depends(get_db)):
             "expedition_count": expedition_count,
             "recent_expeditions": recent_expeditions,
             "treasury_gold": player.treasury,
-            "total_score": player.total_score
+            "total_score": player.total_score,
+            "game_time": game_time,
+            "active_expeditions": active_expeditions,
+            "unavailable_adventurers": unavailable_adventurers
         }
     )
 
@@ -1374,9 +1669,22 @@ def expeditions_page(request: Request, db: Session = Depends(get_db)):
     if player:
         treasury_gold = player.treasury
     
+    # Get current game day
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
     return templates.TemplateResponse(
         "expeditions.html", 
-        {"request": request, "active_expeditions": active_expeditions, "treasury_gold": treasury_gold}
+        {
+            "request": request, 
+            "active_expeditions": active_expeditions, 
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
     )
 
 @app.get("/expeditions/active", response_class=HTMLResponse)
@@ -1398,9 +1706,23 @@ def active_expeditions(request: Request, db: Session = Depends(get_db)):
     if player:
         treasury_gold = player.treasury
     
+    # Get current game day
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime()
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
     return templates.TemplateResponse(
         "partials/active_expeditions.html", 
-        {"request": request, "active_expeditions": active_expeditions, "expedition_parties": expedition_parties, "treasury_gold": treasury_gold}
+        {
+            "request": request, 
+            "active_expeditions": active_expeditions, 
+            "expedition_parties": expedition_parties, 
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
     )
 
 @app.get("/expeditions/completed", response_class=HTMLResponse)

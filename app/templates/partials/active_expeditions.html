@@ -5,30 +5,41 @@
             <div class="flex justify-between items-center mb-4">
                 <div>
                     <h2 class="text-xl font-bold">{{ expedition.party.name }}</h2>
-                    <p class="text-sm text-gray-600">Started: {{ expedition.started_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p class="text-sm text-gray-600">Started: Day {{ expedition.start_day }} ({{ expedition.started_at.strftime('%Y-%m-%d') }})</p>
+                    <p class="text-sm text-gray-600">Returns: Day {{ expedition.return_day }}</p>
                 </div>
-                <button class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                        hx-get="/expeditions/{{ expedition.id }}/advance"
-                        hx-target="#expedition-{{ expedition.id }}-log">
-                    Advance Turn
-                </button>
+                <div class="text-right">
+                    <a href="/expeditions/{{ expedition.id }}" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 inline-block mb-2">
+                        View Details
+                    </a>
+                </div>
             </div>
             
             <div class="mb-4">
                 <div class="w-full bg-gray-200 rounded-full h-4">
-                    {% set progress = expedition.node_results|length * 10 %}
+                    {% set days_elapsed = game_time.current_day - expedition.start_day %}
+                    {% set progress = (days_elapsed / expedition.duration_days) * 100 %}
                     {% if progress > 100 %}{% set progress = 100 %}{% endif %}
                     <div class="bg-blue-600 h-4 rounded-full" style="width: {{ progress }}%"></div>
                 </div>
                 <div class="flex justify-between text-sm mt-1">
-                    <span>Turn {{ expedition.node_results|length }}</span>
-                    <span>{{ progress }}% complete</span>
+                    <span>Day {{ days_elapsed }} of {{ expedition.duration_days }}</span>
+                    <span>{{ progress|int }}% complete</span>
                 </div>
             </div>
             
-            <div id="expedition-{{ expedition.id }}-log" class="space-y-2 max-h-60 overflow-y-auto bg-white p-3 rounded">
-                <!-- Log entries will be loaded here -->
-                <p class="text-center text-gray-500">Click "Advance Turn" to progress the expedition</p>
+            <div class="flex justify-between items-center bg-white p-3 rounded">
+                <div>
+                    <span class="font-bold">Status:</span> 
+                    {% if game_time.current_day >= expedition.return_day %}
+                        <span class="text-green-600 font-bold">Ready to return!</span>
+                    {% else %}
+                        <span class="text-blue-600">In progress ({{ expedition.return_day - game_time.current_day }} days remaining)</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <span class="font-bold">Party:</span> {{ expedition.party.members|length }} adventurers
+                </div>
             </div>
         </div>
         {% endfor %}

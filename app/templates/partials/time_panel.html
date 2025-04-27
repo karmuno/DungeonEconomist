@@ -1,0 +1,71 @@
+<div class="bg-blue-50 border-2 border-blue-600 rounded-lg p-4" id="time-panel">
+    <div class="flex justify-between items-center mb-3">
+        <h2 class="text-2xl font-bold text-blue-800">Game Time</h2>
+        <div class="text-3xl font-bold text-blue-800">Day {{ game_time.current_day }}</div>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-4 mb-3">
+        <div class="bg-white rounded p-3 shadow-sm">
+            <h3 class="font-bold text-blue-600">Active Expeditions</h3>
+            <p class="text-2xl">{{ active_expeditions|length }}</p>
+            {% if active_expeditions %}
+                <div class="mt-2 text-sm">
+                    {% for exp in active_expeditions %}
+                        <div class="mb-1">
+                            {{ exp.party.name }} - Returns on Day {{ exp.return_day }}
+                            {% if exp.return_day <= game_time.current_day %}
+                            <span class="text-green-600 font-bold">(Ready!)</span>
+                            {% else %}
+                            <span class="text-gray-600">({{ exp.return_day - game_time.current_day }} days left)</span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        <div class="bg-white rounded p-3 shadow-sm">
+            <h3 class="font-bold text-blue-600">Resting Adventurers</h3>
+            <p class="text-2xl">{{ unavailable_adventurers }}</p>
+            {% if expeditions_returned %}
+                <div class="mt-2 text-green-600 font-bold">
+                    {{ expeditions_returned }} expeditions just returned!
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="flex justify-between">
+        <button 
+            hx-post="/time/advance/"
+            hx-vals='{"days": 1}'
+            hx-target="#time-panel"
+            hx-swap="outerHTML"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Next Day
+        </button>
+        
+        <button 
+            hx-post="/time/advance/"
+            hx-vals='{"days": 7}'
+            hx-target="#time-panel"
+            hx-swap="outerHTML"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Skip Week
+        </button>
+        
+        {% if unavailable_adventurers > 0 or active_expeditions|length > 0 %}
+        <button 
+            hx-post="/time/skip-until-ready"
+            hx-target="#time-panel"
+            hx-swap="outerHTML"
+            class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+            Skip Until Ready
+        </button>
+        {% else %}
+        <button disabled
+            class="bg-gray-400 cursor-not-allowed text-white font-bold py-2 px-4 rounded">
+            Skip Until Ready
+        </button>
+        {% endif %}
+    </div>
+</div>

@@ -1,9 +1,18 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Enum, Boolean, Text, Float, JSON
+from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Enum, Boolean, Text, Float, JSON, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 import enum
+from datetime import datetime, timedelta
 
 Base = declarative_base()
+
+class GameTime(Base):
+    __tablename__ = 'game_time'
+    
+    id = Column(Integer, primary_key=True)
+    current_day = Column(Integer, default=1)
+    day_started_at = Column(DateTime, default=datetime.now)
+    last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 class Player(Base):
     __tablename__ = 'players'
@@ -126,7 +135,7 @@ class Party(Base):
     
     members = relationship('Adventurer', secondary=party_adventurer, back_populates='parties')
     expeditions = relationship('Expedition', foreign_keys='Expedition.party_id', back_populates='party')
-    current_expedition = relationship('Expedition', foreign_keys='Party.current_expedition_id', post_update=True)
+    current_expedition = relationship('Expedition', foreign_keys=[current_expedition_id], post_update=True)
     player = relationship('Player', back_populates='parties')
     # Supplies are accessed through backref
 
@@ -143,13 +152,16 @@ class Expedition(Base):
 
     id = Column(Integer, primary_key=True)
     party_id = Column(Integer, ForeignKey('parties.id'), nullable=False)
+    start_day = Column(Integer, nullable=False)  # Game day when expedition started
+    duration_days = Column(Integer, default=7)  # Default expedition duration in days
+    return_day = Column(Integer, nullable=False)  # Game day when expedition will return
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
-    result = Column(String)  # e.g., 'success', 'failure'
+    result = Column(String)  # e.g., 'in_progress', 'completed', 'success', 'failure'
     supplies_consumed = Column(JSON, nullable=True)  # Tracks supplies consumed during expedition
     equipment_lost = Column(JSON, nullable=True)  # Tracks equipment lost/broken during expedition
 
-    party = relationship('Party', back_populates='expeditions')
+    party = relationship('Party', foreign_keys=[party_id], back_populates='expeditions')
     node_results = relationship('ExpeditionNodeResult', back_populates='expedition')
 
 class ExpeditionNodeResult(Base):

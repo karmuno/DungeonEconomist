@@ -20,6 +20,20 @@
                     </div>
                 </div>
                 
+                <div>
+                    <label for="duration_days" class="block text-sm font-medium text-gray-700">Expedition Duration (Days)</label>
+                    <div class="flex items-center mt-1">
+                        <input type="range" id="duration_days" name="duration_days" min="3" max="14" value="7"
+                               class="flex-grow mr-2"
+                               oninput="document.getElementById('duration-value').innerText = this.value">
+                        <span id="duration-value" class="bg-gray-200 px-2 py-1 rounded w-8 text-center">7</span>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>Shorter</span>
+                        <span>Longer</span>
+                    </div>
+                </div>
+                
                 <div class="bg-gray-100 p-3 rounded">
                     <h4 class="font-medium mb-2">Party Members ({{ party.members|length }})</h4>
                     <div class="space-y-1 max-h-40 overflow-y-auto">
