@@ -1,0 +1,82 @@
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+    {% for adventurer in adventurers %}
+    <div class="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow duration-200"
+         hx-get="/adventurers/{{ adventurer.id }}"
+         hx-target="#modal-content"
+         hx-trigger="click"
+         onclick="document.getElementById('modal').classList.remove('hidden')">
+        <div class="flex justify-between items-center bg-gray-100 px-4 py-2 border-b border-gray-200">
+            <h3 class="font-bold">{{ adventurer.name }}</h3>
+            <span class="
+                {% if adventurer.is_available %}
+                    bg-green-100 text-green-800
+                {% elif adventurer.on_expedition %}
+                    bg-orange-100 text-orange-800
+                {% elif adventurer.expedition_status == 'healing' %}
+                    bg-red-100 text-red-800
+                {% elif adventurer.expedition_status == 'injured' %}
+                    bg-red-100 text-red-800
+                {% elif adventurer.expedition_status == 'resting' %}
+                    bg-yellow-100 text-yellow-800
+                {% else %}
+                    bg-gray-100 text-gray-800
+                {% endif %} px-2 py-1 rounded-full text-xs">
+                {% if adventurer.is_available %}
+                    Available
+                {% elif adventurer.on_expedition %}
+                    On Expedition
+                {% elif adventurer.expedition_status == 'healing' %}
+                    Healing
+                    {% if adventurer.healing_until_day %}
+                        ({{ adventurer.healing_until_day - game_time.current_day }} days)
+                    {% endif %}
+                {% elif adventurer.expedition_status == 'injured' %}
+                    Injured
+                    {% if adventurer.healing_until_day %}
+                        ({{ adventurer.healing_until_day - game_time.current_day }} days)
+                    {% endif %}
+                {% elif adventurer.expedition_status == 'resting' %}
+                    Resting
+                {% else %}
+                    Unavailable
+                {% endif %}
+            </span>
+        </div>
+        <div class="p-4">
+            <div class="flex justify-between mb-2">
+                <span class="text-sm text-gray-500">{{ adventurer.adventurer_class.value }}</span>
+                <span class="text-sm font-medium">Lvl {{ adventurer.level }}</span>
+            </div>
+            
+            <div class="flex justify-between mb-2">
+                <span class="text-sm">HP</span>
+                <span class="text-sm font-medium">
+                    <div class="w-32 bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mr-2 inline-block align-middle">
+                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ (adventurer.hp_current / adventurer.hp_max) * 100 }}%"></div>
+                    </div>
+                    {{ adventurer.hp_current }}/{{ adventurer.hp_max }}
+                </span>
+            </div>
+            
+            <div class="flex justify-between mb-2">
+                <span class="text-sm">XP</span>
+                <span class="text-sm font-medium">{{ adventurer.xp }}</span>
+            </div>
+            
+            {% if adventurer.xp_progress is not none %}
+            <div class="flex justify-between">
+                <span class="text-sm">To Next Level</span>
+                <div class="w-24 bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                    <div class="bg-green-600 h-2.5 rounded-full" style="width: {{ adventurer.xp_progress }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="flex justify-between mt-3">
+                <span class="text-sm">Gold</span>
+                <span class="text-sm font-medium">{{ adventurer.gold }}</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>

@@ -1,14 +1,9 @@
 # MVP Build Plan
 
 ## Next Steps
-1. ~~Add treasury counter to UI for score tracking~~ ✅
-2. Create healing/recovery mechanics
-3. Implement upkeep costs between expeditions
-
-## Completed Tasks
-1. ~~Implement treasury system with loot split (70/30)~~ ✅
-2. ~~Create Player model with treasury tracking~~ ✅
-3. ~~Implement gold/treasure distribution~~ ✅
+1. Implement party formation interface 
+2. Implement upkeep costs between expeditions
+3. Add more advanced equipment management
 
 ## Complete Task List
 
@@ -46,7 +41,7 @@
 - [x] Implement class-specific progression benefits
 
 ### Frontend/UI
-- [ ] Create HTMX-based templates for viewing adventurers
+- [x] Create HTMX-based templates for viewing adventurers
 - [ ] Implement party formation interface
 - [ ] Build expedition launch and management screens
 - [ ] Design expedition log viewer
@@ -57,7 +52,7 @@
 - [x] Implement treasury system with loot split (70% adventurers, 30% treasury)
 - [x] Create Player model with treasury and total_score fields
 - [x] Add treasury counter to UI for tracking player score
-- [ ] Add healing/recovery mechanics
+- [x] Add healing/recovery mechanics
 - [ ] Create upkeep costs between expeditions
 - [ ] Balance risk vs. reward for different dungeon difficulties
 

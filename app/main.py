@@ -1547,7 +1547,13 @@ def index(request: Request, db: Session = Depends(get_db)):
 @app.get("/adventurers", response_class=HTMLResponse)
 def adventurers_page(request: Request, db: Session = Depends(get_db)):
     """Render the adventurers page"""
-    adventurers = db.query(Adventurer).all()
+    adventurers = db.query(Adventurer).order_by(Adventurer.name).all()
+    
+    # Add progression data to each adventurer
+    adventurers = [add_progression_data(adv) for adv in adventurers]
+    
+    # Get current game time for healing days remaining
+    game_time = db.query(GameTime).first()
     
     # Get treasury total from the first player for header display
     treasury_gold = 0
@@ -1557,7 +1563,12 @@ def adventurers_page(request: Request, db: Session = Depends(get_db)):
     
     return templates.TemplateResponse(
         "adventurers.html", 
-        {"request": request, "adventurers": adventurers, "treasury_gold": treasury_gold}
+        {
+            "request": request, 
+            "adventurers": adventurers, 
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
     )
 
 @app.get("/adventurers/create-form", response_class=HTMLResponse)
@@ -1580,6 +1591,8 @@ def filter_adventurers(
     class_filter: str = None, 
     availability_filter: str = None,
     expedition_filter: str = None,
+    view_type: str = "list",
+    sort_by: str = "name",
     db: Session = Depends(get_db)
 ):
     """Filter adventurers by class, availability and expedition status"""
@@ -1596,14 +1609,35 @@ def filter_adventurers(
     if expedition_filter:
         if expedition_filter == "on_expedition":
             query = query.filter(Adventurer.on_expedition == True)
+        elif expedition_filter == "healing":
+            query = query.filter(Adventurer.expedition_status == "healing")
         elif expedition_filter == "resting":
             query = query.filter(Adventurer.expedition_status == "resting")
         elif expedition_filter == "injured":
             query = query.filter(Adventurer.expedition_status == "injured")
-        elif expedition_filter == "active":
-            query = query.filter(Adventurer.expedition_status == "active")
+        elif expedition_filter == "available":
+            query = query.filter(Adventurer.expedition_status == "available")
+    
+    # Apply sorting
+    if sort_by == "level":
+        query = query.order_by(Adventurer.level.desc())
+    elif sort_by == "class":
+        query = query.order_by(Adventurer.adventurer_class)
+    elif sort_by == "hp":
+        # Sort by percentage of hp remaining
+        query = query.order_by(Adventurer.hp_current / Adventurer.hp_max)
+    elif sort_by == "xp":
+        query = query.order_by(Adventurer.xp.desc())
+    else:  # Default sort by name
+        query = query.order_by(Adventurer.name)
     
     adventurers = query.all()
+    
+    # Add progression data to each adventurer
+    adventurers = [add_progression_data(adv) for adv in adventurers]
+    
+    # Get current game time for healing days remaining
+    game_time = db.query(GameTime).first()
     
     # Get treasury total from the first player for header display
     treasury_gold = 0
@@ -1611,28 +1645,219 @@ def filter_adventurers(
     if player:
         treasury_gold = player.treasury
     
+    # Choose template based on view_type
+    template = "partials/adventurer_list.html"
+    if view_type == "card":
+        template = "partials/adventurer_card_view.html"
+    
     return templates.TemplateResponse(
-        "partials/adventurer_list.html", 
-        {"request": request, "adventurers": adventurers, "treasury_gold": treasury_gold}
+        template, 
+        {
+            "request": request, 
+            "adventurers": adventurers, 
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
     )
 
 @app.get("/adventurers/search", response_class=HTMLResponse)
-def search_adventurers(request: Request, search: str = "", db: Session = Depends(get_db)):
+def search_adventurers(
+    request: Request, 
+    search: str = "", 
+    view_type: str = "list",
+    db: Session = Depends(get_db)
+):
     """Search adventurers by name"""
     if search:
         adventurers = db.query(Adventurer).filter(Adventurer.name.ilike(f"%{search}%")).all()
     else:
         adventurers = db.query(Adventurer).all()
     
+    # Add progression data to each adventurer
+    adventurers = [add_progression_data(adv) for adv in adventurers]
+    
+    # Get current game time for healing days remaining
+    game_time = db.query(GameTime).first()
+    
     # Get treasury total from the first player for header display
     treasury_gold = 0
     player = db.query(Player).first()
     if player:
         treasury_gold = player.treasury
+    
+    # Choose template based on view_type
+    template = "partials/adventurer_list.html"
+    if view_type == "card":
+        template = "partials/adventurer_card_view.html"
         
     return templates.TemplateResponse(
-        "partials/adventurer_list.html", 
-        {"request": request, "adventurers": adventurers, "treasury_gold": treasury_gold}
+        template, 
+        {
+            "request": request, 
+            "adventurers": adventurers, 
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
+    )
+
+@app.get("/adventurers/view", response_class=HTMLResponse)
+def toggle_adventurer_view(
+    request: Request,
+    type: str = "list",
+    class_filter: str = None,
+    availability_filter: str = None,
+    expedition_filter: str = None,
+    search: str = "",
+    sort_by: str = "name",
+    db: Session = Depends(get_db)
+):
+    """Toggle between list and card views for adventurers"""
+    # Build query with all the filters
+    query = db.query(Adventurer)
+    
+    if class_filter:
+        query = query.filter(Adventurer.adventurer_class == class_filter)
+    
+    if availability_filter == "available":
+        query = query.filter(Adventurer.is_available == True)
+    elif availability_filter == "unavailable":
+        query = query.filter(Adventurer.is_available == False)
+    
+    if expedition_filter:
+        if expedition_filter == "on_expedition":
+            query = query.filter(Adventurer.on_expedition == True)
+        elif expedition_filter == "healing":
+            query = query.filter(Adventurer.expedition_status == "healing")
+        elif expedition_filter == "resting":
+            query = query.filter(Adventurer.expedition_status == "resting")
+        elif expedition_filter == "injured":
+            query = query.filter(Adventurer.expedition_status == "injured")
+        elif expedition_filter == "available":
+            query = query.filter(Adventurer.expedition_status == "available")
+    
+    if search:
+        query = query.filter(Adventurer.name.ilike(f"%{search}%"))
+    
+    # Apply sorting
+    if sort_by == "level":
+        query = query.order_by(Adventurer.level.desc())
+    elif sort_by == "class":
+        query = query.order_by(Adventurer.adventurer_class)
+    elif sort_by == "hp":
+        # Sort by percentage of hp remaining
+        query = query.order_by(Adventurer.hp_current / Adventurer.hp_max)
+    elif sort_by == "xp":
+        query = query.order_by(Adventurer.xp.desc())
+    else:  # Default sort by name
+        query = query.order_by(Adventurer.name)
+    
+    adventurers = query.all()
+    
+    # Add progression data to each adventurer
+    adventurers = [add_progression_data(adv) for adv in adventurers]
+    
+    # Get current game time for healing days remaining
+    game_time = db.query(GameTime).first()
+    
+    # Get treasury total
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
+    # Select template based on view type
+    template = "partials/adventurer_list.html"
+    if type == "card":
+        template = "partials/adventurer_card_view.html"
+    
+    return templates.TemplateResponse(
+        template,
+        {
+            "request": request,
+            "adventurers": adventurers,
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
+    )
+
+@app.get("/adventurers/sort", response_class=HTMLResponse)
+def sort_adventurers(
+    request: Request,
+    sort_by: str = "name",
+    view_type: str = "list",
+    class_filter: str = None,
+    availability_filter: str = None,
+    expedition_filter: str = None,
+    search: str = "",
+    db: Session = Depends(get_db)
+):
+    """Sort adventurers by different criteria"""
+    # Build query with all the filters
+    query = db.query(Adventurer)
+    
+    if class_filter:
+        query = query.filter(Adventurer.adventurer_class == class_filter)
+    
+    if availability_filter == "available":
+        query = query.filter(Adventurer.is_available == True)
+    elif availability_filter == "unavailable":
+        query = query.filter(Adventurer.is_available == False)
+    
+    if expedition_filter:
+        if expedition_filter == "on_expedition":
+            query = query.filter(Adventurer.on_expedition == True)
+        elif expedition_filter == "healing":
+            query = query.filter(Adventurer.expedition_status == "healing")
+        elif expedition_filter == "resting":
+            query = query.filter(Adventurer.expedition_status == "resting")
+        elif expedition_filter == "injured":
+            query = query.filter(Adventurer.expedition_status == "injured")
+        elif expedition_filter == "available":
+            query = query.filter(Adventurer.expedition_status == "available")
+    
+    if search:
+        query = query.filter(Adventurer.name.ilike(f"%{search}%"))
+    
+    # Apply sorting
+    if sort_by == "level":
+        query = query.order_by(Adventurer.level.desc())
+    elif sort_by == "class":
+        query = query.order_by(Adventurer.adventurer_class)
+    elif sort_by == "hp":
+        # Sort by percentage of hp remaining
+        query = query.order_by(Adventurer.hp_current / Adventurer.hp_max)
+    elif sort_by == "xp":
+        query = query.order_by(Adventurer.xp.desc())
+    else:  # Default sort by name
+        query = query.order_by(Adventurer.name)
+    
+    adventurers = query.all()
+    
+    # Add progression data to each adventurer
+    adventurers = [add_progression_data(adv) for adv in adventurers]
+    
+    # Get current game time for healing days remaining
+    game_time = db.query(GameTime).first()
+    
+    # Get treasury total
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
+    # Select template based on view type
+    template = "partials/adventurer_list.html"
+    if view_type == "card":
+        template = "partials/adventurer_card_view.html"
+    
+    return templates.TemplateResponse(
+        template,
+        {
+            "request": request,
+            "adventurers": adventurers,
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
     )
 
 @app.get("/adventurers/{adventurer_id}", response_class=HTMLResponse)
@@ -1642,6 +1867,12 @@ def get_adventurer_details(request: Request, adventurer_id: int, db: Session = D
     if not adventurer:
         raise HTTPException(status_code=404, detail="Adventurer not found")
     
+    # Add progression data
+    adventurer = add_progression_data(adventurer)
+    
+    # Get current game time for healing days remaining
+    game_time = db.query(GameTime).first()
+    
     # Get treasury total from the first player for header display
     treasury_gold = 0
     player = db.query(Player).first()
@@ -1650,7 +1881,12 @@ def get_adventurer_details(request: Request, adventurer_id: int, db: Session = D
         
     return templates.TemplateResponse(
         "partials/adventurer_details.html", 
-        {"request": request, "adventurer": adventurer, "treasury_gold": treasury_gold}
+        {
+            "request": request, 
+            "adventurer": adventurer, 
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
     )
 
 @app.get("/parties", response_class=HTMLResponse)

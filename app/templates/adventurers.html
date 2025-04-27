@@ -4,109 +4,137 @@
 
 {% block content %}
 <div class="bg-white shadow-md rounded-lg p-6">
+    <!-- Header with Title and Actions -->
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-3xl font-bold">Adventurers</h1>
-        <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                hx-get="/adventurers/create-form"
-                hx-target="#modal-content"
-                hx-trigger="click"
-                onclick="document.getElementById('modal').classList.remove('hidden')">
-            New Adventurer
-        </button>
+        <div class="flex space-x-3">
+            <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                    hx-get="/adventurers/create-form"
+                    hx-target="#modal-content"
+                    hx-trigger="click"
+                    onclick="document.getElementById('modal').classList.remove('hidden')">
+                New Adventurer
+            </button>
+        </div>
     </div>
     
-    <!-- Filters -->
+    <!-- Filters and View Controls -->
     <div class="mb-6 bg-gray-100 p-4 rounded-lg">
-        <h2 class="text-lg font-semibold mb-2">Filters</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-semibold">Filters</h2>
+            
+            <!-- View Toggle Buttons -->
+            <div class="flex space-x-2">
+                <button id="list-view-btn" 
+                        class="px-3 py-1 rounded bg-blue-600 text-white"
+                        hx-get="/adventurers/view?type=list"
+                        hx-target="#adventurer-view-container"
+                        hx-include="#class-filter,#status-filter,#expedition-filter,#search"
+                        hx-trigger="click"
+                        onclick="toggleViewActive('list-view-btn')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    List
+                </button>
+                <button id="card-view-btn" 
+                        class="px-3 py-1 rounded bg-gray-300"
+                        hx-get="/adventurers/view?type=card"
+                        hx-target="#adventurer-view-container"
+                        hx-include="#class-filter,#status-filter,#expedition-filter,#search"
+                        hx-trigger="click"
+                        onclick="toggleViewActive('card-view-btn')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    Cards
+                </button>
+            </div>
+        </div>
+        
+        <!-- Filter Controls -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
                 <label for="class-filter" class="block text-sm font-medium text-gray-700">Class</label>
-                <select id="class-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                <select id="class-filter" name="class_filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                         hx-get="/adventurers/filter" 
-                        hx-target="#adventurer-list"
-                        hx-include="[name='availability-filter']">
+                        hx-target="#adventurer-view-container"
+                        hx-include="#status-filter,#expedition-filter">
                     <option value="">All Classes</option>
                     <option value="Fighter">Fighter</option>
                     <option value="Cleric">Cleric</option>
                     <option value="Magic-User">Magic-User</option>
-                    <option value="Thief">Thief</option>
                     <option value="Elf">Elf</option>
                     <option value="Dwarf">Dwarf</option>
                     <option value="Hobbit">Hobbit</option>
                 </select>
             </div>
             <div>
-                <label for="availability-filter" class="block text-sm font-medium text-gray-700">Availability</label>
-                <select id="availability-filter" name="availability-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                <label for="status-filter" class="block text-sm font-medium text-gray-700">Availability</label>
+                <select id="status-filter" name="availability_filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                         hx-get="/adventurers/filter" 
-                        hx-target="#adventurer-list"
-                        hx-include="#class-filter">
+                        hx-target="#adventurer-view-container"
+                        hx-include="#class-filter,#expedition-filter">
                     <option value="">All</option>
                     <option value="available">Available</option>
-                    <option value="unavailable">On Expedition</option>
+                    <option value="unavailable">Unavailable</option>
+                </select>
+            </div>
+            <div>
+                <label for="expedition-filter" class="block text-sm font-medium text-gray-700">Status</label>
+                <select id="expedition-filter" name="expedition_filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                        hx-get="/adventurers/filter" 
+                        hx-target="#adventurer-view-container"
+                        hx-include="#class-filter,#status-filter">
+                    <option value="">Any Status</option>
+                    <option value="available">Available</option>
+                    <option value="on_expedition">On Expedition</option>
+                    <option value="healing">Healing</option>
+                    <option value="injured">Injured</option>
+                    <option value="resting">Resting</option>
                 </select>
             </div>
             <div>
                 <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
-                <input type="text" id="search" placeholder="Search by name..." 
+                <input type="text" id="search" name="search" placeholder="Search by name..." 
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                        hx-get="/adventurers/search"
-                       hx-target="#adventurer-list"
+                       hx-target="#adventurer-view-container"
                        hx-trigger="keyup changed delay:500ms">
             </div>
         </div>
     </div>
     
-    <!-- Adventurer List -->
-    <div id="adventurer-list" class="overflow-x-auto">
-        <table class="min-w-full bg-white">
-            <thead>
-                <tr>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Name</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Class</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Level</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">HP</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">XP</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Gold</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Status</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for adventurer in adventurers %}
-                <tr>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.name }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.adventurer_class.value }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.level }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.hp_current }}/{{ adventurer.hp_max }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.xp }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.gold }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">
-                        {% if adventurer.is_available %}
-                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">Available</span>
-                        {% else %}
-                            <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs">On Expedition</span>
-                        {% endif %}
-                    </td>
-                    <td class="py-2 px-4 border-b border-gray-200">
-                        <button class="text-blue-600 hover:text-blue-800"
-                                hx-get="/adventurers/{{ adventurer.id }}"
-                                hx-target="#modal-content"
-                                hx-trigger="click"
-                                onclick="document.getElementById('modal').classList.remove('hidden')">
-                            View
-                        </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- HTMX-powered Actions Bar -->
+    <div class="flex justify-between mb-4">
+        <div class="text-sm text-gray-500">
+            <span id="adventurer-count">{{ adventurers|length }}</span> adventurers found
+        </div>
+        
+        <div class="flex space-x-3">
+            <select id="sort-by" class="text-sm rounded border-gray-300"
+                    hx-get="/adventurers/sort"
+                    hx-target="#adventurer-view-container"
+                    hx-include="#class-filter,#status-filter,#expedition-filter,#search">
+                <option value="name">Sort by Name</option>
+                <option value="level">Sort by Level</option>
+                <option value="class">Sort by Class</option>
+                <option value="hp">Sort by HP</option>
+                <option value="xp">Sort by XP</option>
+            </select>
+        </div>
+    </div>
+    
+    <!-- Adventurer List/Grid Container -->
+    <div id="adventurer-view-container" class="overflow-x-auto">
+        <!-- Default view is list -->
+        {% include "partials/adventurer_list.html" %}
     </div>
 </div>
 
 <!-- Modal -->
-<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold" id="modal-title">Adventurer Details</h2>
             <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
@@ -120,4 +148,19 @@
         </div>
     </div>
 </div>
+
+<!-- JavaScript to handle view toggling -->
+<script>
+function toggleViewActive(activeButtonId) {
+    document.getElementById('list-view-btn').classList.remove('bg-blue-600', 'text-white');
+    document.getElementById('list-view-btn').classList.add('bg-gray-300', 'text-gray-700');
+    
+    document.getElementById('card-view-btn').classList.remove('bg-blue-600', 'text-white');
+    document.getElementById('card-view-btn').classList.add('bg-gray-300', 'text-gray-700');
+    
+    // Set active button
+    document.getElementById(activeButtonId).classList.remove('bg-gray-300', 'text-gray-700');
+    document.getElementById(activeButtonId).classList.add('bg-blue-600', 'text-white');
+}
+</script>
 {% endblock %}
