@@ -5,6 +5,16 @@ import enum
 
 Base = declarative_base()
 
+class Player(Base):
+    __tablename__ = 'players'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    treasury = Column(Integer, default=0)  # Treasury for collecting gold (30% of loot)
+    total_score = Column(Integer, default=0)  # Total gold collected over time (for scoring)
+    
+    parties = relationship('Party', back_populates='player')
+
 # Association table between Party and Adventurer
 party_adventurer = Table(
     'party_adventurer', Base.metadata,
@@ -111,11 +121,13 @@ class Party(Base):
     created_at = Column(DateTime)
     on_expedition = Column(Boolean, default=False)
     current_expedition_id = Column(Integer, ForeignKey('expeditions.id', ondelete='SET NULL'), nullable=True)
-    funds = Column(Integer, default=0)  # Party treasury in gold pieces
+    funds = Column(Integer, default=0)  # Party treasury in gold pieces (70% of loot)
+    player_id = Column(Integer, ForeignKey('players.id'), nullable=True)
     
     members = relationship('Adventurer', secondary=party_adventurer, back_populates='parties')
     expeditions = relationship('Expedition', foreign_keys='Expedition.party_id', back_populates='party')
     current_expedition = relationship('Expedition', foreign_keys='Party.current_expedition_id', post_update=True)
+    player = relationship('Player', back_populates='parties')
     # Supplies are accessed through backref
 
 class DungeonNode(Base):

@@ -11,7 +11,8 @@ import json
 from app.models import (
     Base, Adventurer, Party, DungeonNode, Expedition, 
     ExpeditionNodeResult, ExpeditionLog, Equipment, Supply,
-    EquipmentType, SupplyType, adventurer_equipment, party_supply
+    EquipmentType, SupplyType, adventurer_equipment, party_supply,
+    Player
 )
 from app.schemas import (
     AdventurerOut, AdventurerCreate, PartyCreate, 
@@ -19,9 +20,9 @@ from app.schemas import (
     ExpeditionResult, TurnResult, EquipmentOut, EquipmentCreate,
     SupplyOut, SupplyCreate, EquipmentOperation, SupplyOperation,
     PartyFundsUpdate, AdventurerEquipmentOut, PartySupplyOut,
-    LevelUpResult
+    LevelUpResult, PlayerCreate, PlayerOut, PlayerBase
 )
-from app.simulator import DungeonSimulator
+from app.simulator import DungeonSimulator, calculate_loot_split
 from app.progression import (
     calculate_xp_for_next_level, check_for_level_up,
     calculate_hp_gain, get_class_level_bonuses
@@ -173,10 +174,71 @@ def level_up_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
         "class_bonuses": class_bonuses
     }
 
+# --- Player Endpoints ---
+@app.post("/players/", response_model=PlayerOut)
+def create_player(player: PlayerCreate, db: Session = Depends(get_db)):
+    """Create a new player"""
+    db_player = Player(
+        name=player.name,
+        treasury=0,
+        total_score=0
+    )
+    db.add(db_player)
+    db.commit()
+    db.refresh(db_player)
+    return db_player
+
+@app.get("/players/", response_model=List[PlayerOut])
+def list_players(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """List all players"""
+    players = db.query(Player).offset(skip).limit(limit).all()
+    return players
+
+@app.get("/players/{player_id}", response_model=PlayerOut)
+def get_player(player_id: int, db: Session = Depends(get_db)):
+    """Get a specific player by ID"""
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    return player
+
+@app.put("/players/{player_id}", response_model=PlayerOut)
+def update_player(player_id: int, player_data: PlayerBase, db: Session = Depends(get_db)):
+    """Update a player's information"""
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    
+    player.name = player_data.name
+    db.commit()
+    db.refresh(player)
+    return player
+
+@app.get("/players/{player_id}/parties", response_model=List[PartyOut])
+def get_player_parties(player_id: int, db: Session = Depends(get_db)):
+    """Get all parties belonging to a player"""
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    
+    return player.parties
+
 # --- Party Endpoints ---
 @app.post("/parties/", response_model=PartyOut)
 def create_party(party: PartyCreate, db: Session = Depends(get_db)):
-    new_party = Party(name=party.name, created_at=datetime.now())
+    new_party = Party(
+        name=party.name,
+        created_at=datetime.now(),
+        funds=party.funds,
+        player_id=party.player_id
+    )
+    
+    # Validate player if player_id is provided
+    if party.player_id:
+        player = db.query(Player).filter(Player.id == party.player_id).first()
+        if not player:
+            raise HTTPException(status_code=404, detail="Player not found")
+    
     db.add(new_party)
     db.commit()
     db.refresh(new_party)
@@ -915,8 +977,32 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
         member.on_expedition = False
         member.is_available = member.hp_current > (member.hp_max / 2)  # Only available if over half health
     
-    # Add treasure to party funds
-    party.funds += result["treasure_total"]
+    # Calculate loot split (70% to party/adventurers, 30% to player treasury)
+    total_loot = result["treasure_total"]
+    party_size = len(party.members)
+    
+    # Use the loot split calculation function
+    loot_split = calculate_loot_split(total_loot, party_size, player_split=0.3)
+    
+    # Add adventurers' share to party funds
+    party.funds += loot_split["adventurers_share"]
+    
+    # Add treasury share to player if party is associated with a player
+    if party.player_id:
+        player = db.query(Player).filter(Player.id == party.player_id).first()
+        if player:
+            # Add to player's treasury
+            player.treasury += loot_split["player_treasury"]
+            # Add to total score (keeps track of all gold ever collected)
+            player.total_score += loot_split["player_treasury"]
+            
+    # Update individual adventurer gold amounts
+    if loot_split["individual_share"] > 0:
+        for member in party.members:
+            member.gold += loot_split["individual_share"]
+    
+    # Add the loot split information to the result
+    result["loot_split"] = loot_split
             
     db.commit()
     

@@ -4,6 +4,36 @@ from typing import List, Dict, Any, Optional
 
 from app.expedition import Expedition, EncounterType, CombatOutcome
 
+def calculate_loot_split(total_loot, party_size=1, player_split=0.3):
+    """
+    Calculate the loot split between adventurers, party fund, and player treasury.
+    
+    Args:
+        total_loot (int): The total amount of gold from the expedition
+        party_size (int): Number of adventurers in the party
+        player_split (float): Percentage of loot that goes to player treasury (0.0-1.0)
+        
+    Returns:
+        dict: A dictionary containing the split amounts for player, party, and individual adventurers
+    """
+    # Calculate player's share (treasury)
+    player_share = int(total_loot * player_split)
+    
+    # Calculate adventurers' share (70% by default)
+    adventurers_share = total_loot - player_share
+    
+    # Calculate individual adventurer share
+    individual_share = 0
+    if party_size > 0:
+        individual_share = adventurers_share // party_size
+    
+    return {
+        "player_treasury": player_share,
+        "adventurers_share": adventurers_share,
+        "individual_share": individual_share,
+        "total_loot": total_loot
+    }
+
 class DungeonSimulator:
     """
     Main simulation engine that handles running expeditions, tracking party status,
