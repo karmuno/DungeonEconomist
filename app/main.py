@@ -18,9 +18,14 @@ from app.schemas import (
     PartyOut, PartyMemberOperation, ExpeditionCreate,
     ExpeditionResult, TurnResult, EquipmentOut, EquipmentCreate,
     SupplyOut, SupplyCreate, EquipmentOperation, SupplyOperation,
-    PartyFundsUpdate, AdventurerEquipmentOut, PartySupplyOut
+    PartyFundsUpdate, AdventurerEquipmentOut, PartySupplyOut,
+    LevelUpResult
 )
 from app.simulator import DungeonSimulator
+from app.progression import (
+    calculate_xp_for_next_level, check_for_level_up,
+    calculate_hp_gain, get_class_level_bonuses
+)
 
 DATABASE_URL = "sqlite:///./data/db.sqlite"
 
@@ -61,6 +66,25 @@ def get_db():
     finally:
         db.close()
 
+# Helper function to add progression data to adventurer
+def add_progression_data(adventurer):
+    next_level_xp = calculate_xp_for_next_level(adventurer.level)
+    
+    # Calculate progress to next level (as percentage)
+    if next_level_xp:
+        current_level_xp = calculate_xp_for_next_level(adventurer.level - 1) or 0
+        xp_for_current_level = adventurer.xp - current_level_xp
+        xp_needed_for_next = next_level_xp - current_level_xp
+        progress = (xp_for_current_level / xp_needed_for_next) * 100 if xp_needed_for_next > 0 else 100
+    else:
+        # Max level
+        progress = 100
+    
+    # Add computed fields (these won't be stored in DB but will be in response)
+    adventurer.next_level_xp = next_level_xp
+    adventurer.xp_progress = min(100, max(0, progress))
+    return adventurer
+
 # --- Adventurer Endpoints ---
 @app.post("/adventurers/", response_model=AdventurerOut)
 def create_adventurer(adventurer: AdventurerCreate, db: Session = Depends(get_db)):
@@ -73,16 +97,81 @@ def create_adventurer(adventurer: AdventurerCreate, db: Session = Depends(get_db
         hp_current=adventurer.hp_max,  # Start with full HP
         xp=0,
         gold=0,
-        is_available=True
+        is_available=True,
+        carry_capacity=adventurer.carry_capacity or 150  # Default or provided value
     )
     db.add(adv)
     db.commit()
     db.refresh(adv)
-    return adv
+    return add_progression_data(adv)
 
 @app.get("/adventurers/", response_model=list[AdventurerOut])
 def list_adventurers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(Adventurer).offset(skip).limit(limit).all()
+    adventurers = db.query(Adventurer).offset(skip).limit(limit).all()
+    return [add_progression_data(adv) for adv in adventurers]
+
+@app.get("/adventurers/{adventurer_id}", response_model=AdventurerOut)
+def get_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
+    """Get a specific adventurer by ID"""
+    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
+    if not adventurer:
+        raise HTTPException(status_code=404, detail="Adventurer not found")
+    return add_progression_data(adventurer)
+
+@app.post("/adventurers/{adventurer_id}/level-up", response_model=LevelUpResult)
+def level_up_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
+    """Level up an adventurer if they have enough XP"""
+    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
+    if not adventurer:
+        raise HTTPException(status_code=404, detail="Adventurer not found")
+
+    # Check if adventurer is on expedition
+    if adventurer.on_expedition:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot level up an adventurer while they are on an expedition"
+        )
+    
+    # Check if the adventurer has enough XP to level up
+    if not check_for_level_up(adventurer.level, adventurer.xp):
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough XP to level up"
+        )
+    
+    # Store the old level for the response
+    old_level = adventurer.level
+    
+    # Perform the level up
+    adventurer.level += 1
+    
+    # Calculate and add HP based on class
+    hp_gain = calculate_hp_gain(adventurer.adventurer_class, old_level)
+    adventurer.hp_max += hp_gain
+    adventurer.hp_current += hp_gain  # Also heal for the amount gained
+    
+    # Apply class-specific bonuses
+    class_bonuses = get_class_level_bonuses(adventurer.adventurer_class, adventurer.level)
+    
+    # Update carry capacity if applicable
+    if "carry_capacity_bonus" in class_bonuses:
+        adventurer.carry_capacity += int(class_bonuses["carry_capacity_bonus"])
+    
+    # Save changes
+    db.commit()
+    db.refresh(adventurer)
+    
+    # Calculate XP needed for next level (if any)
+    next_level_xp = calculate_xp_for_next_level(adventurer.level)
+    
+    # Return the level up result
+    return {
+        "old_level": old_level,
+        "new_level": adventurer.level,
+        "hp_gained": hp_gain,
+        "next_level_xp": next_level_xp,
+        "class_bonuses": class_bonuses
+    }
 
 # --- Party Endpoints ---
 @app.post("/parties/", response_model=PartyOut)
@@ -849,6 +938,23 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
     try:
         # Try to get results from simulator
         result = simulator.get_expedition_results(expedition_id)
+        
+        # Add level-up eligibility for party members
+        if "party_members_ready_for_level_up" not in result:
+            # Get party and check for members who can level up
+            party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
+            if party:
+                members_ready = []
+                for member in party.members:
+                    if check_for_level_up(member.level, member.xp):
+                        members_ready.append({
+                            "id": member.id,
+                            "name": member.name,
+                            "current_level": member.level,
+                            "next_level": member.level + 1
+                        })
+                result["party_members_ready_for_level_up"] = members_ready
+        
         return result
     except ValueError:
         # If not in simulator, create a response from database records
@@ -880,6 +986,18 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
                              sum(m.hp_max for m in party.members)) * 100 if party and sum(m.hp_max for m in party.members) > 0 else 0
         }
         
+        # Check which party members can level up
+        members_ready_for_level_up = []
+        if party:
+            for member in party.members:
+                if check_for_level_up(member.level, member.xp):
+                    members_ready_for_level_up.append({
+                        "id": member.id,
+                        "name": member.name,
+                        "current_level": member.level,
+                        "next_level": member.level + 1
+                    })
+        
         # Create a result object
         result = {
             "expedition_id": expedition_id,
@@ -895,7 +1013,8 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
             "resources_used": {"hp_lost": 0, "spells_used": 0, "supplies_used": 0},
             "dead_members": [log.adventurer.name for log in expedition_logs if log.status == "dead"],
             "party_status": party_status,
-            "log": log
+            "log": log,
+            "party_members_ready_for_level_up": members_ready_for_level_up
         }
         
         return result

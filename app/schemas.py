@@ -91,6 +91,13 @@ class PartySupplyOut(BaseModel):
     class Config:
         from_attributes = True
 
+class LevelUpResult(BaseModel):
+    old_level: int
+    new_level: int
+    hp_gained: int
+    next_level_xp: Optional[int] = None
+    class_bonuses: Dict[str, Any] = {}
+
 class AdventurerOut(BaseModel):
     id: int
     name: str
@@ -105,6 +112,8 @@ class AdventurerOut(BaseModel):
     expedition_status: Optional[str] = None
     carry_capacity: int = 150
     equipment: Optional[List[AdventurerEquipmentOut]] = None
+    next_level_xp: Optional[int] = None
+    xp_progress: Optional[float] = None  # Percentage to next level (0-100)
 
     class Config:
         from_attributes = True
@@ -191,6 +200,12 @@ class PartyStatus(BaseModel):
     hp_max: int
     hp_percentage: float
     
+class AdventurerLevelUpInfo(BaseModel):
+    id: int
+    name: str
+    current_level: int
+    next_level: int
+
 class ExpeditionResult(BaseModel):
     expedition_id: int
     party_id: int
@@ -208,6 +223,7 @@ class ExpeditionResult(BaseModel):
     dead_members: List[str] = []
     party_status: PartyStatus
     log: List[TurnLog] = []
+    party_members_ready_for_level_up: Optional[List[AdventurerLevelUpInfo]] = None
     
 class TurnResult(BaseModel):
     turn: int

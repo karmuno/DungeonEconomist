@@ -1,9 +1,9 @@
 # MVP Build Plan
 
 ## Next Steps
-1. Implement XP tracking and level-up system
-2. Create healing/recovery mechanics
-3. Implement gold/treasure distribution
+1. Create healing/recovery mechanics
+2. Implement gold/treasure distribution
+3. Create upkeep costs between expeditions
 
 ## Complete Task List
 
@@ -35,10 +35,10 @@
 - [x] Add party equipment/loadout handling
 
 ### Character Progression
-- [ ] Implement XP tracking and storage
-- [ ] Create level-up logic based on XP thresholds
-- [ ] Add HP improvement on level up
-- [ ] Implement class-specific progression benefits
+- [x] Implement XP tracking and storage
+- [x] Create level-up logic based on XP thresholds
+- [x] Add HP improvement on level up
+- [x] Implement class-specific progression benefits
 
 ### Frontend/UI
 - [ ] Create HTMX-based templates for viewing adventurers
