@@ -51,6 +51,10 @@ Expedition Results
 Text log of the expedition outcome (success/failure, loot, XP, injuries)
 Character Advancement
 Simple XP → level-up, with class-based progression
+Treasury System
+Monthly gold collection with loot split (70% to adventurers, 30% to treasury)
+Final Score
+Track total gold accumulated in treasury as the player's final score
 UI
 Minimal HTML with HTMX interactions (no page reloads)
 
@@ -60,8 +64,8 @@ Venturekeep/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py         # Flask/FastAPI entrypoint
-│   ├── models.py       # Adventurer, Party, DungeonNode, etc.
-│   ├── simulator.py    # Core expedition logic
+│   ├── models.py       # Adventurer, Party, DungeonNode, Player, etc.
+│   ├── simulator.py    # Core expedition logic, calculate_loot_split()
 │   └── templates/
 │       └── *.html      # HTMX templates
 ├── static/
@@ -131,6 +135,12 @@ Track expedition history
 
 
 Add healing/upkeep costs between turns
+
+
+Implement treasury system with loot split (70/30)
+
+
+Add treasury counter to UI
 
 
 Bug fixes, basic testing
