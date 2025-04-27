@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Venturekeep{% endblock %}</title>
     
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', path='/images/favicon.png') }}">
+    
     <!-- HTMX for dynamic content -->
     <script src="https://unpkg.com/htmx.org@1.9.6"></script>
     
