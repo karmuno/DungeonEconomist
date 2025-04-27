@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Union
 import json
 
 from app.models import (
@@ -140,9 +140,9 @@ def list_adventurers(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     adventurers = db.query(Adventurer).offset(skip).limit(limit).all()
     return [add_progression_data(adv) for adv in adventurers]
 
-@app.get("/adventurers/{adventurer_id}", response_model=AdventurerOut)
-def get_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
-    """Get a specific adventurer by ID"""
+@app.get("/adventurers/{adventurer_id}/data", response_model=AdventurerOut)
+def get_adventurer_data(adventurer_id: int, db: Session = Depends(get_db)):
+    """Get a specific adventurer data by ID (JSON API endpoint)"""
     adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
     if not adventurer:
         raise HTTPException(status_code=404, detail="Adventurer not found")
@@ -1588,9 +1588,9 @@ def adventurer_create_form(request: Request, db: Session = Depends(get_db)):
 @app.get("/adventurers/filter", response_class=HTMLResponse)
 def filter_adventurers(
     request: Request, 
-    class_filter: str = None, 
-    availability_filter: str = None,
-    expedition_filter: str = None,
+    class_filter: Optional[str] = "", 
+    availability_filter: Optional[str] = "",
+    expedition_filter: Optional[str] = "",
     view_type: str = "list",
     sort_by: str = "name",
     db: Session = Depends(get_db)
@@ -1598,15 +1598,16 @@ def filter_adventurers(
     """Filter adventurers by class, availability and expedition status"""
     query = db.query(Adventurer)
     
-    if class_filter:
+    if class_filter and class_filter != "":
         query = query.filter(Adventurer.adventurer_class == class_filter)
     
-    if availability_filter == "available":
-        query = query.filter(Adventurer.is_available == True)
-    elif availability_filter == "unavailable":
-        query = query.filter(Adventurer.is_available == False)
+    if availability_filter and availability_filter != "":
+        if availability_filter == "available":
+            query = query.filter(Adventurer.is_available == True)
+        elif availability_filter == "unavailable":
+            query = query.filter(Adventurer.is_available == False)
     
-    if expedition_filter:
+    if expedition_filter and expedition_filter != "":
         if expedition_filter == "on_expedition":
             query = query.filter(Adventurer.on_expedition == True)
         elif expedition_filter == "healing":
@@ -1663,7 +1664,7 @@ def filter_adventurers(
 @app.get("/adventurers/search", response_class=HTMLResponse)
 def search_adventurers(
     request: Request, 
-    search: str = "", 
+    search: Optional[str] = "", 
     view_type: str = "list",
     db: Session = Depends(get_db)
 ):
@@ -1704,10 +1705,10 @@ def search_adventurers(
 def toggle_adventurer_view(
     request: Request,
     type: str = "list",
-    class_filter: str = None,
-    availability_filter: str = None,
-    expedition_filter: str = None,
-    search: str = "",
+    class_filter: Optional[str] = "",
+    availability_filter: Optional[str] = "",
+    expedition_filter: Optional[str] = "", 
+    search: Optional[str] = "",
     sort_by: str = "name",
     db: Session = Depends(get_db)
 ):
@@ -1715,15 +1716,16 @@ def toggle_adventurer_view(
     # Build query with all the filters
     query = db.query(Adventurer)
     
-    if class_filter:
+    if class_filter and class_filter != "":
         query = query.filter(Adventurer.adventurer_class == class_filter)
     
-    if availability_filter == "available":
-        query = query.filter(Adventurer.is_available == True)
-    elif availability_filter == "unavailable":
-        query = query.filter(Adventurer.is_available == False)
+    if availability_filter and availability_filter != "":
+        if availability_filter == "available":
+            query = query.filter(Adventurer.is_available == True)
+        elif availability_filter == "unavailable":
+            query = query.filter(Adventurer.is_available == False)
     
-    if expedition_filter:
+    if expedition_filter and expedition_filter != "":
         if expedition_filter == "on_expedition":
             query = query.filter(Adventurer.on_expedition == True)
         elif expedition_filter == "healing":
@@ -1735,7 +1737,7 @@ def toggle_adventurer_view(
         elif expedition_filter == "available":
             query = query.filter(Adventurer.expedition_status == "available")
     
-    if search:
+    if search and search != "":
         query = query.filter(Adventurer.name.ilike(f"%{search}%"))
     
     # Apply sorting
@@ -1785,25 +1787,26 @@ def sort_adventurers(
     request: Request,
     sort_by: str = "name",
     view_type: str = "list",
-    class_filter: str = None,
-    availability_filter: str = None,
-    expedition_filter: str = None,
-    search: str = "",
+    class_filter: Optional[str] = "",
+    availability_filter: Optional[str] = "",
+    expedition_filter: Optional[str] = "",
+    search: Optional[str] = "",
     db: Session = Depends(get_db)
 ):
     """Sort adventurers by different criteria"""
     # Build query with all the filters
     query = db.query(Adventurer)
     
-    if class_filter:
+    if class_filter and class_filter != "":
         query = query.filter(Adventurer.adventurer_class == class_filter)
     
-    if availability_filter == "available":
-        query = query.filter(Adventurer.is_available == True)
-    elif availability_filter == "unavailable":
-        query = query.filter(Adventurer.is_available == False)
+    if availability_filter and availability_filter != "":
+        if availability_filter == "available":
+            query = query.filter(Adventurer.is_available == True)
+        elif availability_filter == "unavailable":
+            query = query.filter(Adventurer.is_available == False)
     
-    if expedition_filter:
+    if expedition_filter and expedition_filter != "":
         if expedition_filter == "on_expedition":
             query = query.filter(Adventurer.on_expedition == True)
         elif expedition_filter == "healing":
@@ -1815,7 +1818,7 @@ def sort_adventurers(
         elif expedition_filter == "available":
             query = query.filter(Adventurer.expedition_status == "available")
     
-    if search:
+    if search and search != "":
         query = query.filter(Adventurer.name.ilike(f"%{search}%"))
     
     # Apply sorting
