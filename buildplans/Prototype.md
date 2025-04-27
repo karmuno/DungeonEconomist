@@ -1,4 +1,4 @@
-🛠️ Build Plan: Bare-Bones Prototype
+🛠️ Build Plan: Venturekeep Prototype
 🎯 Goal
 Create a functioning prototype that simulates:
 A small adventurer pool
@@ -56,7 +56,7 @@ Minimal HTML with HTMX interactions (no page reloads)
 
 
 🗂️ Project Structure
-DungeonEconomist/
+Venturekeep/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py         # Flask/FastAPI entrypoint

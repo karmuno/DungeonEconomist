@@ -35,7 +35,7 @@ Base.metadata.create_all(bind=engine)
 
 # FastAPI app
 app = FastAPI(
-    title="Dungeon Economist",
+    title="Venturekeep",
     description="D&D Party Management Simulation",
     version="0.1.0"
 )

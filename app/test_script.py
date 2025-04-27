@@ -1,5 +1,5 @@
 """
-Test script for the Dungeon Economist simulator
+Test script for the Venturekeep simulator
 Run with: python -m app.test_script
 """
 
