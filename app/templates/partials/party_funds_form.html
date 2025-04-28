@@ -1,0 +1,49 @@
+<div class="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+    <h4 class="font-medium text-gray-800 mb-3">
+        {% if action == 'add' %}
+        Add Funds to Party
+        {% else %}
+        Remove Funds from Party
+        {% endif %}
+    </h4>
+    
+    <form hx-put="/parties/{{ party.id }}/funds" 
+          hx-target="#party-container"
+          hx-swap="outerHTML"
+          class="space-y-4">
+        <div>
+            <label for="amount" class="block text-sm font-medium text-gray-700">Amount (Gold)</label>
+            <div class="mt-1 flex rounded-md shadow-sm">
+                <input type="number" name="amount" id="amount" required
+                       {% if action == 'add' %}
+                       value="100" min="1"
+                       {% else %}
+                       value="-100" max="0" 
+                       {% endif %}
+                       class="block w-full rounded-md border-gray-300">
+            </div>
+            
+            {% if action == 'remove' %}
+            <p class="mt-1 text-xs text-gray-500">Current funds: {{ party.funds }} gold</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex justify-end space-x-2">
+            <button type="button" 
+                    class="bg-gray-500 text-white px-3 py-1 text-sm rounded hover:bg-gray-600"
+                    hx-get="/parties/{{ party.id }}/supplies"
+                    hx-target="#fund-management-container"
+                    hx-swap="outerHTML">
+                Cancel
+            </button>
+            <button type="submit" 
+                    class="{% if action == 'add' %}bg-green-600 hover:bg-green-700{% else %}bg-red-600 hover:bg-red-700{% endif %} text-white px-3 py-1 text-sm rounded">
+                {% if action == 'add' %}
+                Add Funds
+                {% else %}
+                Remove Funds
+                {% endif %}
+            </button>
+        </div>
+    </form>
+</div>

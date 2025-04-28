@@ -1,0 +1,212 @@
+<div class="space-y-6" id="add-member-container">
+    <h3 class="font-bold text-lg">Add Adventurers to {{ party.name }}</h3>
+    
+    <!-- Party composition overview -->
+    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+        <h4 class="text-sm font-semibold text-gray-700 mb-2">Current Composition</h4>
+        
+        {% set fighters = party.members|selectattr('adventurer_class.value', 'equalto', 'Fighter')|list|length %}
+        {% set clerics = party.members|selectattr('adventurer_class.value', 'equalto', 'Cleric')|list|length %}
+        {% set magic_users = party.members|selectattr('adventurer_class.value', 'equalto', 'Magic-User')|list|length %}
+        {% set elves = party.members|selectattr('adventurer_class.value', 'equalto', 'Elf')|list|length %}
+        {% set dwarves = party.members|selectattr('adventurer_class.value', 'equalto', 'Dwarf')|list|length %}
+        {% set hobbits = party.members|selectattr('adventurer_class.value', 'equalto', 'Hobbit')|list|length %}
+        
+        <div class="grid grid-cols-6 gap-2 text-center text-xs">
+            <div>
+                <span class="w-4 h-4 rounded-full bg-red-600 inline-block"></span>
+                <div>Fighters</div>
+                <div class="font-bold">{{ fighters }}</div>
+            </div>
+            <div>
+                <span class="w-4 h-4 rounded-full bg-blue-600 inline-block"></span>
+                <div>Clerics</div>
+                <div class="font-bold">{{ clerics }}</div>
+            </div>
+            <div>
+                <span class="w-4 h-4 rounded-full bg-purple-600 inline-block"></span>
+                <div>Magic</div>
+                <div class="font-bold">{{ magic_users }}</div>
+            </div>
+            <div>
+                <span class="w-4 h-4 rounded-full bg-green-600 inline-block"></span>
+                <div>Elves</div>
+                <div class="font-bold">{{ elves }}</div>
+            </div>
+            <div>
+                <span class="w-4 h-4 rounded-full bg-yellow-600 inline-block"></span>
+                <div>Dwarves</div>
+                <div class="font-bold">{{ dwarves }}</div>
+            </div>
+            <div>
+                <span class="w-4 h-4 rounded-full bg-pink-600 inline-block"></span>
+                <div>Hobbits</div>
+                <div class="font-bold">{{ hobbits }}</div>
+            </div>
+        </div>
+        
+        <!-- Recommendations based on current composition -->
+        <div class="mt-3 text-xs text-gray-700">
+            <h5 class="font-semibold mb-1">Recommended Additions:</h5>
+            <ul>
+                {% if fighters == 0 %}
+                <li class="flex items-center text-xs mb-1">
+                    <svg class="w-3 h-3 text-red-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Add a Fighter for frontline combat
+                </li>
+                {% endif %}
+                
+                {% if clerics == 0 %}
+                <li class="flex items-center text-xs mb-1">
+                    <svg class="w-3 h-3 text-blue-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Add a Cleric for healing support
+                </li>
+                {% endif %}
+                
+                {% if magic_users == 0 and elves == 0 %}
+                <li class="flex items-center text-xs mb-1">
+                    <svg class="w-3 h-3 text-purple-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Add a Magic-User or Elf for spell capabilities
+                </li>
+                {% endif %}
+                
+                {% if party.members|length < 4 %}
+                <li class="flex items-center text-xs">
+                    <svg class="w-3 h-3 text-gray-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Add more members - optimal party size is 4-6
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+    
+    {% if available_adventurers %}
+        <!-- Filter options -->
+        <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="class-filter" class="block text-xs font-medium text-gray-700 mb-1">Filter by Class</label>
+                    <select id="class-filter" class="w-full text-sm rounded-md border-gray-300 shadow-sm" 
+                            hx-get="/parties/{{ party.id }}/filter-adventurers"
+                            hx-target="#available-adventurers-container"
+                            hx-include="[name='level-filter']">
+                        <option value="">All Classes</option>
+                        <option value="Fighter">Fighter</option>
+                        <option value="Cleric">Cleric</option>
+                        <option value="Magic-User">Magic-User</option>
+                        <option value="Elf">Elf</option>
+                        <option value="Dwarf">Dwarf</option>
+                        <option value="Hobbit">Hobbit</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="level-filter" class="block text-xs font-medium text-gray-700 mb-1">Filter by Level</label>
+                    <select id="level-filter" name="level-filter" class="w-full text-sm rounded-md border-gray-300 shadow-sm"
+                            hx-get="/parties/{{ party.id }}/filter-adventurers"
+                            hx-target="#available-adventurers-container"
+                            hx-include="#class-filter">
+                        <option value="">All Levels</option>
+                        <option value="1">Level 1</option>
+                        <option value="2">Level 2+</option>
+                        <option value="3">Level 3+</option>
+                        <option value="5">Level 5+</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Available adventurers grid -->
+        <div id="available-adventurers-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
+            {% for adventurer in available_adventurers %}
+            <div class="bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all duration-200"
+                 hx-post="/parties/add-member/"
+                 hx-vals='{"party_id": {{ party.id }}, "adventurer_id": {{ adventurer.id }}}'
+                 hx-target="#party-container"
+                 hx-confirm="Add {{ adventurer.name }} to party?">
+                <div class="p-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-medium">{{ adventurer.name }}</span>
+                        <span class="
+                            {% if adventurer.adventurer_class.value == 'Fighter' %}bg-red-100 text-red-800
+                            {% elif adventurer.adventurer_class.value == 'Cleric' %}bg-blue-100 text-blue-800
+                            {% elif adventurer.adventurer_class.value == 'Magic-User' %}bg-purple-100 text-purple-800
+                            {% elif adventurer.adventurer_class.value == 'Elf' %}bg-green-100 text-green-800
+                            {% elif adventurer.adventurer_class.value == 'Dwarf' %}bg-yellow-100 text-yellow-800
+                            {% elif adventurer.adventurer_class.value == 'Hobbit' %}bg-pink-100 text-pink-800
+                            {% endif %} px-2 py-0.5 rounded-full text-xs">
+                            {{ adventurer.adventurer_class.value }}
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <span class="text-gray-500">Level:</span>
+                            <span class="font-medium">{{ adventurer.level }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">HP:</span>
+                            <span class="font-medium">{{ adventurer.hp_current }}/{{ adventurer.hp_max }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">XP:</span>
+                            <span class="font-medium">{{ adventurer.xp }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Gold:</span>
+                            <span class="font-medium">{{ adventurer.gold }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                        <button class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs hover:bg-blue-100">
+                            Add to Party
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="flex justify-end">
+            <button type="button" 
+                    class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                    onclick="document.getElementById('modal').classList.add('hidden')">
+                Done
+            </button>
+        </div>
+    {% else %}
+        <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-yellow-800">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-yellow-400 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <div>
+                    <p class="font-medium">No available adventurers to add.</p>
+                    <p class="mt-1 text-sm">Either create new adventurers or wait for current ones to return from expeditions or complete healing.</p>
+                </div>
+            </div>
+            
+            <div class="mt-4 flex">
+                <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mr-2"
+                        hx-get="/adventurers/create-form"
+                        hx-target="#modal-content">
+                    Create New Adventurer
+                </button>
+                
+                <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                        onclick="document.getElementById('modal').classList.add('hidden')">
+                    Close
+                </button>
+            </div>
+        </div>
+    {% endif %}
+</div>

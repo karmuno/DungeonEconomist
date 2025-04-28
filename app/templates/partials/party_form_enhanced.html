@@ -1,0 +1,66 @@
+<form hx-post="/parties/" hx-target="#party-container" hx-swap="outerHTML" class="space-y-6">
+    <h3 class="text-lg font-bold">Create New Party</h3>
+    
+    <!-- Party information section -->
+    <div class="space-y-4">
+        <div>
+            <label for="name" class="block text-sm font-medium text-gray-700">Party Name</label>
+            <input type="text" id="name" name="name" required placeholder="Brave Adventurers"
+                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </div>
+        
+        <div>
+            <label for="player_id" class="block text-sm font-medium text-gray-700">Player</label>
+            <select id="player_id" name="player_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                <option value="">Select a player (optional)</option>
+                {% for player in players %}
+                <option value="{{ player.id }}">{{ player.name }} ({{ player.treasury }} gold)</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div>
+            <label for="funds" class="block text-sm font-medium text-gray-700">Starting Funds (Gold)</label>
+            <input type="number" id="funds" name="funds" value="100" min="0" step="10" 
+                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+        </div>
+    </div>
+    
+    <!-- Party Strategy -->
+    <div class="p-4 bg-blue-50 rounded-lg">
+        <h4 class="font-semibold text-blue-800 mb-2">Strategy Tips</h4>
+        <ul class="text-sm text-blue-700 space-y-2">
+            <li class="flex items-start">
+                <svg class="w-4 h-4 text-blue-500 mr-1 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                A balanced party should include fighters for combat, clerics for healing, and magic-users for spells.
+            </li>
+            <li class="flex items-start">
+                <svg class="w-4 h-4 text-blue-500 mr-1 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Consider bringing 4-6 adventurers for most expeditions.
+            </li>
+            <li class="flex items-start">
+                <svg class="w-4 h-4 text-blue-500 mr-1 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                After creating your party, you'll be able to add members and supplies.
+            </li>
+        </ul>
+    </div>
+    
+    <!-- Form actions -->
+    <div class="flex justify-end">
+        <button type="button" 
+                class="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                onclick="document.getElementById('modal').classList.add('hidden')">
+            Cancel
+        </button>
+        <button type="submit" 
+                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Create Party
+        </button>
+    </div>
+</form>
