@@ -149,7 +149,12 @@ class Expedition(Base):
     supplies_consumed = Column(JSON, nullable=True)  # Tracks supplies consumed during expedition
     equipment_lost = Column(JSON, nullable=True)  # Tracks equipment lost/broken during expedition
 
-    party = relationship('Party', back_populates='expeditions')
+    # Relationship to owning Party; specify foreign_keys to disambiguate multiple FKs between tables
+    party = relationship(
+        'Party',
+        back_populates='expeditions',
+        foreign_keys=[party_id]
+    )
     node_results = relationship('ExpeditionNodeResult', back_populates='expedition')
 
 class ExpeditionNodeResult(Base):

@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import json
+from typing import List, Optional
 
 from app.models import (
     Base, Adventurer, Party, DungeonNode, Expedition, 
