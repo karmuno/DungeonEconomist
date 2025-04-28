@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Union
 import json
+from typing import List, Optional
 
 from app.models import (
     Base, Adventurer, Party, DungeonNode, Expedition, 
