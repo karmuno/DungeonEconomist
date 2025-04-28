@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-@app.get("/parties/filter", response_class=HTMLResponse)
-def filter_parties(
-=======
 from fastapi import FastAPI, HTTPException, Depends, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,7 +13,7 @@ from app.models import (
     Base, Adventurer, Party, DungeonNode, Expedition, 
     ExpeditionNodeResult, ExpeditionLog, Equipment, Supply,
     EquipmentType, SupplyType, adventurer_equipment, party_supply,
-    Player
+    Player, GameTime
 )
 from app.schemas import (
     AdventurerOut, AdventurerCreate, PartyCreate, 
@@ -1191,9 +1187,20 @@ def index(request: Request, db: Session = Depends(get_db)):
         db.add(player)
         db.commit()
         db.refresh(player)
+    # Get or create game time record
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime(current_day=1)
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    # Compute active expeditions (in progress)
+    active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+    # Compute unavailable adventurers count
+    unavailable_adventurers = db.query(Adventurer).filter(Adventurer.is_available == False).count()
     
     return templates.TemplateResponse(
-        "index.html", 
+        "index.html",
         {
             "request": request,
             "adventurer_count": adventurer_count,
@@ -1201,7 +1208,10 @@ def index(request: Request, db: Session = Depends(get_db)):
             "expedition_count": expedition_count,
             "recent_expeditions": recent_expeditions,
             "treasury_gold": player.treasury,
-            "total_score": player.total_score
+            "total_score": player.total_score,
+            "game_time": game_time,
+            "active_expeditions": active_expeditions,
+            "unavailable_adventurers": unavailable_adventurers
         }
     )
 
@@ -1237,7 +1247,6 @@ def adventurer_create_form(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/adventurers/filter", response_class=HTMLResponse)
 def filter_adventurers(
->>>>>>> dev
     request: Request, 
     filter_type: Optional[str] = "all",
     sort_by: Optional[str] = "name",
