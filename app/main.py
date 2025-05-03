@@ -1087,6 +1087,10 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     # Return full expedition results
     return result
 
+@app.get("/expeditions/new", response_class=HTMLResponse)
+async def new_expedition(request: Request):
+    return templates.TemplateResponse("expedition_form.html", {"request": request})
+
 @app.get("/expeditions/{expedition_id}", response_model=ExpeditionResult)
 def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
     """Get detailed results of an expedition"""

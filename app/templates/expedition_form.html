@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Launch Expedition</title>
+    <link rel='stylesheet' href='../static/styles.css'>
+</head>
+<body>
+    <h1>Launch Expedition</h1>
+    <form id='expeditionForm' action='/launch' method='POST'>
+        <label for='expeditionName'>Expedition Name:</label>
+        <input type='text' id='expeditionName' name='expeditionName' required>
+
+        <label for='partyId'>Party ID:</label>
+        <input type='number' id='partyId' name='party_id' required>
+
+        <label for='dungeonLevel'>Dungeon Level:</label>
+        <input type='number' id='dungeonLevel' name='dungeon_level' min='1' value='1' required>
+
+        <label for='durationDays'>Duration Days:</label>
+        <input type='number' id='durationDays' name='duration_days' min='1' value='7' required>
+
+        <label for='supplies'>Supplies to Bring (optional):</label>
+        <textarea id='supplies' name='supplies_to_bring'></textarea>
+
+        <button type='submit'>Launch Expedition</button>
+    </form>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Launch Expedition</title>
+    <link rel='stylesheet' href='../static/styles.css'>
+</head>
+<body>
+    <h1>Launch Expedition</h1>
+    <form id='expeditionForm' action='/launch' method='POST'>
+        <label for='expeditionName'>Expedition Name:</label>
+        <input type='text' id='expeditionName' name='expeditionName' required>
+
+        <label for='startDate'>Start Date:</label>
+        <input type='date' id='startDate' name='startDate' required>
+
+        <label for='endDate'>End Date:</label>
+        <input type='date' id='endDate' name='endDate' required>
+
+        <label for='participants'>Participants (optional):</label>
+        <textarea id='participants' name='participants'></textarea>
+
+        <button type='submit'>Launch Expedition</button>
+    </form>
+</body>
+</html>
