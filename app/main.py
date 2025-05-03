@@ -249,6 +249,18 @@ def create_party(party: PartyCreate, db: Session = Depends(get_db)):
 def list_parties(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return db.query(Party).offset(skip).limit(limit).all()
 
+@app.get("/parties/create-form", response_class=HTMLResponse)
+def party_create_form(request: Request, db: Session = Depends(get_db)):
+    """Return the party creation form"""
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    return templates.TemplateResponse(
+        "partials/party_form.html",
+        {"request": request, "treasury_gold": treasury_gold}
+    )
+
 @app.get("/parties/{party_id}", response_model=PartyOut)
 def get_party(party_id: int, db: Session = Depends(get_db)):
     party = db.query(Party).filter(Party.id == party_id).first()
@@ -1245,19 +1257,6 @@ def adventurer_create_form(request: Request, db: Session = Depends(get_db)):
         {"request": request, "treasury_gold": treasury_gold}
     )
     
-@app.get("/parties/create-form", response_class=HTMLResponse)
-def party_create_form(request: Request, db: Session = Depends(get_db)):
-    """Return the party creation form"""
-    # Get treasury total from the first player for header display
-    treasury_gold = 0
-    player = db.query(Player).first()
-    if player:
-        treasury_gold = player.treasury
-    return templates.TemplateResponse(
-        "partials/party_form.html",
-        {"request": request, "treasury_gold": treasury_gold}
-    )
-
 @app.get("/parties", response_class=HTMLResponse)
 def parties_page(request: Request, db: Session = Depends(get_db)):
     """Render the parties page"""
