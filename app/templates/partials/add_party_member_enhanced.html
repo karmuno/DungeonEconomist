@@ -126,12 +126,13 @@
         
         <!-- Available adventurers grid -->
         <div id="available-adventurers-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1">
-            {% for adventurer in available_adventurers %}
-            <div class="bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all duration-200"
-                 hx-post="/parties/add-member/"
-                 hx-vals='{"party_id": {{ party.id }}, "adventurer_id": {{ adventurer.id }}}'
-                 hx-target="#party-container"
-                 hx-confirm="Add {{ adventurer.name }} to party?">
+        {% for adventurer in available_adventurers %}
+        <form hx-post="/parties/add-member/" hx-target="#modal-content" hx-swap="innerHTML"
+              hx-confirm="Add {{ adventurer.name }} to party?"
+              class="inline-block">
+            <input type="hidden" name="party_id" value="{{ party.id }}">
+            <input type="hidden" name="adventurer_id" value="{{ adventurer.id }}">
+            <div class="bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all duration-200">
                 <div class="p-3">
                     <div class="flex justify-between items-center mb-2">
                         <span class="font-medium">{{ adventurer.name }}</span>
@@ -146,7 +147,6 @@
                             {{ adventurer.adventurer_class.value }}
                         </span>
                     </div>
-                    
                     <div class="grid grid-cols-2 gap-2 text-xs">
                         <div>
                             <span class="text-gray-500">Level:</span>
@@ -165,15 +165,15 @@
                             <span class="font-medium">{{ adventurer.gold }}</span>
                         </div>
                     </div>
-                    
-                    <div class="mt-2 pt-2 border-t border-gray-100 flex justify-end">
-                        <button class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs hover:bg-blue-100">
-                            Add to Party
-                        </button>
-                    </div>
+                </div>
+                <div class="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                    <button type="submit" class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs hover:bg-blue-100">
+                        Add to Party
+                    </button>
                 </div>
             </div>
-            {% endfor %}
+        </form>
+        {% endfor %}
         </div>
         
         <div class="flex justify-end">
