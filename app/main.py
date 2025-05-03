@@ -1245,6 +1245,30 @@ def adventurer_create_form(request: Request, db: Session = Depends(get_db)):
         {"request": request, "treasury_gold": treasury_gold}
     )
 
+@app.get("/parties", response_class=HTMLResponse)
+def parties_page(request: Request, db: Session = Depends(get_db)):
+    """Render the parties page"""
+    parties = db.query(Party).all()
+    
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
+    # Get game time
+    game_time = db.query(GameTime).first()
+    
+    return templates.TemplateResponse(
+        "parties.html", 
+        {
+            "request": request, 
+            "parties": parties, 
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
+        }
+    )
+
 @app.get("/adventurers/filter", response_class=HTMLResponse)
 def filter_adventurers(
     request: Request, 
