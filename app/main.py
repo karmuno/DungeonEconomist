@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Body, Request
+from fastapi import FastAPI, HTTPException, Depends, Body, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -226,18 +226,24 @@ def get_player_parties(player_id: int, db: Session = Depends(get_db)):
 
 # --- Party Endpoints ---
 @app.post("/parties/", response_model=PartyOut)
-def create_party(party: PartyCreate, db: Session = Depends(get_db)):
+def create_party(
+    name: str = Form(...),
+    funds: int = Form(0),
+    player_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Create a new party from form data"""
     new_party = Party(
-        name=party.name,
+        name=name,
         created_at=datetime.now(),
-        funds=party.funds,
-        player_id=party.player_id
+        funds=funds,
+        player_id=player_id
     )
     
     # Validate player if player_id is provided
-    if party.player_id:
-        player = db.query(Player).filter(Player.id == party.player_id).first()
-        if not player:
+    if player_id is not None:
+        db_player = db.query(Player).filter(Player.id == player_id).first()
+        if not db_player:
             raise HTTPException(status_code=404, detail="Player not found")
     
     db.add(new_party)
