@@ -266,6 +266,66 @@ def party_create_form(request: Request, db: Session = Depends(get_db)):
         "partials/party_form.html",
         {"request": request, "treasury_gold": treasury_gold}
     )
+    
+@app.get("/parties/{party_id}/edit-form", response_class=HTMLResponse)
+def party_edit_form(request: Request, party_id: int, db: Session = Depends(get_db)):
+    """Return the party editing form pre-populated with party data"""
+    # Fetch party and ensure it exists
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    # List all players for dropdown
+    players = db.query(Player).all()
+    # Get adventurers available to add (not on expedition and not already in this party)
+    available_adventurers = db.query(Adventurer).filter(
+        Adventurer.is_available == True,
+        ~Adventurer.parties.any(Party.id == party_id)
+    ).all()
+    # Render enhanced form with member add UI
+    return templates.TemplateResponse(
+        "partials/party_form_enhanced.html",
+        {
+            "request": request,
+            "party": party,
+            "players": players,
+            "available_adventurers": available_adventurers
+        }
+    )
+    
+@app.get("/parties/{party_id}/add-member-form", response_class=HTMLResponse)
+def party_add_member_form(request: Request, party_id: int, db: Session = Depends(get_db)):
+    """Return the add-adventurer form for a party"""
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    # Adventurers who are available and not already in this party
+    available_adventurers = db.query(Adventurer).filter(
+        Adventurer.is_available == True,
+        ~Adventurer.parties.any(Party.id == party_id)
+    ).all()
+    return templates.TemplateResponse(
+        "partials/add_party_member_enhanced.html",
+        {"request": request, "party": party, "available_adventurers": available_adventurers}
+    )
+    
+@app.put("/parties/{party_id}", response_model=PartyOut)
+def update_party(
+    party_id: int,
+    name: str = Form(...),
+    funds: int = Form(0),
+    player_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Update party details"""
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    party.name = name
+    party.funds = funds
+    party.player_id = player_id
+    db.commit()
+    db.refresh(party)
+    return party
 
 @app.get("/parties/{party_id}", response_model=PartyOut)
 def get_party(party_id: int, db: Session = Depends(get_db)):
@@ -320,42 +380,37 @@ def get_party_expedition_status(party_id: int, db: Session = Depends(get_db)):
                                    if party.members and sum(m.hp_max for m in party.members) > 0 else 0
     }
 
-@app.post("/parties/add-member/", response_model=PartyOut)
-def add_adventurer_to_party(operation: PartyMemberOperation, db: Session = Depends(get_db)):
-    # Check if party exists
-    party = db.query(Party).filter(Party.id == operation.party_id).first()
+@app.post("/parties/add-member/")
+def add_adventurer_to_party(
+    request: Request,
+    party_id: int = Form(...),
+    adventurer_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Add an adventurer to a party. Returns updated form on HTMX, or JSON otherwise."""
+    # Fetch party
+    party = db.query(Party).filter(Party.id == party_id).first()
     if party is None:
         raise HTTPException(status_code=404, detail="Party not found")
-    
-    # Check if party is on expedition
     if party.on_expedition:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot add members to a party currently on expedition"
-        )
-    
-    # Check if adventurer exists and is available
+        raise HTTPException(status_code=400, detail="Cannot add members to a party currently on expedition")
+    # Fetch adventurer
     adventurer = db.query(Adventurer).filter(
-        Adventurer.id == operation.adventurer_id,
+        Adventurer.id == adventurer_id,
         Adventurer.is_available == True
     ).first()
     if adventurer is None:
-        raise HTTPException(
-            status_code=404, 
-            detail="Adventurer not found or not available"
-        )
-    
-    # Check if adventurer is already in this party
+        raise HTTPException(status_code=404, detail="Adventurer not found or not available")
     if adventurer in party.members:
-        raise HTTPException(
-            status_code=400,
-            detail="Adventurer is already a member of this party"
-        )
-    
-    # Add adventurer to party
+        raise HTTPException(status_code=400, detail="Adventurer is already a member of this party")
+    # Add and commit
     party.members.append(adventurer)
     db.commit()
-    db.refresh(party)
+    # On HTMX request, re-render the party edit form
+    if request.headers.get("HX-Request"):
+        # Return refreshed edit form in modal
+        return party_edit_form(request, party.id, db)
+    # Default: return JSON
     return party
 
 @app.post("/parties/remove-member/", response_model=PartyOut)
