@@ -1,9 +1,9 @@
 # MVP Build Plan
 
 ## Next Steps
-1. Implement party formation interface 
-2. Build expedition launch and management screens
-3. Design expedition log viewer
+1. Build expedition launch and management screens
+2. Design expedition log viewer
+3. Create upkeep costs every 30 days
 
 ## Complete Task List
 
@@ -42,7 +42,7 @@
 
 ### Frontend/UI
 - [x] Create HTMX-based templates for viewing adventurers
-- [ ] Implement party formation interface
+- [x] Implement party formation interface
 - [ ] Build expedition launch and management screens
 - [ ] Design expedition log viewer
 - [ ] Add Tailwind styling for clean retro black/white aesthetic
