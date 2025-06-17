@@ -1068,7 +1068,7 @@ def launch_expedition(
     db.commit()
     
     # Run expedition to completion
-    result = simulator.run_expedition_to_completion(expedition_id)
+    result = simulator.run_expedition_to_completion(expedition_id_sim)
     
     # Update expedition in database
     db_expedition.finished_at = datetime.now()
