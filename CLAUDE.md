@@ -24,3 +24,9 @@ Venturekeep - A D&D Party Management Simulation using FastAPI, SQLAlchemy, and S
 - Database: Use SQLAlchemy Session with dependency injection
 - Enums: Use Python's enum module for enumerations
 - Docstrings: Use """ """ style docstrings for classes and functions
+
+## Development Environment
+- Use the virtual environment
+
+## Memories
+- Read the README

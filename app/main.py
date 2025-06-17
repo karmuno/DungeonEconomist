@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, Body, Request, Form
+from fastapi import FastAPI, HTTPException, Depends, Body, Form, Query
+from starlette.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,7 +14,7 @@ from app.models import (
     Base, Adventurer, Party, DungeonNode, Expedition, 
     ExpeditionNodeResult, ExpeditionLog, Equipment, Supply,
     EquipmentType, SupplyType, adventurer_equipment, party_supply,
-    Player, GameTime
+    Player, GameTime, party_adventurer
 )
 from app.schemas import (
     AdventurerOut, AdventurerCreate, PartyCreate, 
@@ -816,6 +817,82 @@ def update_party_funds(
 simulator = DungeonSimulator()
 
 # --- Expedition Endpoints ---
+# Note: Specific routes must come before parameterized routes
+@app.get("/expeditions/active", response_class=HTMLResponse)
+def expeditions_active(request: Request, db: Session = Depends(get_db)):
+    """Get active expeditions partial"""
+    active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+    
+    # Get game time for progress calculations
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime(current_day=1)
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
+    return templates.TemplateResponse(
+        "partials/active_expeditions.html",
+        {
+            "request": request,
+            "active_expeditions": active_expeditions,
+            "game_time": game_time
+        }
+    )
+
+@app.get("/expeditions/completed", response_class=HTMLResponse)
+def expeditions_completed(request: Request, db: Session = Depends(get_db)):
+    """Get completed expeditions partial"""
+    completed_expeditions = db.query(Expedition).filter(
+        Expedition.result == "completed"
+    ).order_by(Expedition.finished_at.desc()).limit(10).all()
+    
+    return templates.TemplateResponse(
+        "partials/completed_expeditions.html",
+        {
+            "request": request,
+            "completed_expeditions": completed_expeditions
+        }
+    )
+
+@app.get("/expeditions/create-form", response_class=HTMLResponse)
+def expedition_create_form(request: Request, party_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    """Return the expedition creation form"""
+    try:
+        # Get all available parties (not on expedition)
+        parties = db.query(Party).filter(Party.on_expedition == False).all()
+        
+        # Get selected party if provided
+        selected_party = None
+        if party_id:
+            selected_party = db.query(Party).filter(Party.id == party_id).first()
+        
+        # Get treasury total from the first player for header display
+        treasury_gold = 0
+        player = db.query(Player).first()
+        if player:
+            treasury_gold = player.treasury
+        
+        return templates.TemplateResponse(
+            "partials/expedition_form.html",
+            {
+                "request": request,
+                "parties": parties,
+                "party": selected_party,
+                "treasury_gold": treasury_gold
+            }
+        )
+    except Exception as e:
+        print(f"Error in expedition_create_form: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/expeditions/new", response_class=HTMLResponse)
+def expeditions_new_redirect(request: Request, db: Session = Depends(get_db)):
+    """Redirect to expeditions page (legacy route)"""
+    return expeditions_page(request, db)
+
 @app.post("/expeditions/", response_model=ExpeditionResult)
 def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(get_db)):
     """Launch a new expedition with a party to a dungeon"""
@@ -918,9 +995,24 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
         dungeon_level=expedition_data.dungeon_level
     )
     
+    # Get or create game time to set expedition days
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime(current_day=1)
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+    
     # Create expedition record in database
+    start_day = game_time.current_day
+    duration_days = expedition_data.duration_days
+    return_day = start_day + duration_days
+    
     db_expedition = Expedition(
         party_id=party.id,
+        start_day=start_day,
+        duration_days=duration_days,
+        return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
         supplies_consumed={},  # Will be populated after expedition
@@ -1243,6 +1335,65 @@ def advance_expedition_turn(expedition_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Expedition not found in simulator")
 
 # --- Frontend Routes ---
+@app.get("/expeditions", response_class=HTMLResponse)
+def expeditions_page(request: Request, db: Session = Depends(get_db)):
+    """Render the expeditions page"""
+    # Get active expeditions (in progress)
+    active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+    
+    # Get treasury total from the first player for header display
+    treasury_gold = 0
+    player = db.query(Player).first()
+    if player:
+        treasury_gold = player.treasury
+    
+    return templates.TemplateResponse(
+        "expeditions.html",
+        {
+            "request": request,
+            "active_expeditions": active_expeditions,
+            "treasury_gold": treasury_gold
+        }
+    )
+
+@app.get("/expeditions/new", response_class=HTMLResponse)
+def expeditions_new_redirect(request: Request, db: Session = Depends(get_db)):
+    """Redirect to expeditions page (legacy route)"""
+    return expeditions_page(request, db)
+
+@app.get("/expeditions/create-form", response_class=HTMLResponse)
+def expedition_create_form(request: Request, party_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    """Return the expedition creation form"""
+    try:
+        # Get all available parties (not on expedition)
+        parties = db.query(Party).filter(Party.on_expedition == False).all()
+        
+        # Get selected party if provided
+        selected_party = None
+        if party_id:
+            selected_party = db.query(Party).filter(Party.id == party_id).first()
+        
+        # Get treasury total from the first player for header display
+        treasury_gold = 0
+        player = db.query(Player).first()
+        if player:
+            treasury_gold = player.treasury
+        
+        return templates.TemplateResponse(
+            "partials/expedition_form.html",
+            {
+                "request": request,
+                "parties": parties,
+                "party": selected_party,
+                "treasury_gold": treasury_gold
+            }
+        )
+    except Exception as e:
+        print(f"Error in expedition_create_form: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, db: Session = Depends(get_db)):
     """Render the home page"""
