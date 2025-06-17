@@ -894,8 +894,21 @@ def expeditions_new_redirect(request: Request, db: Session = Depends(get_db)):
     return expeditions_page(request, db)
 
 @app.post("/expeditions/", response_model=ExpeditionResult)
-def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(get_db)):
+def launch_expedition(
+    party_id: int = Form(...),
+    dungeon_level: int = Form(...),
+    duration_days: int = Form(...),
+    db: Session = Depends(get_db)
+):
     """Launch a new expedition with a party to a dungeon"""
+    # Create ExpeditionCreate object
+    expedition_data = ExpeditionCreate(
+        party_id=party_id,
+        dungeon_level=dungeon_level,
+        duration_days=duration_days,
+        supplies_to_bring=[]  # Setting to empty list as per requirement
+    )
+
     # Check if party exists
     party = db.query(Party).filter(Party.id == expedition_data.party_id).first()
     if not party:
@@ -979,18 +992,20 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
         })
     
     # Add party to simulator if not already there
-    party_id = expedition_data.party_id
+    # party_id is already defined from Form input
     simulator_party_idx = None
-    for idx, sim_party in enumerate(simulator.parties):
-        if len(sim_party) > 0 and sim_party[0].get("id") == party_members[0]["id"]:
-            simulator_party_idx = idx
-            break
+    # Ensure party_members is not empty before accessing its elements
+    if party_members:
+        for idx, sim_party in enumerate(simulator.parties):
+            if len(sim_party) > 0 and sim_party[0].get("id") == party_members[0].get("id"):
+                simulator_party_idx = idx
+                break
     
     if simulator_party_idx is None:
         simulator_party_idx = simulator.add_party(party_members)
     
     # Start expedition in simulator
-    expedition_id = simulator.start_expedition(
+    expedition_id_sim = simulator.start_expedition( # Renamed to avoid conflict with DB expedition_id
         simulator_party_idx, 
         dungeon_level=expedition_data.dungeon_level
     )
@@ -1005,13 +1020,13 @@ def launch_expedition(expedition_data: ExpeditionCreate, db: Session = Depends(g
     
     # Create expedition record in database
     start_day = game_time.current_day
-    duration_days = expedition_data.duration_days
-    return_day = start_day + duration_days
+    # duration_days is already defined from Form input
+    return_day = start_day + expedition_data.duration_days # Use expedition_data
     
     db_expedition = Expedition(
-        party_id=party.id,
+        party_id=expedition_data.party_id, # Use party_id from expedition_data
         start_day=start_day,
-        duration_days=duration_days,
+        duration_days=expedition_data.duration_days, # Use duration_days from expedition_data
         return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
