@@ -6,7 +6,7 @@ import math
 from datetime import datetime, timedelta # Added datetime
 
 from app.main import app, get_db
-from app.models import Base, Adventurer, GameTime, Party, Expedition
+from app.models import Base, Adventurer, GameTime, Party, Expedition, Player # Added Player
 from app.schemas import AdventurerCreate, PartyCreate, GameTimeInfo # Added GameTimeInfo for potential response validation
 
 # Use an in-memory SQLite database for testing
@@ -70,29 +70,56 @@ def create_game_time_db(db: Session, current_day: int):
     db.refresh(gt)
     return gt
 
+# Helper to create Player
+def create_player_db(db: Session, name: str, treasury: int = 0, total_score: int = 0):
+    player = Player(name=name, treasury=treasury, total_score=total_score)
+    db.add(player)
+    db.commit()
+    db.refresh(player)
+    return player
+
 # Test Cases
 
 def test_upkeep_successful_payment(client: TestClient, db_session: Session):
+    player = create_player_db(db_session, name="TestPlayer1")
     create_game_time_db(db_session, 30)
-    adv = create_adventurer_db(db_session, name="TestAdv1", xp=2000, gold=100) # Cost = floor(2000*0.01) = 20
+    adv_xp = 2000
+    adv_gold_initial = 100
+    upkeep_cost = math.floor(adv_xp * 0.01) # 20
+    adv = create_adventurer_db(db_session, name="TestAdv1", xp=adv_xp, gold=adv_gold_initial)
+
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
 
     db_session.refresh(adv)
-    assert adv.gold == 80
+    assert adv.gold == adv_gold_initial - upkeep_cost
     assert not adv.is_bankrupt
     assert adv.expedition_status == "resting" # Should not change
 
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury + upkeep_cost
+    assert player.total_score == initial_player_score + upkeep_cost
+
     data = response.json()
     assert "Upkeep applied for day 30" in data["message"]
-    assert "1 adventurers processed" in data["message"] # Assuming only one adventurer
+    assert "1 adventurers processed" in data["message"]
     assert "0 became bankrupt" in data["message"]
-    assert "Total gold deducted: 20 GP" in data["message"]
+    assert f"Total gold deducted from adventurers: {upkeep_cost} GP." in data["message"]
+    assert f"Total gold transferred to player treasury: {upkeep_cost} GP." in data["message"]
 
 def test_upkeep_adventurer_goes_bankrupt(client: TestClient, db_session: Session):
+    player = create_player_db(db_session, name="TestPlayer2")
     create_game_time_db(db_session, 30)
-    adv = create_adventurer_db(db_session, name="TestAdv2", xp=2000, gold=10) # Cost = 20
+    adv_xp = 2000
+    adv_initial_gold = 10
+    upkeep_cost = math.floor(adv_xp * 0.01) # 20
+    adv = create_adventurer_db(db_session, name="TestAdv2", xp=adv_xp, gold=adv_initial_gold)
+
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
@@ -101,15 +128,24 @@ def test_upkeep_adventurer_goes_bankrupt(client: TestClient, db_session: Session
     assert adv.gold == 0
     assert adv.is_bankrupt
     assert adv.expedition_status == "Bankrupt"
+
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury + adv_initial_gold # Transfer what they had
+    assert player.total_score == initial_player_score + adv_initial_gold
 
     data = response.json()
     assert "1 adventurers processed" in data["message"]
     assert "1 became bankrupt" in data["message"]
-    assert "Total gold deducted: 10 GP" in data["message"] # Deducted what they had
+    assert f"Total gold deducted from adventurers: {adv_initial_gold} GP." in data["message"]
+    assert f"Total gold transferred to player treasury: {adv_initial_gold} GP." in data["message"]
 
 def test_upkeep_already_bankrupt_cannot_pay(client: TestClient, db_session: Session):
+    player = create_player_db(db_session, name="TestPlayer3")
     create_game_time_db(db_session, 60)
     adv = create_adventurer_db(db_session, name="TestAdv3", xp=2000, gold=0, is_bankrupt=True, expedition_status="Bankrupt") # Cost = 20
+
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
@@ -119,48 +155,76 @@ def test_upkeep_already_bankrupt_cannot_pay(client: TestClient, db_session: Sess
     assert adv.is_bankrupt
     assert adv.expedition_status == "Bankrupt"
 
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury # No gold transferred
+    assert player.total_score == initial_player_score
+
     data = response.json()
     assert "1 adventurers processed" in data["message"]
     assert "1 became bankrupt" in data["message"] # Still bankrupt
-    assert "Total gold deducted: 0 GP" in data["message"]
+    assert "Total gold deducted from adventurers: 0 GP." in data["message"]
+    assert "Total gold transferred to player treasury: 0 GP." in data["message"]
 
 
 def test_upkeep_pays_and_clears_bankruptcy(client: TestClient, db_session: Session):
+    player = create_player_db(db_session, name="TestPlayer4")
     create_game_time_db(db_session, 90)
-    adv = create_adventurer_db(db_session, name="TestAdv4", xp=1000, gold=50, is_bankrupt=True, expedition_status="Bankrupt") # Cost = 10
+    adv_xp = 1000
+    adv_initial_gold = 50
+    upkeep_cost = math.floor(adv_xp * 0.01) # 10
+    adv = create_adventurer_db(db_session, name="TestAdv4", xp=adv_xp, gold=adv_initial_gold, is_bankrupt=True, expedition_status="Bankrupt")
+
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
 
     db_session.refresh(adv)
-    assert adv.gold == 40
+    assert adv.gold == adv_initial_gold - upkeep_cost
     assert not adv.is_bankrupt
     assert adv.expedition_status == "resting" # Default status after clearing bankruptcy
 
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury + upkeep_cost
+    assert player.total_score == initial_player_score + upkeep_cost
+
     data = response.json()
     assert "0 became bankrupt" in data["message"] # Cleared bankruptcy
-    assert "Total gold deducted: 10 GP" in data["message"]
+    assert f"Total gold deducted from adventurers: {upkeep_cost} GP." in data["message"]
+    assert f"Total gold transferred to player treasury: {upkeep_cost} GP." in data["message"]
 
 def test_upkeep_no_upkeep_due_not_day_30(client: TestClient, db_session: Session):
+    player = create_player_db(db_session, name="TestPlayer5")
     create_game_time_db(db_session, 29)
     adv = create_adventurer_db(db_session, name="TestAdv5", xp=1000, gold=100)
 
-    initial_gold = adv.gold
-    initial_is_bankrupt = adv.is_bankrupt
+    initial_adv_gold = adv.gold
+    initial_adv_is_bankrupt = adv.is_bankrupt
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
 
     db_session.refresh(adv)
-    assert adv.gold == initial_gold
-    assert adv.is_bankrupt == initial_is_bankrupt
+    assert adv.gold == initial_adv_gold
+    assert adv.is_bankrupt == initial_adv_is_bankrupt
+
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury
+    assert player.total_score == initial_player_score
 
     data = response.json()
     assert "No upkeep applied for day 29" in data["message"]
 
 def test_upkeep_zero_xp_adventurer(client: TestClient, db_session: Session):
+    player = create_player_db(db_session, name="TestPlayer6")
     create_game_time_db(db_session, 30)
     adv = create_adventurer_db(db_session, name="TestAdv6", xp=0, gold=0)
+
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
@@ -169,10 +233,15 @@ def test_upkeep_zero_xp_adventurer(client: TestClient, db_session: Session):
     assert adv.gold == 0
     assert not adv.is_bankrupt
 
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury
+    assert player.total_score == initial_player_score
+
     data = response.json()
     # Upkeep cost is 0, so no gold deducted, not counted as bankrupt.
     assert "0 became bankrupt" in data["message"]
-    assert "Total gold deducted: 0 GP" in data["message"]
+    assert "Total gold deducted from adventurers: 0 GP." in data["message"]
+    assert "Total gold transferred to player treasury: 0 GP." in data["message"]
 
 
 def test_bankrupt_adventurer_cannot_launch_expedition(client: TestClient, db_session: Session):
@@ -238,25 +307,42 @@ def test_non_bankrupt_party_launches_expedition(client: TestClient, db_session: 
 def test_upkeep_pays_and_clears_bankruptcy_detailed_status(client: TestClient, db_session: Session):
     create_game_time_db(db_session, 90)
     # Adventurer was bankrupt, now has gold
-    adv = create_adventurer_db(db_session, name="AdvClears", xp=1500, gold=100, is_bankrupt=True, expedition_status="Bankrupt") # Cost = 15
+    player = create_player_db(db_session, name="TestPlayerClears")
+    adv_xp = 1500
+    adv_initial_gold = 100
+    upkeep_cost = math.floor(adv_xp * 0.01) # 15
+    adv = create_adventurer_db(db_session, name="AdvClears", xp=adv_xp, gold=adv_initial_gold, is_bankrupt=True, expedition_status="Bankrupt")
+
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
 
     db_session.refresh(adv)
-    assert adv.gold == 85
+    assert adv.gold == adv_initial_gold - upkeep_cost
     assert not adv.is_bankrupt
     assert adv.expedition_status == "resting" # Check if status is correctly reset
+
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury + upkeep_cost
+    assert player.total_score == initial_player_score + upkeep_cost
 
     data = response.json()
     assert "1 adventurers processed" in data["message"]
     assert "0 became bankrupt" in data["message"] # This means they cleared it
-    assert "Total gold deducted: 15 GP" in data["message"]
+    assert f"Total gold deducted from adventurers: {upkeep_cost} GP." in data["message"]
+    assert f"Total gold transferred to player treasury: {upkeep_cost} GP." in data["message"]
+
 
 def test_upkeep_cost_is_zero(client: TestClient, db_session: Session):
+    player = create_player_db(db_session, name="TestPlayerCostZero")
     create_game_time_db(db_session, 30)
     # XP is low enough that 1% is < 1, so floor(cost) is 0
     adv = create_adventurer_db(db_session, name="LowXPCost", xp=50, gold=10) # Cost = floor(50*0.01) = 0
+
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     response = client.put("/upkeep")
     assert response.status_code == 200
@@ -265,42 +351,91 @@ def test_upkeep_cost_is_zero(client: TestClient, db_session: Session):
     assert adv.gold == 10 # No change
     assert not adv.is_bankrupt
 
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury
+    assert player.total_score == initial_player_score
+
     data = response.json()
     assert "1 adventurers processed" in data["message"]
     assert "0 became bankrupt" in data["message"]
-    assert "Total gold deducted: 0 GP" in data["message"]
+    assert "Total gold deducted from adventurers: 0 GP." in data["message"]
+    assert "Total gold transferred to player treasury: 0 GP." in data["message"]
+
 
 # Initialize GameTime if it doesn't exist in /upkeep
-def test_upkeep_initializes_gametime(client: TestClient, db_session: Session):
-    # No GameTime created initially
-    adv = create_adventurer_db(db_session, name="AdvGametimeInit", xp=1000, gold=100)
+def test_upkeep_initializes_gametime_and_player_interaction(client: TestClient, db_session: Session):
+    # No GameTime or Player created initially
+    adv_xp = 1000
+    adv_gold_initial = 100
+    upkeep_cost = math.floor(adv_xp * 0.01) # 10
+    adv = create_adventurer_db(db_session, name="AdvGametimeInit", xp=adv_xp, gold=adv_gold_initial)
 
-    response = client.put("/upkeep") # Should run on day 1 (default init) if GT doesn't exist
-    assert response.status_code == 200
+    # First call, game time day 1 (no upkeep)
+    response_day1 = client.put("/upkeep")
+    assert response_day1.status_code == 200
+    data_day1 = response_day1.json()
+    assert "No upkeep applied for day 1" in data_day1["message"]
 
     game_time = db_session.query(GameTime).first()
     assert game_time is not None
-    assert game_time.current_day == 1 # Default init
-
-    data = response.json()
-    assert "No upkeep applied for day 1" in data["message"] # Day 1 is not a multiple of 30
+    assert game_time.current_day == 1
 
     db_session.refresh(adv)
-    assert adv.gold == 100 # No change as no upkeep on day 1
+    assert adv.gold == adv_gold_initial
     assert not adv.is_bankrupt
+
+    # Check if player was created
+    player = db_session.query(Player).first()
+    assert player is not None
+    assert player.name == "Default Player"
+    initial_player_treasury = player.treasury
+    initial_player_score = player.total_score
 
     # Now set day to 30 and try again
     game_time.current_day = 30
+    db_session.add(game_time) # Re-add to session if it was detached or to mark it dirty.
     db_session.commit()
 
     response_day30 = client.put("/upkeep")
     assert response_day30.status_code == 200
     data_day30 = response_day30.json()
     assert "Upkeep applied for day 30" in data_day30["message"]
-    assert "Total gold deducted: 10 GP" in data_day30["message"] # Cost for 1000 XP
+    assert f"Total gold deducted from adventurers: {upkeep_cost} GP." in data_day30["message"]
+    assert f"Total gold transferred to player treasury: {upkeep_cost} GP." in data_day30["message"]
 
     db_session.refresh(adv)
-    assert adv.gold == 90
+    assert adv.gold == adv_gold_initial - upkeep_cost
+
+    db_session.refresh(player)
+    assert player.treasury == initial_player_treasury + upkeep_cost
+    assert player.total_score == initial_player_score + upkeep_cost
+
+def test_upkeep_creates_player_if_none_exists(client: TestClient, db_session: Session):
+    create_game_time_db(db_session, 30)
+    adv_xp = 1000
+    adv_gold_initial = 100
+    upkeep_cost = math.floor(adv_xp * 0.01) # 10
+    adv = create_adventurer_db(db_session, name="AdvForNewPlayer", xp=adv_xp, gold=adv_gold_initial)
+
+    # Ensure no player exists
+    assert db_session.query(Player).count() == 0
+
+    response = client.put("/upkeep")
+    assert response.status_code == 200
+
+    assert response.status_code == 200
+
+    player = db_session.query(Player).first()
+    assert player is not None
+    assert player.name == "Default Player"
+    assert player.treasury == upkeep_cost
+    assert player.total_score == upkeep_cost
+
+    db_session.refresh(adv)
+    assert adv.gold == adv_gold_initial - upkeep_cost
+
+    data = response.json()
+    assert f"Total gold transferred to player treasury: {upkeep_cost} GP." in data["message"]
 
 # TODO: Add tests for expedition balancing in a separate file or below if structure allows.
 # For now, focusing on upkeep and bankruptcy launch prevention.

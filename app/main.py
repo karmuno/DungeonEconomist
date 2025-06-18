@@ -246,7 +246,18 @@ def run_upkeep(db: Session = Depends(get_db)):
         adventurers = db.query(Adventurer).all()
         adventurers_processed = 0
         bankrupt_adventurers = 0
-        total_gold_deducted = 0
+        total_gold_deducted_from_adventurers = 0
+        total_gold_transferred_to_treasury = 0
+
+        # Fetch or create the default player
+        player = db.query(Player).first()
+        if not player:
+            player = Player(name="Default Player", treasury=0, total_score=0)
+            db.add(player)
+            # Committing here to get a player ID if new, or rely on the final commit.
+            # For simplicity, let's commit player creation separately if it happens.
+            # Or, ensure player is part of the session and will be committed.
+            # If we add to session, final db.commit() will handle it.
 
         for adv in adventurers:
             adventurers_processed += 1
@@ -257,23 +268,38 @@ def run_upkeep(db: Session = Depends(get_db)):
 
             if adv.gold >= cost:
                 adv.gold -= cost
-                total_gold_deducted += cost
-                # Ensure is_bankrupt is False if they can pay (in case they were bankrupt before and got gold)
+                total_gold_deducted_from_adventurers += cost
+
+                # Transfer cost to player treasury
+                player.treasury += cost
+                player.total_score += cost
+                total_gold_transferred_to_treasury += cost
+
+                # Ensure is_bankrupt is False if they can pay
                 if adv.is_bankrupt:
                     adv.is_bankrupt = False
-                    adv.expedition_status = "resting" # Or some other default non-bankrupt status
+                    adv.expedition_status = "resting"
             else:
+                # Adventurer cannot pay the full cost
+                # Transfer remaining gold to treasury before setting to 0
+                if adv.gold > 0:
+                    player.treasury += adv.gold
+                    player.total_score += adv.gold
+                    total_gold_transferred_to_treasury += adv.gold
+                    total_gold_deducted_from_adventurers += adv.gold # They lost this gold
+
                 adv.gold = 0
                 adv.is_bankrupt = True
                 adv.expedition_status = "Bankrupt"
                 bankrupt_adventurers += 1
 
-        db.commit()
+        db.commit() # Commits changes to adventurers and the player
         return {
             "message": f"Upkeep applied for day {game_time.current_day}. "
                        f"{adventurers_processed} adventurers processed. "
                        f"{bankrupt_adventurers} became bankrupt. "
-                       f"Total gold deducted: {total_gold_deducted} GP."
+                       f"Total gold deducted from adventurers: {total_gold_deducted_from_adventurers} GP. "
+                       f"Total gold transferred to player treasury: {total_gold_transferred_to_treasury} GP."
         }
     else:
         return {
