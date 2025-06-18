@@ -377,3 +377,52 @@ def test_advance_day_multiple_advances_from_existing(client: TestClient, db_sess
     db_game_time = db_session.query(GameTime).first()
     assert db_game_time is not None
     assert db_game_time.current_day == initial_day + 3
+
+# --- Test for POST /parties/ ---
+def test_create_party_successful_response(client: TestClient, db_session: Session):
+    party_name = "The Mighty Testers"
+    party_funds = 123
+
+    response = client.post("/parties/", data={"name": party_name, "funds": party_funds})
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # Check top-level keys (example, can be more comprehensive)
+    expected_keys = ["id", "name", "created_at", "on_expedition", "current_expedition_id", "funds", "player_id", "members", "supplies"]
+    for key in expected_keys:
+        assert key in data, f"Key '{key}' missing in response"
+
+    assert data["name"] == party_name
+    assert data["funds"] == party_funds
+    assert data["on_expedition"] is False # Default for new party
+    assert data["members"] == [] # Should be empty for a new party
+    assert data["supplies"] is None # Based on PartyOut schema: Optional[List[PartySupplyOut]] = None
+
+    assert isinstance(data["id"], int)
+    assert data["id"] > 0 # Should have a positive ID from DB
+
+    # Check created_at is a valid ISO datetime string
+    try:
+        datetime.fromisoformat(data["created_at"])
+    except ValueError:
+        pytest.fail(f"created_at '{data['created_at']}' is not a valid ISO datetime string")
+
+    # Verify in DB
+    db_party = db_session.query(Party).filter(Party.id == data["id"]).first()
+    assert db_party is not None
+    assert db_party.name == party_name
+    assert db_party.funds == party_funds
+    assert not db_party.on_expedition
+    assert len(db_party.members) == 0
+    # SQLAlchemy default for empty relationship is an empty list, Pydantic might serialize it to None or [] based on schema
+    # The explicit loading in create_party should ensure these are at least initialized as empty collections.
+    # For `supplies` which is backref from `Supply` to `Party` via `party_supply` table,
+    # and PartyOut has `supplies: Optional[List[PartySupplyOut]] = None`,
+    # if no supplies are added, it should be None or an empty list.
+    # The explicit `_ = new_party.supplies` should ensure the attribute is accessed.
+    # If Party.supplies is a standard relationship(), it will be an empty list.
+    # If it's from a backref on Supply.parties, it might depend on how it's set up.
+    # Given PartyOut.supplies is Optional and defaults to None, None is the most likely correct value if empty.
+    assert db_party.supplies == [] # SQLAlchemy relationships are typically empty lists if not populated.
+                                 # Pydantic serialization to None for response is fine due to Optional schema.

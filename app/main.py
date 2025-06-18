@@ -341,6 +341,9 @@ def create_party(
     db.add(new_party)
     db.commit()
     db.refresh(new_party)
+    # Explicitly access relationships to ensure they are loaded for Pydantic
+    _ = new_party.members
+    _ = new_party.supplies
     return new_party
 
 @app.get("/parties/", response_model=list[PartyOut])
