@@ -23,7 +23,7 @@ from app.schemas import (
     ExpeditionResult, TurnResult, EquipmentOut, EquipmentCreate,
     SupplyOut, SupplyCreate, EquipmentOperation, SupplyOperation,
     PartyFundsUpdate, AdventurerEquipmentOut, PartySupplyOut,
-    LevelUpResult, PlayerCreate, PlayerOut, PlayerBase
+    LevelUpResult, PlayerCreate, PlayerOut, PlayerBase, GameTimeInfo
 )
 from app.simulator import DungeonSimulator, calculate_loot_split
 from app.progression import (
@@ -280,6 +280,41 @@ def run_upkeep(db: Session = Depends(get_db)):
             "message": f"No upkeep applied for day {game_time.current_day}. "
                        "Upkeep runs every 30 days."
         }
+
+@app.post("/time/advance-day", response_model=GameTimeInfo)
+def advance_day(db: Session = Depends(get_db)):
+    """
+    Advance the game time by one day.
+    Initializes game time if it doesn't exist, starting at day 0, so first advance makes it day 1.
+    """
+    game_time = db.query(GameTime).first()
+
+    if not game_time:
+        game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
+        db.add(game_time)
+        # No commit yet, will be committed after incrementing day
+
+    game_time.current_day += 1
+    game_time.last_updated = datetime.now()
+    # If it was a new GameTime, day_started_at is already set.
+    # If it's an existing one, day_started_at should ideally not change here,
+    # unless a new day truly means resetting its start time.
+    # The model sets default for day_started_at, and onupdate for last_updated.
+    # For an existing game_time, current_day and last_updated are the primary changes.
+    # If we want day_started_at to update ONLY when a new day occurs (not every time GameTime is touched),
+    # this is a reasonable place to set it.
+    # However, the model's `default=datetime.now` for `day_started_at` only applies on creation.
+    # Let's ensure `day_started_at` is also updated if the day actually changes.
+    # A simpler interpretation: `day_started_at` is when day 0 (or 1) started.
+    # `last_updated` is when any change to GameTime happened.
+    # The current model has `day_started_at` default to `datetime.now()` on creation and `last_updated` updates on any change.
+    # So, for a new GameTime, both will be set. For an existing, only last_updated will auto-update via model.
+    # Explicitly setting last_updated here is fine. day_started_at is fine as is upon creation.
+
+    db.commit()
+    db.refresh(game_time)
+
+    return game_time
 
 # --- Party Endpoints ---
 @app.post("/parties/", response_model=PartyOut)

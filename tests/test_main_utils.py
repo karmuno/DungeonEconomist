@@ -3,10 +3,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import math
+from datetime import datetime, timedelta # Added datetime
 
 from app.main import app, get_db
 from app.models import Base, Adventurer, GameTime, Party, Expedition
-from app.schemas import AdventurerCreate, PartyCreate # Assuming these are needed for setup
+from app.schemas import AdventurerCreate, PartyCreate, GameTimeInfo # Added GameTimeInfo for potential response validation
 
 # Use an in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_db.sqlite"
@@ -304,26 +305,75 @@ def test_upkeep_initializes_gametime(client: TestClient, db_session: Session):
 # TODO: Add tests for expedition balancing in a separate file or below if structure allows.
 # For now, focusing on upkeep and bankruptcy launch prevention.
 
-# Example of how to structure expedition balancing tests (will be in a different file)
-# from app.expedition import Expedition as SimExpedition # Renamed to avoid conflict
-# from app.simulator import DungeonSimulator # If using the main simulator
 
-# def test_expedition_balancing_example():
-#     party_comp = [
-#         {"name": "Thorgar", "character_class": "Fighter", "level": 3, "hit_points": 24, "current_hp": 24},
-#         {"name": "Elindra", "character_class": "Elf", "level": 2, "hit_points": 12, "current_hp": 12},
-#     ]
-#
-#     results_level1 = []
-#     for _ in range(10): # Run 10 simulations
-#         exp = SimExpedition(party=[m.copy() for m in party_comp], dungeon_level=1)
-#         results_level1.append(exp.run_expedition(turns=20))
-#
-#     avg_xp_l1 = sum(r['xp_earned'] for r in results_level1) / len(results_level1)
-#     avg_gold_l1 = sum(r['treasure_total'] for r in results_level1) / len(results_level1)
-#
-#     # ... repeat for level 3 and 5 ...
-#     # Then assert: avg_xp_l3 > avg_xp_l1, avg_gold_l5 > avg_gold_l3 etc.
-#     # Assertions for HP loss would require more detailed tracking or checking number of "dead" members.
-#
-#     assert True # Placeholder
+# --- Tests for /time/advance-day ---
+
+def test_advance_day_existing_gametime(client: TestClient, db_session: Session):
+    initial_datetime = datetime.now() - timedelta(hours=1)
+    gt = GameTime(current_day=5, day_started_at=initial_datetime, last_updated=initial_datetime)
+    db_session.add(gt)
+    db_session.commit()
+    db_session.refresh(gt)
+
+    response = client.post("/time/advance-day")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["current_day"] == 6
+
+    # Parse datetimes for comparison
+    response_last_updated = datetime.fromisoformat(data["last_updated"])
+    assert response_last_updated > initial_datetime
+
+    db_game_time = db_session.query(GameTime).first()
+    assert db_game_time is not None
+    assert db_game_time.current_day == 6
+    assert db_game_time.last_updated == response_last_updated # Check if DB matches response dt
+
+def test_advance_day_no_initial_gametime(client: TestClient, db_session: Session):
+    # Ensure no GameTime exists
+    assert db_session.query(GameTime).first() is None
+
+    response = client.post("/time/advance-day")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["current_day"] == 1 # Initialized at 0, then incremented
+    assert "last_updated" in data
+
+    db_game_time = db_session.query(GameTime).first()
+    assert db_game_time is not None
+    assert db_game_time.current_day == 1
+    assert datetime.fromisoformat(data["last_updated"]) == db_game_time.last_updated
+
+def test_advance_day_multiple_advances(client: TestClient, db_session: Session):
+    # Start with no GameTime
+    initial_day_check = 0
+
+    # Or start with existing GameTime
+    # create_game_time_db(db_session, 10)
+    # initial_day_check = 10
+
+    for i in range(1, 4): # Call 3 times
+        response = client.post("/time/advance-day")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["current_day"] == initial_day_check + i
+
+    db_game_time = db_session.query(GameTime).first()
+    assert db_game_time is not None
+    assert db_game_time.current_day == initial_day_check + 3
+
+def test_advance_day_multiple_advances_from_existing(client: TestClient, db_session: Session):
+    initial_day = 10
+    create_game_time_db(db_session, initial_day)
+
+    for i in range(1, 4): # Call 3 times
+        response = client.post("/time/advance-day")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["current_day"] == initial_day + i
+
+    db_game_time = db_session.query(GameTime).first()
+    assert db_game_time is not None
+    assert db_game_time.current_day == initial_day + 3
