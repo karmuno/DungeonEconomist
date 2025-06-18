@@ -3,24 +3,40 @@
 {% block title %}Expeditions - Venturekeep{% endblock %}
 
 {% block content %}
-<div class="bg-white shadow-md rounded-lg p-6">
+<div class="bg-gray-800 border border-gray-600 rounded-lg p-6">
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold">Expeditions</h1>
-        <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        <h1 class="text-3xl font-bold text-green-400">Expeditions</h1>
+        <button class="bg-green-500 hover:bg-green-600 text-black font-semibold px-4 py-2 rounded"
                 hx-get="/expeditions/create-form"
                 hx-target="#modal-content"
                 hx-trigger="click"
-                onclick="document.getElementById('modal').classList.remove('hidden')">
+                onclick="document.getElementById('modal-title').innerText='Launch Expedition'; document.getElementById('modal').classList.remove('hidden')">
             Launch Expedition
         </button>
+    </div>
+
+    <div class="flex justify-between items-center mb-6 p-4 bg-black border border-gray-600 text-white rounded-lg">
+        <div id="current-day-display">
+            <h2 class="text-xl font-semibold text-green-400">Current Day: {{ game_time.current_day if game_time else 'N/A' }}</h2>
+        </div>
+        <button hx-post="/time/advance-day"
+                hx-target="#expedition-content"
+                hx-swap="innerHTML"
+                hx-indicator="#loading-indicator"
+                class="bg-green-500 hover:bg-green-600 text-black font-semibold py-2 px-4 rounded">
+            Advance Day
+        </button>
+    </div>
+    <div id="loading-indicator" class="htmx-indicator text-center mb-4 text-gray-400">
+        <p>Advancing time...</p>
     </div>
     
     <!-- Expedition Tabs -->
     <div class="mb-6">
-        <div class="border-b border-gray-200">
+        <div class="border-b border-gray-600">
             <ul class="flex -mb-px">
                 <li class="mr-1">
-                    <button class="inline-block py-2 px-4 text-blue-600 hover:text-blue-800 font-medium border-b-2 border-blue-600"
+                    <button class="inline-block py-2 px-4 text-green-400 font-medium border-b-2 border-green-400"
                             id="active-tab"
                             hx-get="/expeditions/active"
                             hx-target="#expedition-content"
@@ -30,7 +46,7 @@
                     </button>
                 </li>
                 <li class="mr-1">
-                    <button class="inline-block py-2 px-4 text-gray-500 hover:text-gray-700 font-medium border-b-2 border-transparent"
+                    <button class="inline-block py-2 px-4 text-gray-400 hover:text-green-400 font-medium border-b-2 border-transparent"
                             id="completed-tab"
                             hx-get="/expeditions/completed"
                             hx-target="#expedition-content"
@@ -43,64 +59,19 @@
         </div>
     </div>
     
-    <!-- Expedition Content -->
-    <div id="expedition-content">
-        {% if active_expeditions %}
-            <div class="space-y-6">
-                {% for expedition in active_expeditions %}
-                <div class="bg-gray-100 p-4 rounded-lg shadow">
-                    <div class="flex justify-between items-center mb-4">
-                        <div>
-                            <h2 class="text-xl font-bold">{{ expedition.party.name }}</h2>
-                            <p class="text-sm text-gray-600">Started: {{ expedition.started_at.strftime('%Y-%m-%d %H:%M') }}</p>
-                        </div>
-                        <button class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                                hx-get="/expeditions/{{ expedition.id }}/advance"
-                                hx-target="#expedition-{{ expedition.id }}-log">
-                            Advance Turn
-                        </button>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <div class="w-full bg-gray-200 rounded-full h-4">
-                            {% set progress = expedition.node_results|length * 10 %}
-                            {% if progress > 100 %}{% set progress = 100 %}{% endif %}
-                            <div class="bg-blue-600 h-4 rounded-full" style="width: {{ progress }}%"></div>
-                        </div>
-                        <div class="flex justify-between text-sm mt-1">
-                            <span>Turn {{ expedition.node_results|length }}</span>
-                            <span>{{ progress }}% complete</span>
-                        </div>
-                    </div>
-                    
-                    <div id="expedition-{{ expedition.id }}-log" class="space-y-2 max-h-60 overflow-y-auto bg-white p-3 rounded">
-                        <!-- Log entries will be loaded here -->
-                        <p class="text-center text-gray-500">Click "Advance Turn" to progress the expedition</p>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="bg-gray-100 p-6 rounded-lg text-center">
-                <p class="mb-4">No active expeditions.</p>
-                <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                        hx-get="/expeditions/create-form"
-                        hx-target="#modal-content"
-                        hx-trigger="click"
-                        onclick="document.getElementById('modal').classList.remove('hidden')">
-                    Launch Expedition
-                </button>
-            </div>
-        {% endif %}
+    <!-- Expedition Content will be loaded by HTMX -->
+    <div id="expedition-content" class="text-gray-300">
+        <!-- Default content (e.g. active expeditions) will be loaded by JS -->
+        <p class="text-center p-4">Loading expedition data...</p>
     </div>
 </div>
 
 <!-- Modal -->
-<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+<div id="modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+    <div class="bg-black border border-green-500 p-6 rounded-lg shadow-lg w-full max-w-md">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold" id="modal-title">Launch Expedition</h2>
-            <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+            <h2 class="text-xl font-bold text-green-400" id="modal-title">Launch Expedition</h2>
+            <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-400 hover:text-white">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -115,20 +86,25 @@
 {% block scripts %}
 <script>
     function setActiveTab(tabId) {
-        // Remove active styles from all tabs
-        document.querySelectorAll('.border-b-2').forEach(tab => {
-            tab.classList.remove('border-blue-600', 'text-blue-600');
-            tab.classList.add('border-transparent', 'text-gray-500');
+        const activeTab = document.getElementById('active-tab');
+        const completedTab = document.getElementById('completed-tab');
+
+        // Reset both tabs to inactive state
+        [activeTab, completedTab].forEach(tab => {
+            tab.classList.remove('text-green-400', 'border-green-400');
+            tab.classList.add('text-gray-400', 'border-transparent', 'hover:text-green-400');
         });
         
-        // Add active styles to selected tab
-        document.getElementById(tabId).classList.remove('border-transparent', 'text-gray-500');
-        document.getElementById(tabId).classList.add('border-blue-600', 'text-blue-600');
+        // Activate the selected tab
+        const selectedTab = document.getElementById(tabId);
+        selectedTab.classList.remove('text-gray-400', 'border-transparent', 'hover:text-green-400');
+        selectedTab.classList.add('text-green-400', 'border-green-400');
     }
     
-    // Load active expeditions on page load
+    // Load active expeditions on page load and set active tab
     document.addEventListener('DOMContentLoaded', function() {
         htmx.ajax('GET', '/expeditions/active', {target: '#expedition-content'});
+        setActiveTab('active-tab'); // Ensure "Active" tab is styled as active on load
     });
 </script>
 {% endblock %}
