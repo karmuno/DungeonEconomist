@@ -3,12 +3,17 @@
         Venturekeep is a Dungeons & Dragons (D&D) inspired party management simulation game built with FastAPI. Players manage adventurers, parties, expeditions, and resources as they
     venture through dungeons, track progress, and collect loot.
 
-        ## Features
-        - Manage adventurers of different classes and manage their equipment.
-        - Create parties and assign adventurers.
-        - Simulate dungeon expeditions with multiple nodes, tracking XP, loot, HP changes, and more.
-        - Manage party supplies and funds.
-        - Persistent game state stored in a SQLite database.
+## Features
+- Manage adventurers of different classes, track their progression, and manage their equipment.
+- Level up characters to improve their stats and gain class-specific benefits.
+- Create parties and assign adventurers for expeditions.
+- Simulate dungeon expeditions, tracking XP, loot, HP changes, and view detailed results.
+- Manage party supplies and funds.
+- Experience a dynamic loot system where treasure is split between adventurers and a central player treasury.
+- Track a player score based on accumulated wealth in the treasury.
+- Advance game time, triggering periodic upkeep costs for adventurers.
+- Handle adventurer bankruptcy if they cannot afford upkeep.
+- Persistent game state stored in a SQLite database.
 
         ## Installation
 

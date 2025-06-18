@@ -1,9 +1,11 @@
 # MVP Build Plan
 
 ## Next Steps
-1. Build expedition launch and management screens
-2. Design expedition log viewer
-3. Create upkeep costs every 30 days
+1. Balance risk vs. reward for different dungeon difficulties
+2. Expeditions need to auto-complete when they are "Ready to Return"
+3. Write unit tests for simulation engine
+4. Create integration tests for full expedition flow
+5. Test and balance economy
 
 ## Complete Task List
 
@@ -43,8 +45,8 @@
 ### Frontend/UI
 - [x] Create HTMX-based templates for viewing adventurers
 - [x] Implement party formation interface
-- [ ] Build expedition launch and management screens
-- [ ] Design expedition log viewer
+- [x] Build expedition launch and management screens
+- [x] Design expedition log viewer
 - [ ] Add Tailwind styling for clean retro black/white aesthetic
 
 ### Economy & Balance
@@ -53,12 +55,12 @@
 - [x] Create Player model with treasury and total_score fields
 - [x] Add treasury counter to UI for tracking player score
 - [x] Add healing/recovery mechanics
-- [ ] Create upkeep costs every 30 days equal to 1% of character's XP
+- [x] Create upkeep costs every 30 days equal to 1% of character's XP
 - [ ] Balance risk vs. reward for different dungeon difficulties
 
 ### Automation
 - [ ] Expeditions need to auto-complete when they are "Ready to Return"
-- [ ] If "Advance" causes the day to pass a multiple of 30, trigger everybody's upkeep costs
+- [x] If "Advance" causes the day to pass a multiple of 30, trigger everybody's upkeep costs
 
 ### Testing & Refinement
 - [ ] Write unit tests for simulation engine
