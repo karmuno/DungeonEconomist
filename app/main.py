@@ -1603,20 +1603,14 @@ def parties_page(request: Request, db: Session = Depends(get_db)):
         }
     )
 
-@app.get("/adventurers/filter", response_class=HTMLResponse)
-def filter_adventurers(
+@app.get("/ui/get-party-list", response_class=HTMLResponse)
+def get_party_list_html(
     request: Request, 
-    filter_type: str,
-    sort_by: str,
+    filter_type: Optional[str] = "all",
+    sort_by: Optional[str] = "name",
     db: Session = Depends(get_db)
 ):
-    """Filter parties by their status"""
-    # Fallbacks, though FastAPI should enforce presence due to type hints
-    if filter_type is None:
-        filter_type = "all"
-    if sort_by is None:
-        sort_by = "name"
-
+    """Get HTML partial for the party list, with optional filtering and sorting."""
     query = db.query(Party)
     
     # Apply filters
