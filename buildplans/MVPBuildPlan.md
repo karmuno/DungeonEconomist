@@ -53,8 +53,12 @@
 - [x] Create Player model with treasury and total_score fields
 - [x] Add treasury counter to UI for tracking player score
 - [x] Add healing/recovery mechanics
-- [ ] Create upkeep costs between expeditions
+- [ ] Create upkeep costs every 30 days equal to 1% of character's XP
 - [ ] Balance risk vs. reward for different dungeon difficulties
+
+### Automation
+- [ ] Expeditions need to auto-complete when they are "Ready to Return"
+- [ ] If "Advance" causes the day to pass a multiple of 30, trigger everybody's upkeep costs
 
 ### Testing & Refinement
 - [ ] Write unit tests for simulation engine
