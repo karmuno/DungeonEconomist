@@ -1606,11 +1606,17 @@ def parties_page(request: Request, db: Session = Depends(get_db)):
 @app.get("/adventurers/filter", response_class=HTMLResponse)
 def filter_adventurers(
     request: Request, 
-    filter_type: Optional[str] = "all",
-    sort_by: Optional[str] = "name",
+    filter_type: str,
+    sort_by: str,
     db: Session = Depends(get_db)
 ):
     """Filter parties by their status"""
+    # Fallbacks, though FastAPI should enforce presence due to type hints
+    if filter_type is None:
+        filter_type = "all"
+    if sort_by is None:
+        sort_by = "name"
+
     query = db.query(Party)
     
     # Apply filters
