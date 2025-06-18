@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import json
+import math # Added for math.floor
 from typing import List, Optional
 
 from app.models import (
@@ -224,6 +225,61 @@ def get_player_parties(player_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Player not found")
     
     return player.parties
+
+# --- Game/Utility Endpoints ---
+@app.put("/upkeep")
+def run_upkeep(db: Session = Depends(get_db)):
+    """
+    Run daily upkeep tasks.
+    If current_day is a multiple of 30, charge upkeep costs to adventurers.
+    Upkeep cost is 1% of XP (floored). If adventurer cannot pay, they go bankrupt.
+    """
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        # Initialize GameTime if it doesn't exist
+        game_time = GameTime(current_day=1)
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+
+    if game_time.current_day % 30 == 0:
+        adventurers = db.query(Adventurer).all()
+        adventurers_processed = 0
+        bankrupt_adventurers = 0
+        total_gold_deducted = 0
+
+        for adv in adventurers:
+            adventurers_processed += 1
+            cost = math.floor(adv.xp * 0.01)
+
+            if cost <= 0: # No upkeep if cost is zero or negative
+                continue
+
+            if adv.gold >= cost:
+                adv.gold -= cost
+                total_gold_deducted += cost
+                # Ensure is_bankrupt is False if they can pay (in case they were bankrupt before and got gold)
+                if adv.is_bankrupt:
+                    adv.is_bankrupt = False
+                    adv.expedition_status = "resting" # Or some other default non-bankrupt status
+            else:
+                adv.gold = 0
+                adv.is_bankrupt = True
+                adv.expedition_status = "Bankrupt"
+                bankrupt_adventurers += 1
+
+        db.commit()
+        return {
+            "message": f"Upkeep applied for day {game_time.current_day}. "
+                       f"{adventurers_processed} adventurers processed. "
+                       f"{bankrupt_adventurers} became bankrupt. "
+                       f"Total gold deducted: {total_gold_deducted} GP."
+        }
+    else:
+        return {
+            "message": f"No upkeep applied for day {game_time.current_day}. "
+                       "Upkeep runs every 30 days."
+        }
 
 # --- Party Endpoints ---
 @app.post("/parties/", response_model=PartyOut)
@@ -921,6 +977,14 @@ def launch_expedition(
     # Check if party is already on an expedition
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Party is already on an expedition")
+
+    # Check for bankrupt members
+    for member in party.members:
+        if member.is_bankrupt:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Party contains bankrupt members who cannot go on expeditions. Member: {member.name} is bankrupt."
+            )
     
     # Process supplies to bring on expedition
     supplies_to_bring = {}

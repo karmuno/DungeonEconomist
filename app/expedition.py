@@ -106,8 +106,12 @@ class Expedition:
         self.resources_used["supplies_used"] += 1
         
         # Calculate XP from monster
-        monster_xp = monster_hit_dice * 100  # Base XP from monster
+        monster_xp = int(monster_hit_dice * (100 + (self.dungeon_level * 10))) # Base XP + bonus per dungeon level
         
+        # Add bonus XP for surviving encounters in higher dungeon levels
+        if outcome not in [CombatOutcome.DISASTER, CombatOutcome.RETREAT]:
+            monster_xp += self.dungeon_level * 10
+
         return {
             "outcome": outcome,
             "monster_type": monster_type,
@@ -118,7 +122,7 @@ class Expedition:
     def generate_treasure(self, monster_type=None):
         """Generate treasure based on encounter"""
         # Basic treasure generation logic
-        base_value = self.dungeon_level * 50  # 50gp per dungeon level as base
+        base_value = self.dungeon_level * 100  # 100gp per dungeon level as base
         
         if monster_type:
             # Treasure from monster
@@ -130,7 +134,9 @@ class Expedition:
         
         # Chance for special items
         special_item = None
-        if random.random() < 0.1 * self.dungeon_level:  # 10% chance per level
+        # Increase chance for special item: 10% at L1, 15% at L2, ..., up to 50%
+        special_item_chance = min(0.5, 0.05 + (0.05 * self.dungeon_level))
+        if random.random() < special_item_chance:
             special_item = self._generate_special_item()
         
         return {
@@ -224,26 +230,26 @@ class Expedition:
     def _get_monster_hit_dice(self, monster_type, dungeon_level):
         """Get hit dice for a monster based on type and dungeon level"""
         # Simplified version - would be expanded with actual monster tables
-        base_hd = max(1, dungeon_level // 2)
+        base_hd = dungeon_level # Base HD directly scales with dungeon_level
         monster_hd_modifiers = {
             "Goblin": 0.5,
             "Orc": 1.0,
             "Hobgoblin": 1.5,
-            "Ogre": 2.0,
-            "Troll": 3.0,
-            "Dragon": 5.0
+            "Ogre": 2.5,  # Increased
+            "Troll": 3.5,  # Increased
+            "Dragon": 6.0  # Increased
         }
-        return base_hd * monster_hd_modifiers.get(monster_type, 1.0)
+        return max(1, base_hd * monster_hd_modifiers.get(monster_type, 1.0)) # Ensure at least 1 HD
     
     def _get_monster_difficulty(self, monster_type):
         """Get difficulty factor for a monster type"""
         difficulties = {
             "Goblin": 0.8,
             "Orc": 1.0,
-            "Hobgoblin": 1.2,
-            "Ogre": 1.5,
-            "Troll": 2.0,
-            "Dragon": 3.0
+            "Hobgoblin": 1.3, # Increased
+            "Ogre": 1.8,     # Increased
+            "Troll": 2.5,    # Increased
+            "Dragon": 4.0    # Increased
         }
         return difficulties.get(monster_type, 1.0)
     
@@ -252,10 +258,10 @@ class Expedition:
         modifiers = {
             "Goblin": 0.5,
             "Orc": 1.0,
-            "Hobgoblin": 1.2,
-            "Ogre": 2.0,
-            "Troll": 2.5,
-            "Dragon": 5.0
+            "Hobgoblin": 1.5, # Increased
+            "Ogre": 3.0,     # Increased
+            "Troll": 4.0,    # Increased
+            "Dragon": 8.0    # Increased
         }
         return modifiers.get(monster_type, 1.0)
     

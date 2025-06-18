@@ -112,6 +112,7 @@ class AdventurerOut(BaseModel):
     expedition_status: Optional[str] = None
     healing_until_day: Optional[int] = None
     carry_capacity: int = 150
+    is_bankrupt: bool = False
     equipment: Optional[List[AdventurerEquipmentOut]] = None
     next_level_xp: Optional[int] = None
     xp_progress: Optional[float] = None  # Percentage to next level (0-100)
