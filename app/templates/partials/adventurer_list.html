@@ -21,7 +21,9 @@
             <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.xp }}</td>
             <td class="py-2 px-4 border-b border-gray-200">{{ adventurer.gold }}</td>
             <td class="py-2 px-4 border-b border-gray-200">
-                {% if adventurer.is_available %}
+                {% if adventurer.is_bankrupt %}
+                    <span class="bg-red-700 text-white px-2 py-1 rounded-full text-xs">Bankrupt</span>
+                {% elif adventurer.is_available %}
                     <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">Available</span>
                 {% elif adventurer.on_expedition %}
                     <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs">On Expedition</span>
