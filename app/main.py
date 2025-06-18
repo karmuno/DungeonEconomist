@@ -1017,10 +1017,10 @@ def expeditions_new_redirect(request: Request, db: Session = Depends(get_db)):
 def launch_expedition(
     party_id: int = Form(...),
     dungeon_level: int = Form(...),
-    duration_days: int = Form(...),
     db: Session = Depends(get_db)
 ):
     """Launch a new expedition with a party to a dungeon"""
+    duration_days = 7
     # Create ExpeditionCreate object
     expedition_data = ExpeditionCreate(
         party_id=party_id,
@@ -1148,13 +1148,13 @@ def launch_expedition(
     
     # Create expedition record in database
     start_day = game_time.current_day
-    # duration_days is already defined from Form input
-    return_day = start_day + expedition_data.duration_days # Use expedition_data
+    # duration_days is now defined at the start of the function
+    return_day = start_day + duration_days
     
     db_expedition = Expedition(
         party_id=expedition_data.party_id, # Use party_id from expedition_data
         start_day=start_day,
-        duration_days=expedition_data.duration_days, # Use duration_days from expedition_data
+        duration_days=duration_days, # Use the new duration_days variable
         return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
@@ -1322,6 +1322,44 @@ def launch_expedition(
     # Return full expedition results
     return result
 
+@app.get("/expeditions/{expedition_id}/details", response_class=HTMLResponse)
+def expedition_details_page(request: Request, expedition_id: int, db: Session = Depends(get_db)):
+    """Render the expedition details page"""
+    expedition = db.query(Expedition).filter(Expedition.id == expedition_id).first()
+    if not expedition:
+        raise HTTPException(status_code=404, detail="Expedition not found")
+
+    node_results = db.query(ExpeditionNodeResult).filter(ExpeditionNodeResult.expedition_id == expedition_id).all()
+
+    processed_logs = []
+    total_loot = 0
+    total_xp = 0
+
+    for node in node_results:
+        try:
+            log_data = json.loads(node.log)
+            processed_logs.append({"log_data": log_data}) # Match template variable
+        except (json.JSONDecodeError, TypeError):
+            processed_logs.append({"log_data": {"error": "Could not parse log entry."}})
+        total_loot += node.loot or 0
+        total_xp += node.xp_earned or 0
+
+    # Get player treasury for base template
+    player = db.query(Player).first()
+    treasury_gold = player.treasury if player else 0
+
+    return templates.TemplateResponse(
+        "expedition_details.html",
+        {
+            "request": request,
+            "expedition": expedition,
+            "expedition_logs": processed_logs,
+            "total_loot": total_loot,
+            "total_xp": total_xp,
+            "treasury_gold": treasury_gold,
+        }
+    )
+
 @app.get("/expeditions/{expedition_id}", response_model=ExpeditionResult)
 def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
     """Get detailed results of an expedition"""
@@ -1480,6 +1518,53 @@ def advance_expedition_turn(expedition_id: int, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=404, detail="Expedition not found in simulator")
 
+# --- Time Endpoints ---
+@app.post("/time/advance-day", response_class=HTMLResponse)
+def advance_day(request: Request, db: Session = Depends(get_db)):
+    """Advances the game time by one day and updates expedition statuses."""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime(current_day=1)
+        db.add(game_time)
+        # db.commit() # Commit will happen after updates
+        # db.refresh(game_time)
+
+    game_time.current_day += 1
+
+    # Process expedition completions
+    active_expeditions_to_check = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+    for expedition in active_expeditions_to_check:
+        if expedition.return_day <= game_time.current_day:
+            expedition.result = "completed"
+            expedition.finished_at = datetime.now()
+
+            if expedition.party:
+                expedition.party.on_expedition = False
+                for adventurer in expedition.party.members:
+                    adventurer.on_expedition = False
+                    adventurer.is_available = True # Simple availability, can be refined
+                    # Potentially reset expedition_status here too if needed
+                    # adventurer.expedition_status = "idle"
+
+    db.commit() # Commit all changes: game_time increment and expedition updates
+
+    # Fetch updated active expeditions to return the partial
+    updated_active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+
+    # Get treasury for the partial
+    player = db.query(Player).first()
+    treasury_gold = player.treasury if player else 0
+
+    return templates.TemplateResponse(
+        "partials/active_expeditions.html",
+        {
+            "request": request,
+            "active_expeditions": updated_active_expeditions,
+            "game_time": game_time,
+            "treasury_gold": treasury_gold
+        }
+    )
+
 # --- Frontend Routes ---
 @app.get("/expeditions", response_class=HTMLResponse)
 def expeditions_page(request: Request, db: Session = Depends(get_db)):
@@ -1487,18 +1572,25 @@ def expeditions_page(request: Request, db: Session = Depends(get_db)):
     # Get active expeditions (in progress)
     active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
     
+    # Get GameTime
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime(current_day=1)
+        db.add(game_time)
+        db.commit() # Commit if new game time is created
+        db.refresh(game_time)
+
     # Get treasury total from the first player for header display
-    treasury_gold = 0
     player = db.query(Player).first()
-    if player:
-        treasury_gold = player.treasury
+    treasury_gold = player.treasury if player else 0
     
     return templates.TemplateResponse(
         "expeditions.html",
         {
             "request": request,
             "active_expeditions": active_expeditions,
-            "treasury_gold": treasury_gold
+            "treasury_gold": treasury_gold,
+            "game_time": game_time
         }
     )
 
@@ -1639,14 +1731,14 @@ def parties_page(request: Request, db: Session = Depends(get_db)):
         }
     )
 
-@app.get("/adventurers/filter", response_class=HTMLResponse)
-def filter_adventurers(
+@app.get("/ui/get-party-list", response_class=HTMLResponse)
+def get_party_list_html(
     request: Request, 
     filter_type: Optional[str] = "all",
     sort_by: Optional[str] = "name",
     db: Session = Depends(get_db)
 ):
-    """Filter parties by their status"""
+    """Get HTML partial for the party list, with optional filtering and sorting."""
     query = db.query(Party)
     
     # Apply filters

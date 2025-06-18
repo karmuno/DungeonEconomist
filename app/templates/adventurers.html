@@ -3,12 +3,12 @@
 {% block title %}Adventurers - Venturekeep{% endblock %}
 
 {% block content %}
-<div class="bg-white shadow-md rounded-lg p-6">
+<div class="bg-gray-800 border border-gray-600 rounded-lg p-6">
     <!-- Header with Title and Actions -->
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold">Adventurers</h1>
+        <h1 class="text-3xl font-bold text-green-400">Adventurers</h1>
         <div class="flex space-x-3">
-            <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            <button class="bg-green-500 hover:bg-green-600 text-black font-semibold px-4 py-2 rounded"
                     hx-get="/adventurers/create-form"
                     hx-target="#modal-content"
                     hx-trigger="click"
@@ -19,14 +19,14 @@
     </div>
     
     <!-- Filters and View Controls -->
-    <div class="mb-6 bg-gray-100 p-4 rounded-lg">
+    <div class="mb-6 bg-gray-700 border border-gray-600 p-4 rounded-lg">
         <div class="flex justify-between items-center mb-3">
-            <h2 class="text-lg font-semibold">Filters</h2>
+            <h2 class="text-lg font-semibold text-white">Filters</h2>
             
             <!-- View Toggle Buttons -->
             <div class="flex space-x-2">
                 <button id="list-view-btn" 
-                        class="px-3 py-1 rounded bg-blue-600 text-white"
+                        class="px-3 py-1 rounded bg-green-500 text-black font-semibold"
                         hx-get="/adventurers/view?type=list"
                         hx-target="#adventurer-view-container"
                         hx-include="#class-filter,#status-filter,#expedition-filter,#search"
@@ -38,7 +38,7 @@
                     List
                 </button>
                 <button id="card-view-btn" 
-                        class="px-3 py-1 rounded bg-gray-300"
+                        class="px-3 py-1 rounded bg-gray-600 text-white hover:bg-gray-500"
                         hx-get="/adventurers/view?type=card"
                         hx-target="#adventurer-view-container"
                         hx-include="#class-filter,#status-filter,#expedition-filter,#search"
@@ -55,8 +55,8 @@
         <!-- Filter Controls -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-                <label for="class-filter" class="block text-sm font-medium text-gray-700">Class</label>
-                <select id="class-filter" name="class_filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                <label for="class-filter" class="block text-sm font-medium text-gray-300">Class</label>
+                <select id="class-filter" name="class_filter" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500"
                         hx-get="/adventurers/filter" 
                         hx-target="#adventurer-view-container"
                         hx-include="#status-filter,#expedition-filter">
@@ -70,8 +70,8 @@
                 </select>
             </div>
             <div>
-                <label for="status-filter" class="block text-sm font-medium text-gray-700">Availability</label>
-                <select id="status-filter" name="availability_filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                <label for="status-filter" class="block text-sm font-medium text-gray-300">Availability</label>
+                <select id="status-filter" name="availability_filter" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500"
                         hx-get="/adventurers/filter" 
                         hx-target="#adventurer-view-container"
                         hx-include="#class-filter,#expedition-filter">
@@ -81,8 +81,8 @@
                 </select>
             </div>
             <div>
-                <label for="expedition-filter" class="block text-sm font-medium text-gray-700">Status</label>
-                <select id="expedition-filter" name="expedition_filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                <label for="expedition-filter" class="block text-sm font-medium text-gray-300">Status</label>
+                <select id="expedition-filter" name="expedition_filter" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500"
                         hx-get="/adventurers/filter" 
                         hx-target="#adventurer-view-container"
                         hx-include="#class-filter,#status-filter">
@@ -95,9 +95,9 @@
                 </select>
             </div>
             <div>
-                <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
+                <label for="search" class="block text-sm font-medium text-gray-300">Search</label>
                 <input type="text" id="search" name="search" placeholder="Search by name..." 
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                       class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500 placeholder-gray-400"
                        hx-get="/adventurers/search"
                        hx-target="#adventurer-view-container"
                        hx-trigger="keyup changed delay:500ms">
@@ -107,12 +107,12 @@
     
     <!-- HTMX-powered Actions Bar -->
     <div class="flex justify-between mb-4">
-        <div class="text-sm text-gray-500">
+        <div class="text-sm text-gray-400">
             <span id="adventurer-count">{{ adventurers|length }}</span> adventurers found
         </div>
         
         <div class="flex space-x-3">
-            <select id="sort-by" class="text-sm rounded border-gray-300"
+            <select id="sort-by" class="text-sm rounded bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500"
                     hx-get="/adventurers/sort"
                     hx-target="#adventurer-view-container"
                     hx-include="#class-filter,#status-filter,#expedition-filter,#search">
@@ -133,11 +133,11 @@
 </div>
 
 <!-- Modal -->
-<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+<div id="modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+    <div class="bg-black border border-green-500 p-6 rounded-lg shadow-lg w-full max-w-lg">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold" id="modal-title">Adventurer Details</h2>
-            <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+            <h2 class="text-xl font-bold text-green-400" id="modal-title">Adventurer Details</h2>
+            <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-400 hover:text-white">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -152,15 +152,26 @@
 <!-- JavaScript to handle view toggling -->
 <script>
 function toggleViewActive(activeButtonId) {
-    document.getElementById('list-view-btn').classList.remove('bg-blue-600', 'text-white');
-    document.getElementById('list-view-btn').classList.add('bg-gray-300', 'text-gray-700');
+    const listViewBtn = document.getElementById('list-view-btn');
+    const cardViewBtn = document.getElementById('card-view-btn');
     
-    document.getElementById('card-view-btn').classList.remove('bg-blue-600', 'text-white');
-    document.getElementById('card-view-btn').classList.add('bg-gray-300', 'text-gray-700');
+    // Reset both buttons to inactive state
+    [listViewBtn, cardViewBtn].forEach(btn => {
+        btn.classList.remove('bg-green-500', 'text-black', 'font-semibold');
+        btn.classList.add('bg-gray-600', 'text-white', 'hover:bg-gray-500');
+    });
     
     // Set active button
-    document.getElementById(activeButtonId).classList.remove('bg-gray-300', 'text-gray-700');
-    document.getElementById(activeButtonId).classList.add('bg-blue-600', 'text-white');
+    const activeButton = document.getElementById(activeButtonId);
+    activeButton.classList.remove('bg-gray-600', 'text-white', 'hover:bg-gray-500');
+    activeButton.classList.add('bg-green-500', 'text-black', 'font-semibold');
 }
+
+// Ensure initial active button is styled correctly if needed on full page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Assuming list view is default, style its button as active
+    // Or, if you store the last view preference, apply it here
+    toggleViewActive('list-view-btn');
+});
 </script>
 {% endblock %}

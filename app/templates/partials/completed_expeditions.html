@@ -1,32 +1,32 @@
 {% if completed_expeditions %}
     <div class="overflow-x-auto">
-        <table class="min-w-full bg-white">
+        <table class="min-w-full bg-gray-800 border border-gray-600 text-gray-300">
             <thead>
                 <tr>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Party</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Date</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Duration</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Treasure</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">XP</th>
-                    <th class="py-2 px-4 border-b border-gray-200 bg-gray-50 text-left">Details</th>
+                    <th class="py-2 px-4 border-b border-gray-600 bg-gray-700 text-left text-white">Party</th>
+                    <th class="py-2 px-4 border-b border-gray-600 bg-gray-700 text-left text-white">Date</th>
+                    <th class="py-2 px-4 border-b border-gray-600 bg-gray-700 text-left text-white">Duration</th>
+                    <th class="py-2 px-4 border-b border-gray-600 bg-gray-700 text-left text-white">Treasure</th>
+                    <th class="py-2 px-4 border-b border-gray-600 bg-gray-700 text-left text-white">XP</th>
+                    <th class="py-2 px-4 border-b border-gray-600 bg-gray-700 text-left text-white">Details</th>
                 </tr>
             </thead>
             <tbody>
                 {% for expedition in completed_expeditions %}
-                <tr>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ expedition.party.name }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ expedition.started_at.strftime('%Y-%m-%d') }}</td>
-                    <td class="py-2 px-4 border-b border-gray-200">{{ expedition.node_results|length }} turns</td>
-                    <td class="py-2 px-4 border-b border-gray-200">
+                <tr class="hover:bg-gray-700">
+                    <td class="py-2 px-4 border-b border-gray-600">{{ expedition.party.name }}</td>
+                    <td class="py-2 px-4 border-b border-gray-600">{{ expedition.started_at.strftime('%Y-%m-%d') }}</td>
+                    <td class="py-2 px-4 border-b border-gray-600">{{ expedition.node_results|length }} turns</td>
+                    <td class="py-2 px-4 border-b border-gray-600">
                         {% set total_loot = expedition.node_results|sum(attribute='loot') %}
                         {{ total_loot }} gold
                     </td>
-                    <td class="py-2 px-4 border-b border-gray-200">
+                    <td class="py-2 px-4 border-b border-gray-600">
                         {% set total_xp = expedition.node_results|sum(attribute='xp_earned') %}
                         {{ total_xp }}
                     </td>
-                    <td class="py-2 px-4 border-b border-gray-200">
-                        <a href="/expeditions/{{ expedition.id }}" class="text-blue-600 hover:underline">View</a>
+                    <td class="py-2 px-4 border-b border-gray-600">
+                        <a href="/expeditions/{{ expedition.id }}/details" class="text-green-400 hover:text-green-300">View</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -34,7 +34,7 @@
         </table>
     </div>
 {% else %}
-    <div class="bg-gray-100 p-6 rounded-lg text-center">
-        <p>No completed expeditions yet.</p>
+    <div class="bg-gray-700 border border-gray-600 p-6 rounded-lg text-center">
+        <p class="text-gray-300">No completed expeditions yet.</p>
     </div>
 {% endif %}

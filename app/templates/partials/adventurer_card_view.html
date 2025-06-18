@@ -1,61 +1,53 @@
 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
     {% for adventurer in adventurers %}
-    <div class="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
-         hx-get="/adventurers/{{ adventurer.id }}"
+    <div class="bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-600 hover:border-green-500 transition-shadow duration-200 cursor-pointer text-gray-300"
+         hx-get="/adventurers/{{ adventurer.id }}/view"
          hx-target="#modal-content"
          hx-trigger="click"
-         onclick="document.getElementById('modal').classList.remove('hidden')">
-        <div class="flex justify-between items-center bg-gray-100 px-4 py-2 border-b border-gray-200">
-            <h3 class="font-bold">{{ adventurer.name }}</h3>
-            <span class="px-2 py-1 rounded-full text-xs whitespace-nowrap
-                         {% if adventurer.is_bankrupt %}bg-red-700 text-white
-                         {% elif adventurer.is_available %}bg-green-100 text-green-800
-                         {% elif adventurer.on_expedition %}bg-orange-100 text-orange-800
-                         {% elif adventurer.expedition_status == 'healing' %}bg-red-100 text-red-800
-                         {% elif adventurer.expedition_status == 'injured' %}bg-red-100 text-red-800
-                         {% elif adventurer.expedition_status == 'resting' %}bg-yellow-100 text-yellow-800
-                         {% else %}bg-gray-100 text-gray-800
-                         {% endif %}">
+         onclick="document.getElementById('modal-title').innerText='View Adventurer'; document.getElementById('modal').classList.remove('hidden')">
+        <div class="flex justify-between items-center bg-gray-700 px-4 py-2 border-b border-gray-600">
+            <h3 class="font-bold text-white">{{ adventurer.name }}</h3>
+            <span class="{% if adventurer.is_bankrupt %}bg-red-700 text-white{% elif adventurer.is_available %}bg-green-700 text-green-300{% elif adventurer.on_expedition %}bg-yellow-700 text-yellow-300{% elif adventurer.expedition_status == 'healing' %}bg-red-700 text-red-300{% elif adventurer.expedition_status == 'injured' %}bg-red-700 text-red-300{% elif adventurer.expedition_status == 'resting' %}bg-blue-700 text-blue-300{% else %}bg-gray-600 text-gray-300{% endif %} px-2 py-1 rounded-full text-xs whitespace-nowrap">
                 {% if adventurer.is_bankrupt %}Bankrupt
                 {% elif adventurer.is_available %}Available
                 {% elif adventurer.on_expedition %}On Expedition
-                {% elif adventurer.expedition_status == 'healing' %}Healing{% if adventurer.healing_until_day %} ({{ adventurer.healing_until_day - game_time.current_day }} days){% endif %}
-                {% elif adventurer.expedition_status == 'injured' %}Injured{% if adventurer.healing_until_day %} ({{ adventurer.healing_until_day - game_time.current_day }} days){% endif %}
+                {% elif adventurer.expedition_status == 'healing' %}Healing{% if adventurer.healing_until_day and game_time %} ({{ adventurer.healing_until_day - game_time.current_day }} days){% endif %}
+                {% elif adventurer.expedition_status == 'injured' %}Injured{% if adventurer.healing_until_day and game_time %} ({{ adventurer.healing_until_day - game_time.current_day }} days){% endif %}
                 {% elif adventurer.expedition_status == 'resting' %}Resting
                 {% else %}Unavailable{% endif %}
             </span>
         </div>
         <div class="p-4">
             <div class="flex justify-between mb-2">
-                <span class="text-sm text-gray-500">{{ adventurer.adventurer_class.value }}</span>
-                <span class="text-sm font-medium">Lvl {{ adventurer.level }}</span>
+                <span class="text-sm text-gray-400">{{ adventurer.adventurer_class.value }}</span>
+                <span class="text-sm font-medium text-white">Lvl {{ adventurer.level }}</span>
             </div>
             
             <div class="mb-2">
-                <div class="flex justify-between mb-1">
-                    <span class="text-sm">HP</span>
-                    <span class="text-sm font-medium">{{ adventurer.hp_current }}/{{ adventurer.hp_max }}</span>
+                <div class="flex justify-between mb-1 text-sm">
+                    <span>HP</span>
+                    <span class="font-medium text-white">{{ adventurer.hp_current }}/{{ adventurer.hp_max }}</span>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ (adventurer.hp_current / adventurer.hp_max) * 100 }}%"></div>
+                <div class="w-full bg-gray-600 rounded-full h-2.5">
+                    <div class="bg-green-500 h-2.5 rounded-full" style="width: {{ (adventurer.hp_current / adventurer.hp_max) * 100 }}%"></div>
                 </div>
             </div>
             
             <div class="mb-2">
-                <div class="flex justify-between mb-1">
-                    <span class="text-sm">XP</span>
-                    <span class="text-sm font-medium">{{ adventurer.xp }}</span>
+                <div class="flex justify-between mb-1 text-sm">
+                    <span>XP</span>
+                    <span class="font-medium text-white">{{ adventurer.xp }}</span>
                 </div>
                 {% if adventurer.xp_progress is not none %}
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div class="bg-green-600 h-2.5 rounded-full" style="width: {{ adventurer.xp_progress }}%"></div>
+                <div class="w-full bg-gray-600 rounded-full h-2.5">
+                    <div class="bg-blue-500 h-2.5 rounded-full" style="width: {{ adventurer.xp_progress }}%"></div> <!-- XP bar color changed to blue for differentiation -->
                 </div>
                 {% endif %}
             </div>
             
-            <div class="flex justify-between mt-3">
-                <span class="text-sm">Gold</span>
-                <span class="text-sm font-medium">{{ adventurer.gold }}</span>
+            <div class="flex justify-between mt-3 text-sm">
+                <span>Gold</span>
+                <span class="font-medium text-white">{{ adventurer.gold }}</span>
             </div>
         </div>
     </div>
