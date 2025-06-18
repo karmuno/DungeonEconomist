@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Expedition Details - {{ expedition.id }} - Venturekeep{% endblock %}
+
+{% block content %}
+<div class="bg-white shadow-md rounded-lg p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Expedition Details: #{{ expedition.id }}</h1>
+        <a href="{{ url_for('expeditions_page') }}" class="text-blue-600 hover:underline">Back to Expeditions</a>
+    </div>
+
+    <!-- Expedition Summary -->
+    <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+        <h2 class="text-xl font-semibold mb-2">Summary</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><strong>Party:</strong> {{ expedition.party.name }}</div>
+            <div><strong>Status:</strong> {{ expedition.result }}</div>
+            <div><strong>Started At:</strong> {{ expedition.started_at.strftime('%Y-%m-%d %H:%M') }}</div>
+            {% if expedition.finished_at %}
+            <div><strong>Finished At:</strong> {{ expedition.finished_at.strftime('%Y-%m-%d %H:%M') }}</div>
+            {% endif %}
+            <div><strong>Duration (Days):</strong> {{ expedition.duration_days }}</div>
+            <div><strong>Start Day:</strong> {{ expedition.start_day }}</div>
+            <div><strong>Return Day:</strong> {{ expedition.return_day }}</div>
+        </div>
+    </div>
+
+    <!-- Party Members -->
+    <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+        <h2 class="text-xl font-semibold mb-2">Party Members ({{ expedition.party.members|length }})</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for member in expedition.party.members %}
+            <div class="p-3 bg-white border border-gray-200 rounded">
+                <div class="font-medium">{{ member.name }}</div>
+                <div class="text-sm text-gray-600">Lvl {{ member.level }} {{ member.adventurer_class.value }}</div>
+                <div class="text-sm text-gray-600">HP: {{ member.hp_current }} / {{ member.hp_max }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Expedition Log -->
+    <div class="p-4 bg-black rounded-lg">
+        <h2 class="text-xl font-semibold mb-2 text-white">Expedition Log</h2>
+        <div class="space-y-3 max-h-96 overflow-y-auto bg-black border border-gray-600 p-3 rounded font-mono text-sm">
+            {% if expedition_logs %}
+                {% for log_entry in expedition_logs %}
+                <div class="p-2 border-b border-gray-700">
+                    <p class="text-green-400"><strong>Turn {{ loop.index }}:</strong></p>
+                    {% if log_entry.log_data is mapping %}
+                        {% for key, value in log_entry.log_data.items() %}
+                            <p class="ml-2"><span class="text-yellow-400">{{ key }}:</span> <span class="text-gray-300">{{ value | tojson(indent=2) if value is mapping or value is list else value }}</span></p>
+                        {% endfor %}
+                    {% elif log_entry.log_data is string %}
+                        <p class="ml-2 text-gray-300">{{ log_entry.log_data }}</p>
+                    {% else %}
+                         <pre class="ml-2 whitespace-pre-wrap text-gray-300">{{ log_entry.log_data | tojson(indent=2) }}</pre>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-gray-300">No log entries available for this expedition.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Loot and XP -->
+    <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+        <h2 class="text-xl font-semibold mb-2">Results</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><strong>Total Loot:</strong> {{ total_loot }} gold</div>
+            <div><strong>Total XP Earned:</strong> {{ total_xp }}</div>
+        </div>
+        {% if expedition.supplies_consumed %}
+        <div class="mt-4">
+            <h3 class="text-md font-semibold">Supplies Consumed:</h3>
+            <ul class="list-disc list-inside ml-4">
+                {% for supply, quantity in expedition.supplies_consumed.items() %}
+                <li>{{ supply }}: {{ quantity }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if expedition.equipment_lost %}
+        <div class="mt-4">
+            <h3 class="text-md font-semibold">Equipment Lost:</h3>
+            <ul class="list-disc list-inside ml-4">
+                {% for adventurer, items in expedition.equipment_lost.items() %}
+                    <li><strong>{{ adventurer }}:</strong> {{ items | join(', ') }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // Add any specific JS for this page if needed
+</script>
+{% endblock %}

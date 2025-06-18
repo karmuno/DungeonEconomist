@@ -3,110 +3,44 @@
 {% block title %}Parties - Venturekeep{% endblock %}
 
 {% block content %}
-<div class="bg-white shadow-md rounded-lg p-6">
+<div class="bg-gray-800 border border-gray-600 rounded-lg p-6">
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold">Parties</h1>
-        <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        <h1 class="text-3xl font-bold text-green-400">Parties</h1>
+        <button class="bg-green-500 hover:bg-green-600 text-black font-semibold px-4 py-2 rounded"
                 hx-get="/parties/create-form"
                 hx-target="#modal-content"
                 hx-trigger="click"
-                onclick="document.getElementById('modal').classList.remove('hidden')">
+                onclick="document.getElementById('modal-title').innerText='Create New Party'; document.getElementById('modal').classList.remove('hidden')">
             New Party
         </button>
     </div>
     
-    <!-- Party List -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="party-list">
-        {% for party in parties %}
-        <div class="bg-gray-100 p-4 rounded-lg shadow">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold">{{ party.name }}</h2>
-                <div class="flex space-x-2">
-                    <button class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                            hx-get="/parties/{{ party.id }}/edit-form"
-                            hx-target="#modal-content"
-                            hx-trigger="click"
-                            onclick="document.getElementById('modal').classList.remove('hidden')">
-                        Edit
-                    </button>
-                    <button class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                            hx-get="/expeditions/create-form?party_id={{ party.id }}"
-                            hx-target="#modal-content"
-                            hx-trigger="click"
-                            onclick="document.getElementById('modal').classList.remove('hidden')">
-                        Launch
-                    </button>
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <div class="flex justify-between mb-2">
-                    <span class="text-sm font-semibold">Members:</span>
-                    <span class="text-sm">{{ party.members|length }}</span>
-                </div>
-                <div class="border-t border-gray-300"></div>
-            </div>
-            
-            <div class="space-y-2 max-h-60 overflow-y-auto">
-                {% for member in party.members %}
-                <div class="flex justify-between items-center bg-white p-2 rounded">
-                    <div>
-                        <div class="font-medium">{{ member.name }}</div>
-                        <div class="text-xs text-gray-600">
-                            Lvl {{ member.level }} {{ member.adventurer_class.value }} | 
-                            HP: {{ member.hp_current }}/{{ member.hp_max }}
-                        </div>
-                    </div>
-                    <button class="text-red-600 hover:text-red-800"
-                            hx-post="/parties/remove-member/"
-                            hx-vars='{"party_id": {{ party.id }}, "adventurer_id": {{ member.id }}}'
-                            hx-target="#party-list"
-                            hx-confirm="Remove {{ member.name }} from party?">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-                {% endfor %}
-                
-                <!-- Add Member Button -->
-                <button class="w-full bg-gray-200 p-2 rounded text-center text-gray-600 hover:bg-gray-300"
-                        hx-get="/parties/{{ party.id }}/add-member-form"
-                        hx-target="#modal-content"
-                        hx-trigger="click"
-                        onclick="document.getElementById('modal').classList.remove('hidden')">
-                    Add Member
-                </button>
-            </div>
+    <!-- Party List Container - Loads partial -->
+    <div id="party-list-container"
+         class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+         hx-get="/ui/get-party-list"
+         hx-trigger="load, partyListChanged from:body"
+         hx-swap="innerHTML">
+        <!-- Loading placeholder -->
+        <div class="col-span-full text-center p-8 text-gray-400">
+            <p>Loading parties...</p>
         </div>
-        {% else %}
-        <div class="col-span-3 bg-gray-100 p-6 rounded-lg text-center">
-            <p class="mb-4">No parties have been formed yet.</p>
-            <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    hx-get="/parties/create-form"
-                    hx-target="#modal-content"
-                    hx-trigger="click"
-                    onclick="document.getElementById('modal').classList.remove('hidden')">
-                Create Your First Party
-            </button>
-        </div>
-        {% endfor %}
     </div>
 </div>
 
 <!-- Modal -->
-<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+<div id="modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+    <div class="bg-black border border-green-500 p-6 rounded-lg shadow-lg w-full max-w-lg"> <!-- Adjusted max-w-lg for potentially larger forms -->
         <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold" id="modal-title">Party Details</h2>
-            <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+            <h2 class="text-xl font-bold text-green-400" id="modal-title">Party Details</h2>
+            <button onclick="document.getElementById('modal').classList.add('hidden')" class="text-gray-400 hover:text-white">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
             </button>
         </div>
         <div id="modal-content">
-            <!-- Content will be loaded here -->
+            <!-- Content will be loaded here by HTMX -->
         </div>
     </div>
 </div>
