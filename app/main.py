@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import json
@@ -1520,50 +1520,153 @@ def advance_expedition_turn(expedition_id: int, db: Session = Depends(get_db)):
 
 # --- Time Endpoints ---
 @app.post("/time/advance-day", response_class=HTMLResponse)
-def advance_day(request: Request, db: Session = Depends(get_db)):
-    """Advances the game time by one day and updates expedition statuses."""
+def advance_day(request: Request, days: int = Form(1), db: Session = Depends(get_db)):
     game_time = db.query(GameTime).first()
+
+    current_game_day_before_advance = 0
     if not game_time:
-        game_time = GameTime(current_day=1)
+        game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
         db.add(game_time)
-        # db.commit() # Commit will happen after updates
-        # db.refresh(game_time)
+        # current_game_day_before_advance remains 0
+    else:
+        current_game_day_before_advance = game_time.current_day
 
-    game_time.current_day += 1
+    game_time.current_day += days
+    game_time.last_updated = datetime.now()
 
-    # Process expedition completions
+    expeditions_returned_this_advancement = 0
     active_expeditions_to_check = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+
     for expedition in active_expeditions_to_check:
-        if expedition.return_day <= game_time.current_day:
+        if expedition.return_day is not None and expedition.return_day <= game_time.current_day:
             expedition.result = "completed"
             expedition.finished_at = datetime.now()
 
+            if expedition.return_day > current_game_day_before_advance:
+                 expeditions_returned_this_advancement += 1
+
             if expedition.party:
                 expedition.party.on_expedition = False
+                expedition.party.current_expedition_id = None
                 for adventurer in expedition.party.members:
                     adventurer.on_expedition = False
-                    adventurer.is_available = True # Simple availability, can be refined
-                    # Potentially reset expedition_status here too if needed
-                    # adventurer.expedition_status = "idle"
+                    # Simplified post-expedition status: if HP is low, set to healing for 7 days.
+                    if adventurer.hp_max > 0 and adventurer.hp_current <= (adventurer.hp_max / 2):
+                        adventurer.is_available = False
+                        adventurer.expedition_status = "healing"
+                        adventurer.healing_until_day = game_time.current_day + 7 # Example: 7 days
+                    else:
+                        adventurer.is_available = True
+                        adventurer.expedition_status = "resting"
+                        adventurer.healing_until_day = None # Ensure not healing if healthy
 
-    db.commit() # Commit all changes: game_time increment and expedition updates
+    adventurers_became_available = db.query(Adventurer).filter(
+        Adventurer.is_available == False,
+        Adventurer.healing_until_day != None,
+        Adventurer.healing_until_day <= game_time.current_day
+    ).all()
+    for adv in adventurers_became_available:
+        adv.is_available = True
+        adv.expedition_status = "resting"
+        adv.healing_until_day = None
 
-    # Fetch updated active expeditions to return the partial
-    updated_active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+    db.commit()
 
-    # Get treasury for the partial
+    updated_active_expeditions_list = db.query(Expedition).filter(Expedition.result == "in_progress").all()
+    unavailable_adventurers_count = db.query(Adventurer).filter(Adventurer.is_available == False).count()
+
+    still_healing_adventurers_list = db.query(Adventurer).filter(
+        Adventurer.is_available == False,
+        Adventurer.healing_until_day != None,
+        Adventurer.healing_until_day > game_time.current_day
+    ).all()
+
     player = db.query(Player).first()
-    treasury_gold = player.treasury if player else 0
+    if not player:
+        player = Player(name="Default Player", treasury=0, total_score=0)
+        db.add(player)
+        db.commit()
+        db.refresh(player)
+    treasury_gold = player.treasury
 
+    context = {
+        "request": request,
+        "game_time": game_time,
+        "active_expeditions": updated_active_expeditions_list,
+        "unavailable_adventurers": unavailable_adventurers_count,
+        "expeditions_returned": expeditions_returned_this_advancement,
+        "healing_adventurers": still_healing_adventurers_list,
+        "treasury_gold": treasury_gold
+    }
     return templates.TemplateResponse(
-        "partials/active_expeditions.html",
-        {
-            "request": request,
-            "active_expeditions": updated_active_expeditions,
-            "game_time": game_time,
-            "treasury_gold": treasury_gold
-        }
+        "partials/time_panel.html",
+        context
     )
+
+@app.post("/time/skip-until-ready", response_class=HTMLResponse)
+async def skip_until_ready(request: Request, db: Session = Depends(get_db)):
+    game_time = db.query(GameTime).first()
+    # Simpler: Get current day, or assume day 0 if no game_time.
+    current_day = 0
+    if game_time: # game_time might be created by advance_day if it's the first call
+        current_day = game_time.current_day
+    else: # No game time yet, advance_day will create it starting from day 0.
+          # So, current_day can be considered 0 for calculation purposes.
+        pass # current_day remains 0
+
+
+    # Determine the next event day
+    next_event_day = None
+
+    # Find the earliest return day of active expeditions
+    earliest_expedition_return_day = db.query(func.min(Expedition.return_day)).filter(
+        Expedition.result == "in_progress",
+        Expedition.return_day != None
+    ).scalar()
+
+    if earliest_expedition_return_day is not None:
+        next_event_day = earliest_expedition_return_day
+
+    # Find the earliest healing_until_day of unavailable adventurers
+    earliest_healing_day = db.query(func.min(Adventurer.healing_until_day)).filter(
+        Adventurer.is_available == False,
+        Adventurer.healing_until_day != None
+    ).scalar()
+
+    if earliest_healing_day is not None:
+        if next_event_day is None or earliest_healing_day < next_event_day:
+            next_event_day = earliest_healing_day
+
+    # If no specific event day found, or if it's not in the future,
+    # default to advancing 1 day.
+    # (The button should be disabled by template logic if no events are pending)
+    if next_event_day is None or next_event_day <= current_day:
+        days_to_advance = 1
+    else:
+        days_to_advance = next_event_day - current_day
+        if days_to_advance <= 0: # Should not happen if next_event_day > current_day
+             days_to_advance = 1
+
+
+    # The advance_day function (the one returning HTMLResponse) is synchronous.
+    # We need to ensure we're calling the correct one if there are duplicate names.
+    # Assuming the one we modified (that returns HTMLResponse) is the one intended.
+    # Python uses the last definition for a function name.
+    # The modified advance_day is at the end of the Time Endpoints section.
+
+    # Call the existing advance_day function with the calculated number of days.
+    # This reuses the logic for advancing time and rendering the partial.
+    # We need to find the actual name of the advance_day function that returns HTMLResponse
+    # if it was renamed due to duplication. Based on previous steps, it's still `advance_day`.
+
+    # Re-fetch the advance_day function (the one that was modified, returning HTML)
+    # This is tricky as we can't call it directly by name if it's defined later in the same file easily.
+    # The best approach is to replicate its core logic for fetching context and returning the template,
+    # OR to call it if the structure allows (e.g. if it's imported or part of a class).
+    # Given it's a standalone function in the same file, direct call is fine.
+
+    # The function `advance_day` that we modified earlier is synchronous.
+    return advance_day(request=request, days=days_to_advance, db=db)
 
 # --- Frontend Routes ---
 @app.get("/expeditions", response_class=HTMLResponse)
