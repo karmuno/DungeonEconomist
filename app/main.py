@@ -1601,7 +1601,8 @@ def advance_day(request: Request, days: int = Form(1), db: Session = Depends(get
 
     # Render expedition_time_controls partial using the existing context
     # as it contains 'request' and 'game_time' needed by the partial.
-    time_panel_html = templates.env.get_template("partials/expedition_time_controls.html").render(context)
+    # This will be the primary response content.
+    rendered_time_controls_html = templates.env.get_template("partials/expedition_time_controls.html").render(context)
 
     # Context for active_expeditions partial
     active_expeditions_context = {
@@ -1609,18 +1610,19 @@ def advance_day(request: Request, days: int = Form(1), db: Session = Depends(get
         "active_expeditions": updated_active_expeditions_list,
         "game_time": game_time
     }
-    active_expeditions_html = templates.env.get_template("partials/active_expeditions.html").render(active_expeditions_context)
+    rendered_active_expeditions_html = templates.env.get_template("partials/active_expeditions.html").render(active_expeditions_context)
 
-    # Combine HTML for OOB swap
-    html_content = f"""
-    <div id="time-panel-expeditions" hx-swap-oob="true">
-        {time_panel_html}
-    </div>
+    # Wrap only the active_expeditions_html for OOB swap
+    wrapped_active_expeditions_html = f"""
     <div id="expedition-content" hx-swap-oob="true">
-        {active_expeditions_html}
+        {rendered_active_expeditions_html}
     </div>
     """
-    return HTMLResponse(content=html_content)
+
+    # Concatenate the primary content and the OOB content
+    final_html_content = rendered_time_controls_html + wrapped_active_expeditions_html
+
+    return HTMLResponse(content=final_html_content)
 
 @app.post("/time/skip-until-ready", response_class=HTMLResponse)
 async def skip_until_ready(request: Request, db: Session = Depends(get_db)):
