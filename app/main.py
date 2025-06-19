@@ -307,8 +307,8 @@ def run_upkeep(db: Session = Depends(get_db)):
                        "Upkeep runs every 30 days."
         }
 
-@app.post("/time/advance-day", response_model=GameTimeInfo)
-def advance_day(db: Session = Depends(get_db)):
+@app.post("/api/time/advance-day", response_model=GameTimeInfo)
+def api_advance_day_json(db: Session = Depends(get_db)):
     """
     Advance the game time by one day.
     Initializes game time if it doesn't exist, starting at day 0, so first advance makes it day 1.
