@@ -1599,8 +1599,9 @@ def advance_day(request: Request, days: int = Form(1), db: Session = Depends(get
         "treasury_gold": treasury_gold
     }
 
-    # Render time_panel partial
-    time_panel_html = templates.env.get_template("partials/time_panel.html").render(context)
+    # Render expedition_time_controls partial using the existing context
+    # as it contains 'request' and 'game_time' needed by the partial.
+    time_panel_html = templates.env.get_template("partials/expedition_time_controls.html").render(context)
 
     # Context for active_expeditions partial
     active_expeditions_context = {
