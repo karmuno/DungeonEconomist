@@ -1598,10 +1598,28 @@ def advance_day(request: Request, days: int = Form(1), db: Session = Depends(get
         "healing_adventurers": still_healing_adventurers_list,
         "treasury_gold": treasury_gold
     }
-    return templates.TemplateResponse(
-        "partials/time_panel.html",
-        context
-    )
+
+    # Render time_panel partial
+    time_panel_html = templates.env.get_template("partials/time_panel.html").render(context)
+
+    # Context for active_expeditions partial
+    active_expeditions_context = {
+        "request": request,
+        "active_expeditions": updated_active_expeditions_list,
+        "game_time": game_time
+    }
+    active_expeditions_html = templates.env.get_template("partials/active_expeditions.html").render(active_expeditions_context)
+
+    # Combine HTML for OOB swap
+    html_content = f"""
+    <div id="time-panel-expeditions" hx-swap-oob="true">
+        {time_panel_html}
+    </div>
+    <div id="expedition-content" hx-swap-oob="true">
+        {active_expeditions_html}
+    </div>
+    """
+    return HTMLResponse(content=html_content)
 
 @app.post("/time/skip-until-ready", response_class=HTMLResponse)
 async def skip_until_ready(request: Request, db: Session = Depends(get_db)):
