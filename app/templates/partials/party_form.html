@@ -1,19 +1,82 @@
-<form hx-post="/parties/" hx-target="#party-list" hx-swap="outerHTML" class="space-y-4">
-    <div>
-        <label for="name" class="block text-sm font-medium text-gray-700">Party Name</label>
-        <input type="text" id="name" name="name" required
-               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+<form 
+    {% if party %}hx-put="/parties/{{ party.id }}"{% else %}hx-post="/parties/"{% endif %}
+    hx-target="#party-list-container" hx-swap="innerHTML"
+    hx-on:htmx:after-request="document.getElementById('modal').classList.add('hidden'); document.body.dispatchEvent(new Event('partyListChanged'))"
+    class="space-y-6 text-gray-300">
+    <h3 class="text-lg font-bold text-green-400">
+        {% if party %}Edit Party: {{ party.name }}{% else %}Create New Party{% endif %}
+    </h3>
+    
+    <!-- Party information section -->
+    <div class="space-y-4">
+        <div>
+            <label for="name" class="block text-sm font-medium text-gray-300">Party Name</label>
+            <input type="text" id="name" name="name" required placeholder="Brave Adventurers"
+                   class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500 placeholder-gray-400"
+                   {% if party %}value="{{ party.name }}"{% endif %}>
+        </div>
+        
+        <div>
+            <label for="player_id" class="block text-sm font-medium text-gray-300">Player</label>
+            <select id="player_id" name="player_id" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500">
+                <option value="">Select a player (optional)</option>
+                {% for player_opt in players %} {# Renamed to avoid conflict #}
+                <option value="{{ player_opt.id }}" {% if party and party.player_id == player_opt.id %}selected{% endif %}>
+                    {{ player_opt.name }} ({{ player_opt.treasury }} gold)
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div>
+            <label for="funds" class="block text-sm font-medium text-gray-300">Starting Funds (Gold)</label>
+            <input type="number" id="funds" name="funds"
+                   {% if party %}value="{{ party.funds }}"{% else %}value="100"{% endif %} min="0" step="10" 
+                   class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500">
+        </div>
     </div>
     
-    <div class="flex justify-end">
+    <!-- Party Strategy -->
+    <div class="p-4 bg-gray-700 border border-gray-600 rounded-lg">
+        <h4 class="font-semibold text-green-400 mb-2">Strategy Tips</h4>
+        <ul class="text-sm text-gray-400 space-y-2">
+            <li class="flex items-start">
+                <svg class="w-4 h-4 text-green-500 mr-1 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                A balanced party should include fighters for combat, clerics for healing, and magic-users for spells.
+            </li>
+            <li class="flex items-start">
+                <svg class="w-4 h-4 text-green-500 mr-1 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Consider bringing 4-6 adventurers for most expeditions.
+            </li>
+            <li class="flex items-start">
+                <svg class="w-4 h-4 text-green-500 mr-1 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                After creating your party, you'll be able to add members and supplies.
+            </li>
+        </ul>
+    </div>
+    
+    <!-- Form actions -->
+    <div class="flex justify-end pt-2">
         <button type="button" 
-                class="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                class="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded mr-2 font-semibold"
                 onclick="document.getElementById('modal').classList.add('hidden')">
             Cancel
         </button>
         <button type="submit" 
-                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Create Party
+                class="bg-green-500 hover:bg-green-600 text-black font-semibold px-4 py-2 rounded">
+            {% if party %}Update Party{% else %}Create Party{% endif %}
         </button>
     </div>
-</form>
+  </form>
+  {% if party %}
+  <!-- Add adventurers to party -->
+  <div class="mt-6 border-t border-gray-600 pt-6">
+    {% include "partials/add_party_member_enhanced.html" %}
+  </div>
+  {% endif %}

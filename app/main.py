@@ -87,6 +87,7 @@ def add_progression_data(adventurer):
     # Add computed fields (these won't be stored in DB but will be in response)
     adventurer.next_level_xp = next_level_xp
     adventurer.xp_progress = min(100, max(0, progress))
+    print(f"Processed Adventurer: {adventurer.name}, Level: {adventurer.level}, HP: {adventurer.hp_current}/{adventurer.hp_max}, XP: {adventurer.xp}, Gold: {adventurer.gold}, Next XP: {adventurer.next_level_xp}, XP Progress: {adventurer.xp_progress}")
     return adventurer
 
 # --- Adventurer Endpoints ---
@@ -379,13 +380,18 @@ def list_parties(skip: int = 0, limit: int = 100, db: Session = Depends(get_db))
 @app.get("/parties/create-form", response_class=HTMLResponse)
 def party_create_form(request: Request, db: Session = Depends(get_db)):
     """Return the party creation form"""
-    treasury_gold = 0
-    player = db.query(Player).first()
-    if player:
-        treasury_gold = player.treasury
+    players = db.query(Player).all()
+    available_adventurers = db.query(Adventurer).filter(Adventurer.is_available == True).all()
+    processed_adventurers = [add_progression_data(adv) for adv in available_adventurers]
+    
     return templates.TemplateResponse(
         "partials/party_form.html",
-        {"request": request, "treasury_gold": treasury_gold}
+        {
+            "request": request,
+            "party": None, # Indicate that this is a new party
+            "players": players,
+            "available_adventurers": processed_adventurers
+        }
     )
     
 @app.get("/parties/{party_id}/edit-form", response_class=HTMLResponse)
@@ -424,9 +430,10 @@ def party_add_member_form(request: Request, party_id: int, db: Session = Depends
         Adventurer.is_available == True,
         ~Adventurer.parties.any(Party.id == party_id)
     ).all()
+    processed_adventurers = [add_progression_data(adv) for adv in available_adventurers]
     return templates.TemplateResponse(
         "partials/add_party_member_enhanced.html",
-        {"request": request, "party": party, "available_adventurers": available_adventurers}
+        {"request": request, "party": party, "available_adventurers": processed_adventurers}
     )
     
 @app.put("/parties/{party_id}", response_model=PartyOut)
@@ -525,8 +532,11 @@ def add_adventurer_to_party(
     if adventurer in party.members:
         raise HTTPException(status_code=400, detail="Adventurer is already a member of this party")
     # Add and commit
+    print(f"Attempting to add adventurer {adventurer_id} to party {party_id}")
     party.members.append(adventurer)
     db.commit()
+    db.refresh(party) # Refresh the party object to reflect the new member
+    print(f"Adventurer {adventurer_id} added to party {party_id}. Party members count: {len(party.members)}")
     # On HTMX request, re-render the party edit form
     if request.headers.get("HX-Request"):
         # Return refreshed edit form in modal
