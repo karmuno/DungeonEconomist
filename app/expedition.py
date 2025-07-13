@@ -16,13 +16,16 @@ class CombatOutcome(Enum):
     DISASTER = "Disaster"
 
 class Expedition:
-    def __init__(self, party, dungeon_level):
+    def __init__(self, party, dungeon_level, start_day=None, duration_days=None, return_day=None):
         # Add current_hp to each member if not present
         for member in party:
             if "current_hp" not in member:
                 member["current_hp"] = member.get("hit_points", 1)
         self.party = party
         self.dungeon_level = dungeon_level
+        self.start_day = start_day
+        self.duration_days = duration_days
+        self.return_day = return_day
         self.turns = 0
         self.encounters = []
         self.treasure = []

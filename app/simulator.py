@@ -39,12 +39,13 @@ class DungeonSimulator:
     Main simulation engine that handles running expeditions, tracking party status,
     and managing simulation outcomes.
     """
-    def __init__(self, parties: List[Dict[str, Any]] = None):
+    def __init__(self, parties: List[Dict[str, Any]] = None, current_day: int = 1):
         self.parties = parties or []
         self.active_expeditions = {}
         self.completed_expeditions = {}  # Dictionary for id-based access
         self.completed_expedition_list = []  # List for order preservation
         self.expedition_logs = {}
+        self.current_day = current_day
         
     def add_party(self, party: List[Dict[str, Any]]) -> int:
         """Add a new party to the simulator and return its ID"""
@@ -61,7 +62,13 @@ class DungeonSimulator:
         party_copy = [member.copy() for member in self.parties[party_id]]
         
         # Create new expedition
-        expedition = Expedition(party_copy, dungeon_level)
+        expedition = Expedition(
+            party_copy, 
+            dungeon_level,
+            start_day=self.current_day, # Assuming simulator has current_day
+            duration_days=7, # Default duration for new expeditions
+            return_day=self.current_day + 7 # Default return day
+        )
         
         # Generate expedition ID and store it
         expedition_id = len(self.active_expeditions) + len(self.completed_expedition_list)
@@ -69,7 +76,10 @@ class DungeonSimulator:
             "expedition": expedition,
             "party_id": party_id,
             "start_time": datetime.now(),
-            "turns_completed": 0
+            "turns_completed": 0,
+            "start_day": expedition.start_day,
+            "duration_days": expedition.duration_days,
+            "return_day": expedition.return_day
         }
         
         # Initialize expedition log
@@ -192,6 +202,9 @@ class DungeonSimulator:
             "turns": expedition_data["turns_completed"],
             "start_time": expedition_data["start_time"],
             "end_time": expedition_data.get("end_time", None),
+            "start_day": expedition.start_day,
+            "duration_days": expedition.duration_days,
+            "return_day": expedition.return_day,
             "treasure_total": sum(t["gold"] for t in expedition.treasure),
             "special_items": [t["special_item"] for t in expedition.treasure if t["special_item"]],
             "xp_earned": expedition.xp_earned,

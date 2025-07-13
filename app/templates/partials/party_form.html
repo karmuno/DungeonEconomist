@@ -19,7 +19,7 @@
         <div>
             <label for="player_id" class="block text-sm font-medium text-gray-300">Player</label>
             <select id="player_id" name="player_id" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500">
-                <option value="">Select a player (optional)</option>
+                <option value="" selected disabled hidden>Select a player (optional)</option>
                 {% for player_opt in players %} {# Renamed to avoid conflict #}
                 <option value="{{ player_opt.id }}" {% if party and party.player_id == player_opt.id %}selected{% endif %}>
                     {{ player_opt.name }} ({{ player_opt.treasury }} gold)

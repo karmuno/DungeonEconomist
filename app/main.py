@@ -351,7 +351,13 @@ def create_party(
     player_id: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
+    print("DEBUG: create_party function entered.")
     """Create a new party from form data"""
+    
+    # Explicitly convert empty string player_id to None
+    if player_id == "":
+        player_id = None
+
     new_party = Party(
         name=name,
         created_at=datetime.now(),
