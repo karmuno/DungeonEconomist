@@ -1686,6 +1686,9 @@ def expeditions_page(request: Request, db: Session = Depends(get_db)):
     # Get treasury total from the first player for header display
     player = db.query(Player).first()
     treasury_gold = player.treasury if player else 0
+
+    # Get unavailable adventurers count
+    unavailable_adventurers = db.query(Adventurer).filter(Adventurer.is_available == False).count()
     
     return templates.TemplateResponse(
         "expeditions.html",
@@ -1693,7 +1696,8 @@ def expeditions_page(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "active_expeditions": active_expeditions,
             "treasury_gold": treasury_gold,
-            "game_time": game_time
+            "game_time": game_time,
+            "unavailable_adventurers": unavailable_adventurers
         }
     )
 
