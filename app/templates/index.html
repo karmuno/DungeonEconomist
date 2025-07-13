@@ -22,51 +22,8 @@
         </div>
         
         <!-- Game Time Panel (Embedded in Index) -->
-        <div class="bg-black border border-gray-600 rounded-lg p-4 text-white" id="time-panel-index">
-            <div class="flex justify-between items-center mb-3">
-                <h2 class="text-2xl font-bold text-green-400">Game Time</h2>
-                <div class="text-3xl font-bold text-green-400">Day {{ game_time.current_day if game_time else 'N/A' }}</div>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4 mb-3">
-                <div class="bg-gray-800 border border-gray-700 rounded p-3">
-                    <h3 class="font-bold text-green-400">Active Expeditions</h3>
-                    <p class="text-2xl text-white">{{ active_expeditions|length }}</p>
-                </div>
-                <div class="bg-gray-800 border border-gray-700 rounded p-3">
-                    <h3 class="font-bold text-green-400">Resting Adventurers</h3>
-                    <p class="text-2xl text-white">{{ unavailable_adventurers }}</p>
-                </div>
-            </div>
-            
-            <div class="flex justify-between">
-                <button 
-                    hx-post="/time/advance-day"
-                    hx-vals='{"days": 1}'
-                    hx-target="#time-panel-index"
-                    hx-swap="outerHTML"
-                    class="bg-green-500 hover:bg-green-600 text-black font-semibold py-2 px-4 rounded">
-                    Next Day
-                </button>
-                
-                <button 
-                    hx-post="/time/advance-day"
-                    hx-vals='{"days": 7}'
-                    hx-target="#time-panel-index"
-                    hx-swap="outerHTML"
-                    class="bg-green-500 hover:bg-green-600 text-black font-semibold py-2 px-4 rounded">
-                    Skip Week
-                </button>
-                
-                <button 
-                    hx-post="/time/advance-day"
-                    hx-vals='{"days": 30}'
-                    hx-target="#time-panel-index"
-                    hx-swap="outerHTML"
-                    class="bg-green-500 hover:bg-green-600 text-black font-semibold py-2 px-4 rounded">
-                    Skip Month
-                </button>
-            </div>
+        <div id="time-panel-index">
+            {% include 'partials/time_panel.html' %}
         </div>
     </div>
 

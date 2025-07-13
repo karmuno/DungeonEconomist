@@ -1599,30 +1599,9 @@ def advance_day(request: Request, days: int = Form(1), db: Session = Depends(get
         "treasury_gold": treasury_gold
     }
 
-    # Render expedition_time_controls partial using the existing context
-    # as it contains 'request' and 'game_time' needed by the partial.
+    # Render the time_panel partial using the existing context.
     # This will be the primary response content.
-    rendered_time_controls_html = templates.env.get_template("partials/expedition_time_controls.html").render(context)
-
-    # Context for active_expeditions partial
-    active_expeditions_context = {
-        "request": request,
-        "active_expeditions": updated_active_expeditions_list,
-        "game_time": game_time
-    }
-    rendered_active_expeditions_html = templates.env.get_template("partials/active_expeditions.html").render(active_expeditions_context)
-
-    # Wrap only the active_expeditions_html for OOB swap
-    wrapped_active_expeditions_html = f"""
-    <div id="expedition-content" hx-swap-oob="true">
-        {rendered_active_expeditions_html}
-    </div>
-    """
-
-    # Concatenate the primary content and the OOB content
-    final_html_content = rendered_time_controls_html + wrapped_active_expeditions_html
-
-    return HTMLResponse(content=final_html_content)
+    return templates.TemplateResponse("partials/time_panel.html", context)
 
 @app.post("/time/skip-until-ready", response_class=HTMLResponse)
 async def skip_until_ready(request: Request, db: Session = Depends(get_db)):

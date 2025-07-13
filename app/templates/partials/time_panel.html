@@ -64,6 +64,15 @@
             class="bg-green-500 hover:bg-green-600 text-black font-semibold py-2 px-4 rounded">
             Skip Week
         </button>
+
+        <button 
+            hx-post="/time/advance-day"
+            hx-vals='{"days": 30}'
+            hx-target="#time-panel"
+            hx-swap="outerHTML"
+            class="bg-green-500 hover:bg-green-600 text-black font-semibold py-2 px-4 rounded">
+            Skip Month
+        </button>
         
         {% if unavailable_adventurers > 0 or active_expeditions|length > 0 %}
         <button 
