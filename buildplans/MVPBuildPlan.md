@@ -59,7 +59,7 @@
 - [ ] Balance risk vs. reward for different dungeon difficulties
 
 ### Automation
-- [ ] Expeditions need to auto-complete when they are "Ready to Return"
+- [x] Expeditions need to auto-complete when they are "Ready to Return"
 - [x] If "Advance" causes the day to pass a multiple of 30, trigger everybody's upkeep costs
 
 ### Testing & Refinement

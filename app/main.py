@@ -1153,6 +1153,7 @@ def launch_expedition(
     
     db_expedition = Expedition(
         party_id=expedition_data.party_id, # Use party_id from expedition_data
+        simulator_expedition_id=expedition_id_sim, # Store the simulator's ID
         start_day=start_day,
         duration_days=duration_days, # Use the new duration_days variable
         return_day=return_day,
@@ -1198,18 +1199,23 @@ def launch_expedition(
     # Run expedition to completion
     result = simulator.run_expedition_to_completion(expedition_id_sim)
     
-    # Update expedition in database
+    # Process the completed expedition
+    process_completed_expedition(db, db_expedition, party, result, supplies_consumed)
+    
+    # Return full expedition results
+    return result
+
+def process_completed_expedition(db: Session, db_expedition: Expedition, party: Party, result: dict, supplies_consumed: dict):
+    """Helper function to process a completed expedition."""
     db_expedition.finished_at = datetime.now()
     db_expedition.result = "completed"
     db_expedition.supplies_consumed = supplies_consumed
     
     # Handle potential equipment loss during expedition
-    # For this implementation, we'll have a 5% chance per adventurer to lose one equipped item
     equipment_lost = {}
     for member in party.members:
         import random
         if random.random() < 0.05:  # 5% chance to lose equipment
-            # Get one random equipped item
             stmt = adventurer_equipment.select().where(
                 adventurer_equipment.c.adventurer_id == member.id,
                 adventurer_equipment.c.equipped == True
@@ -1221,20 +1227,16 @@ def launch_expedition(
                 equipment = db.query(Equipment).filter(Equipment.id == lost_item.equipment_id).first()
                 
                 if equipment:
-                    # Record the loss for the expedition
                     if member.name not in equipment_lost:
                         equipment_lost[member.name] = []
                     equipment_lost[member.name].append(equipment.name)
                     
-                    # Remove the equipment from the adventurer
                     if lost_item.quantity <= 1:
-                        # Remove entirely
                         stmt = adventurer_equipment.delete().where(
                             adventurer_equipment.c.adventurer_id == member.id,
                             adventurer_equipment.c.equipment_id == lost_item.equipment_id
                         )
                     else:
-                        # Update quantity
                         stmt = adventurer_equipment.update().where(
                             adventurer_equipment.c.adventurer_id == member.id,
                             adventurer_equipment.c.equipment_id == lost_item.equipment_id
@@ -1300,16 +1302,14 @@ def launch_expedition(
     if party.player_id:
         player = db.query(Player).filter(Player.id == party.player_id).first()
         if player:
-            # Add to player's treasury
             player.treasury += loot_split["player_treasury"]
-            # Add to total score (keeps track of all gold ever collected)
             player.total_score += loot_split["player_treasury"]
             
     # Update individual adventurer gold amounts
     if loot_split["individual_share"] > 0:
         for member in party.members:
             member.gold += loot_split["individual_share"]
-    
+            
     # Add the loot split information to the result
     result["loot_split"] = loot_split
             
@@ -1318,9 +1318,6 @@ def launch_expedition(
     # Add supplies and equipment info to the result
     result["supplies_consumed"] = supplies_consumed
     result["equipment_lost"] = equipment_lost
-    
-    # Return full expedition results
-    return result
 
 @app.get("/expeditions/{expedition_id}/details", response_class=HTMLResponse)
 def expedition_details_page(request: Request, expedition_id: int, db: Session = Depends(get_db)):
@@ -1539,26 +1536,51 @@ def advance_day(request: Request, days: int = Form(1), db: Session = Depends(get
 
     for expedition in active_expeditions_to_check:
         if expedition.return_day is not None and expedition.return_day <= game_time.current_day:
-            expedition.result = "completed"
-            expedition.finished_at = datetime.now()
-
-            if expedition.return_day > current_game_day_before_advance:
-                 expeditions_returned_this_advancement += 1
-
-            if expedition.party:
-                expedition.party.on_expedition = False
-                expedition.party.current_expedition_id = None
-                for adventurer in expedition.party.members:
-                    adventurer.on_expedition = False
-                    # Simplified post-expedition status: if HP is low, set to healing for 7 days.
-                    if adventurer.hp_max > 0 and adventurer.hp_current <= (adventurer.hp_max / 2):
-                        adventurer.is_available = False
-                        adventurer.expedition_status = "healing"
-                        adventurer.healing_until_day = game_time.current_day + 7 # Example: 7 days
+            # Only process if it hasn't been processed yet
+            if expedition.result == "in_progress":
+                # Get the party associated with the expedition
+                party = db.query(Party).filter(Party.id == expedition.party_id).first()
+                if party:
+                    # Run the expedition to completion in the simulator
+                    # Need to ensure the simulator has this expedition loaded.
+                    # For auto-completion, we assume it was launched via launch_expedition
+                    # and thus simulator_expedition_id is valid.
+                    if expedition.simulator_expedition_id is not None:
+                        try:
+                            result = simulator.run_expedition_to_completion(expedition.simulator_expedition_id)
+                            # Process the completed expedition
+                            process_completed_expedition(db, expedition, party, result, {})
+                            expeditions_returned_this_advancement += 1
+                        except ValueError as e:
+                            print(f"Error processing auto-completed expedition {expedition.id}: {e}")
+                            # Mark as failed or completed with error if simulator fails
+                            expedition.result = "failed"
+                            expedition.finished_at = datetime.now()
+                            party.on_expedition = False
+                            party.current_expedition_id = None
+                            for adventurer in party.members:
+                                adventurer.on_expedition = False
+                                adventurer.is_available = True
+                                adventurer.expedition_status = "resting"
+                                adventurer.healing_until_day = None
                     else:
-                        adventurer.is_available = True
-                        adventurer.expedition_status = "resting"
-                        adventurer.healing_until_day = None # Ensure not healing if healthy
+                        print(f"Expedition {expedition.id} missing simulator_expedition_id for auto-completion.")
+                        # Fallback for expeditions without simulator ID (e.g., old data)
+                        expedition.result = "completed"
+                        expedition.finished_at = datetime.now()
+                        if expedition.party:
+                            expedition.party.on_expedition = False
+                            expedition.party.current_expedition_id = None
+                            for adventurer in expedition.party.members:
+                                adventurer.on_expedition = False
+                                if adventurer.hp_max > 0 and adventurer.hp_current <= (adventurer.hp_max / 2):
+                                    adventurer.is_available = False
+                                    adventurer.expedition_status = "healing"
+                                    adventurer.healing_until_day = game_time.current_day + 7
+                                else:
+                                    adventurer.is_available = True
+                                    adventurer.expedition_status = "resting"
+                                    adventurer.healing_until_day = None
 
     adventurers_became_available = db.query(Adventurer).filter(
         Adventurer.is_available == False,

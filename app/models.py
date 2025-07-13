@@ -154,6 +154,7 @@ class Expedition(Base):
 
     id = Column(Integer, primary_key=True)
     party_id = Column(Integer, ForeignKey('parties.id'), nullable=False)
+    simulator_expedition_id = Column(Integer, nullable=True) # ID from the DungeonSimulator
     start_day = Column(Integer, nullable=False)  # Game day when expedition started
     duration_days = Column(Integer, default=7)  # Default expedition duration in days
     return_day = Column(Integer, nullable=False)  # Game day when expedition will return
