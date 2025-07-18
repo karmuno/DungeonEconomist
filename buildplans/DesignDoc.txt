@@ -14,7 +14,7 @@ Each adventurer is represented by a 1-bit sprite themed by class
 Color customization for adventurers (via picker or preset colors)
 
 
-Clean 2D UI, focused on functionality and legibility
+Clean 2D UI, focused on functionality and legibility, implemented with Vue.js.
 
 
 Dungeon lairs displayed as minimalist expanding network graphs

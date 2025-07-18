@@ -1,7 +1,6 @@
-# Venturekeep
+# DungeonEconomist
 
-        Venturekeep is a Dungeons & Dragons (D&D) inspired party management simulation game built with FastAPI. Players manage adventurers, parties, expeditions, and resources as they
-    venture through dungeons, track progress, and collect loot.
+DungeonEconomist is a Dungeons & Dragons (D&D) inspired party management simulation game. This project is being rebuilt with a Flask backend, a Vue.js frontend, OpenAPI for API documentation, and deployed on Google Cloud Run.
 
 ## Features
 - Manage adventurers of different classes, track their progression, and manage their equipment.
@@ -15,39 +14,104 @@
 - Handle adventurer bankruptcy if they cannot afford upkeep.
 - Persistent game state stored in a SQLite database.
 
-        ## Installation
+## Architecture
 
-        1. Clone the repository.
-        2. Create a Python virtual environment (recommended):
-           ```bash
-           python3 -m venv venv
-           source venv/bin/activate  # On Windows: venv\Scripts\activate
+The application follows a microservices-like architecture:
 
-        1. Install the dependencies:    pip install -r requirements.txt
+1.  **Vue.js (Frontend)**:
+    *   Serves as the user interface.
+    *   Developed separately and built into static HTML, CSS, and JavaScript files.
+2.  **Flask (Backend API)**:
+    *   Provides the backend API, handling business logic and data interactions.
+    *   Exposes API endpoints for the Vue frontend to consume.
+    *   Uses OpenAPI for API documentation and specification.
+3.  **OpenAPI (API Documentation and Specification)**:
+    *   Defines and documents the Flask API, providing interactive documentation (e.g., Swagger UI).
+4.  **Google Cloud Run (Deployment)**:
+    *   Serverless platform for deploying containerized applications.
+    *   The Flask backend will be containerized and deployed here.
+    *   The Vue.js static files can be served from a separate Cloud Run service or Google Cloud Storage + Cloud CDN.
+5.  **API Gateway (Optional)**:
+    *   For managing and securing the API (e.g., Google Cloud Endpoints).
 
-    ## Running the Project
+## Installation
 
-    Start the FastAPI server with Uvicorn:
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/your-repo/DungeonEconomist.git
+    cd DungeonEconomist
+    ```
+2.  **Backend Setup**:
+    ```bash
+    cd backend
+    python3 -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
+3.  **Frontend Setup**:
+    ```bash
+    cd ../frontend
+    npm install # or yarn install
+    ```
 
-        uvicorn app.main:app --reload
+## Running the Project
 
-    This will start the server locally on http://127.0.0.1:8000.
+### Backend (Flask)
 
-    Access the interactive API docs at http://127.0.0.1:8000/docs.
+1.  Navigate to the `backend/` directory:
+    ```bash
+    cd backend
+    ```
+2.  Activate your virtual environment:
+    ```bash
+    source venv/bin/activate # On Windows: venv\Scripts\activate
+    ```
+3.  Run the Flask server:
+    ```bash
+    flask run
+    ```
+    This will start the Flask server locally, typically on `http://127.0.0.1:5000`.
+    Access the interactive API docs (Swagger UI) at `http://127.0.0.1:5000/openapi/swagger`.
 
-    ## Resetting the Database
+### Frontend (Vue.js)
 
-    The game uses SQLite database at ./data/db.sqlite.
-    To reset:
+1.  Navigate to the `frontend/` directory:
+    ```bash
+    cd frontend
+    ```
+2.  Run the Vue.js development server:
+    ```bash
+    npm run serve # or yarn serve
+    ```
+    This will typically start the Vue.js application on `http://localhost:8080`.
 
-        1. Stop the running server.
-        2. Delete or rename the database file:    rm -f data/db.sqlite
-        3. Restart the server, which will recreate a fresh database with default data.
+## Resetting the Database
 
-    ## Project Structure
+The game uses SQLite database at `./data/db.sqlite`.
+To reset:
 
-        * `app/`: Source code including models, API routes, simulation, and templates.
-        * `data/`: Contains the SQLite database file.
-        * `static/`: Static files such as CSS and JS.
-        * `requirements.txt`: Python dependencies.
-        * `README.md`: This file.
+1.  Stop any running servers (Flask, Vue.js dev server).
+2.  Delete or rename the database file:
+    ```bash
+    rm -f data/db.sqlite
+    ```
+3.  Restart the Flask server, which will recreate a fresh database with default data.
+
+## Project Structure
+
+*   `backend/`: Contains the Flask backend application.
+    *   `backend/app.py`: Main Flask application, API endpoints, and OpenAPI integration.
+    *   `backend/models.py`: SQLAlchemy ORM models.
+    *   `backend/schemas.py`: Pydantic/Marshmallow schemas for data validation and serialization.
+    *   `backend/services.py`: Business logic and helper functions.
+    *   `backend/requirements.txt`: Backend Python dependencies.
+    *   `backend/Dockerfile`: Dockerfile for containerizing the Flask app.
+*   `frontend/`: Contains the Vue.js frontend application.
+    *   `frontend/src/`: Vue.js source code.
+    *   `frontend/public/`: Static assets for Vue.js.
+    *   `frontend/package.json`: Frontend dependencies and scripts.
+*   `data/`: Contains the SQLite database file.
+*   `tests/`: Unit and integration tests for both backend and frontend.
+*   `README.md`: This file.
+*   `buildplans/`: Project build and design documents.
+*   `docs/`: (Optional) Additional documentation, e.g., OpenAPI specification files.
