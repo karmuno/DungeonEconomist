@@ -1,0 +1,190 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import type { AdventurerOut } from '../types'
+import * as adventurersApi from '../api/adventurers'
+import { useNotificationsStore } from '../stores/notifications'
+import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import EmptyState from '../components/shared/EmptyState.vue'
+import ModalDialog from '../components/shared/ModalDialog.vue'
+import AdventurerFilters from '../components/adventurers/AdventurerFilters.vue'
+import AdventurerCard from '../components/adventurers/AdventurerCard.vue'
+import AdventurerList from '../components/adventurers/AdventurerList.vue'
+import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
+import AdventurerForm from '../components/adventurers/AdventurerForm.vue'
+
+const notifications = useNotificationsStore()
+
+const adventurers = ref<AdventurerOut[]>([])
+const loading = ref(true)
+const viewMode = ref<'card' | 'list'>('card')
+const selectedAdventurer = ref<AdventurerOut | null>(null)
+const showCreate = ref(false)
+const showDetail = ref(false)
+
+const filters = ref({
+  classFilter: '',
+  statusFilter: '',
+  nameSearch: '',
+  sortBy: 'name',
+  sortDir: 'asc' as 'asc' | 'desc',
+})
+
+const filteredAdventurers = computed(() => {
+  let result = [...adventurers.value]
+
+  if (filters.value.classFilter) {
+    result = result.filter((a) => a.adventurer_class === filters.value.classFilter)
+  }
+
+  if (filters.value.statusFilter) {
+    switch (filters.value.statusFilter) {
+      case 'available':
+        result = result.filter((a) => a.is_available && !a.on_expedition)
+        break
+      case 'on_expedition':
+        result = result.filter((a) => a.on_expedition)
+        break
+      case 'resting':
+        result = result.filter((a) => !a.is_available && !a.on_expedition && a.healing_until_day != null)
+        break
+      case 'injured':
+        result = result.filter((a) => a.hp_current < a.hp_max)
+        break
+      case 'bankrupt':
+        result = result.filter((a) => a.is_bankrupt)
+        break
+    }
+  }
+
+  if (filters.value.nameSearch) {
+    const search = filters.value.nameSearch.toLowerCase()
+    result = result.filter((a) => a.name.toLowerCase().includes(search))
+  }
+
+  const dir = filters.value.sortDir === 'asc' ? 1 : -1
+  const sortKey = filters.value.sortBy as keyof AdventurerOut
+
+  result.sort((a, b) => {
+    const aVal = a[sortKey]
+    const bVal = b[sortKey]
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return dir * aVal.localeCompare(bVal)
+    }
+    return dir * (Number(aVal) - Number(bVal))
+  })
+
+  return result
+})
+
+async function fetchAdventurers() {
+  loading.value = true
+  try {
+    adventurers.value = await adventurersApi.list()
+  } finally {
+    loading.value = false
+  }
+}
+
+async function onSelect(id: number) {
+  try {
+    selectedAdventurer.value = await adventurersApi.getById(id)
+    showDetail.value = true
+  } catch {
+    notifications.add('Failed to load adventurer details', 'error')
+  }
+}
+
+async function onLevelUp() {
+  if (!selectedAdventurer.value) return
+  try {
+    const result = await adventurersApi.levelUp(selectedAdventurer.value.id)
+    notifications.add(
+      `${selectedAdventurer.value.name} leveled up to ${result.new_level}! HP gained: ${result.hp_gained}`,
+      'success'
+    )
+    selectedAdventurer.value = await adventurersApi.getById(selectedAdventurer.value.id)
+    await fetchAdventurers()
+  } catch {
+    notifications.add('Level up failed', 'error')
+  }
+}
+
+async function onCreated() {
+  showCreate.value = false
+  await fetchAdventurers()
+}
+
+onMounted(fetchAdventurers)
+</script>
+
+<template>
+  <div>
+    <h1 class="mb-3">Adventurers</h1>
+
+    <div class="flex flex-between mb-2">
+      <div class="view-toggle">
+        <button
+          class="btn btn-sm"
+          :class="{ 'btn-primary': viewMode === 'card' }"
+          @click="viewMode = 'card'"
+        >
+          Cards
+        </button>
+        <button
+          class="btn btn-sm"
+          :class="{ 'btn-primary': viewMode === 'list' }"
+          @click="viewMode = 'list'"
+        >
+          List
+        </button>
+      </div>
+      <button class="btn btn-primary" @click="showCreate = true">New Adventurer</button>
+    </div>
+
+    <AdventurerFilters v-model="filters" class="mb-3" />
+
+    <LoadingSpinner v-if="loading" />
+    <template v-else>
+      <template v-if="filteredAdventurers.length > 0">
+        <div v-if="viewMode === 'card'" class="stats-grid">
+          <AdventurerCard
+            v-for="adv in filteredAdventurers"
+            :key="adv.id"
+            :adventurer="adv"
+            @select="onSelect"
+          />
+        </div>
+        <AdventurerList
+          v-else
+          :adventurers="filteredAdventurers"
+          @select="onSelect"
+        />
+      </template>
+      <EmptyState v-else message="No adventurers match your filters" />
+    </template>
+
+    <ModalDialog
+      :is-open="showDetail"
+      :title="selectedAdventurer?.name ?? 'Adventurer'"
+      @close="showDetail = false"
+    >
+      <AdventurerDetail
+        v-if="selectedAdventurer"
+        :adventurer="selectedAdventurer"
+        @close="showDetail = false"
+        @level-up="onLevelUp"
+      />
+    </ModalDialog>
+
+    <ModalDialog
+      :is-open="showCreate"
+      title="New Adventurer"
+      @close="showCreate = false"
+    >
+      <AdventurerForm
+        @created="onCreated"
+        @cancel="showCreate = false"
+      />
+    </ModalDialog>
+  </div>
+</template>
