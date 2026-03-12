@@ -178,5 +178,9 @@ cython_debug/
 *.sqlite.backup.*
 test_db.sqlite
 
+# Node / Frontend
+node_modules/
+frontend/dist/
+
 # Claude Code
 .claude/
