@@ -1,17 +1,13 @@
 import math
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from starlette.requests import Request
 from datetime import datetime
 
 from app.database import get_db
-from app.models import Adventurer, Expedition, Player, GameTime
+from app.models import Adventurer, Party, Expedition, Player, GameTime
 from app.schemas import GameTimeInfo
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 @router.put("/upkeep")
@@ -88,11 +84,9 @@ def run_upkeep(db: Session = Depends(get_db)):
         }
 
 
-@router.post("/time/advance-day")
-def advance_day(request: Request, db: Session = Depends(get_db)):
-    """Advances the game time by one day and updates expedition statuses.
-    Returns HTML partial for HTMX requests, JSON GameTimeInfo otherwise.
-    """
+@router.post("/time/advance-day", response_model=GameTimeInfo)
+def advance_day(db: Session = Depends(get_db)):
+    """Advances the game time by one day and updates expedition statuses."""
     game_time = db.query(GameTime).first()
     if not game_time:
         game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
@@ -117,26 +111,72 @@ def advance_day(request: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(game_time)
 
-    # Return HTML for HTMX requests, JSON for API clients
-    if request.headers.get("HX-Request"):
-        updated_active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
-        player = db.query(Player).first()
-        treasury_gold = player.treasury if player else 0
-        return templates.TemplateResponse(
-            "partials/active_expeditions.html",
-            {
-                "request": request,
-                "active_expeditions": updated_active_expeditions,
-                "game_time": game_time,
-                "treasury_gold": treasury_gold
-            }
-        )
-
     return GameTimeInfo(
         current_day=game_time.current_day,
         day_started_at=game_time.day_started_at,
         last_updated=game_time.last_updated
     )
+
+
+@router.get("/dashboard/stats")
+def get_dashboard_stats(db: Session = Depends(get_db)):
+    """Get aggregated dashboard stats for the home page."""
+    adventurer_count = db.query(Adventurer).count()
+    party_count = db.query(Party).count()
+    expedition_count = db.query(Expedition).count()
+
+    player = db.query(Player).first()
+    if not player:
+        player = Player(name="Default Player", treasury=0, total_score=0)
+        db.add(player)
+        db.commit()
+        db.refresh(player)
+
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime(current_day=1)
+        db.add(game_time)
+        db.commit()
+        db.refresh(game_time)
+
+    active_expeditions = db.query(Expedition).filter(
+        Expedition.result == "in_progress"
+    ).all()
+    recent_expeditions = db.query(Expedition).order_by(
+        Expedition.started_at.desc()
+    ).limit(5).all()
+
+    return {
+        "adventurer_count": adventurer_count,
+        "party_count": party_count,
+        "expedition_count": expedition_count,
+        "treasury": player.treasury,
+        "total_score": player.total_score,
+        "current_day": game_time.current_day,
+        "active_expeditions": [
+            {
+                "id": e.id,
+                "party_id": e.party_id,
+                "start_day": e.start_day,
+                "return_day": e.return_day,
+                "result": e.result,
+            }
+            for e in active_expeditions
+        ],
+        "recent_expeditions": [
+            {
+                "id": e.id,
+                "party_id": e.party_id,
+                "start_day": e.start_day,
+                "return_day": e.return_day,
+                "duration_days": e.duration_days,
+                "result": e.result,
+                "started_at": e.started_at.isoformat() if e.started_at else None,
+                "finished_at": e.finished_at.isoformat() if e.finished_at else None,
+            }
+            for e in recent_expeditions
+        ],
+    }
 
 
 @router.get("/time/", response_model=GameTimeInfo)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Form, Query
+from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
@@ -13,7 +13,7 @@ from app.models import (
     SupplyType, party_supply, party_adventurer
 )
 from app.schemas import (
-    PartyOut, PartyMemberOperation, PartyFundsUpdate,
+    PartyOut, PartyCreate, PartyMemberOperation, PartyFundsUpdate,
     SupplyOut, SupplyCreate, SupplyOperation, PartySupplyOut
 )
 from app.routes.adventurers import add_progression_data
@@ -24,21 +24,19 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.post("/parties/", response_model=PartyOut)
 def create_party(
-    name: str = Form(...),
-    funds: int = Form(0),
-    player_id: Optional[int] = Form(None),
+    party_data: PartyCreate,
     db: Session = Depends(get_db)
 ):
-    """Create a new party from form data"""
+    """Create a new party"""
     new_party = Party(
-        name=name,
+        name=party_data.name,
         created_at=datetime.now(),
-        funds=funds,
-        player_id=player_id
+        funds=party_data.funds,
+        player_id=party_data.player_id
     )
 
-    if player_id is not None:
-        db_player = db.query(Player).filter(Player.id == player_id).first()
+    if party_data.player_id is not None:
+        db_player = db.query(Player).filter(Player.id == party_data.player_id).first()
         if not db_player:
             raise HTTPException(status_code=404, detail="Player not found")
 
@@ -109,18 +107,16 @@ def party_add_member_form(request: Request, party_id: int, db: Session = Depends
 @router.put("/parties/{party_id}", response_model=PartyOut)
 def update_party(
     party_id: int,
-    name: str = Form(...),
-    funds: int = Form(0),
-    player_id: Optional[int] = Form(None),
+    party_data: PartyCreate,
     db: Session = Depends(get_db)
 ):
     """Update party details"""
     party = db.query(Party).filter(Party.id == party_id).first()
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
-    party.name = name
-    party.funds = funds
-    party.player_id = player_id
+    party.name = party_data.name
+    party.funds = party_data.funds
+    party.player_id = party_data.player_id
     db.commit()
     db.refresh(party)
     return party
@@ -180,21 +176,19 @@ def get_party_expedition_status(party_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/parties/add-member/")
+@router.post("/parties/add-member/", response_model=PartyOut)
 def add_adventurer_to_party(
-    request: Request,
-    party_id: int = Form(...),
-    adventurer_id: int = Form(...),
+    operation: PartyMemberOperation,
     db: Session = Depends(get_db)
 ):
-    """Add an adventurer to a party. Returns updated form on HTMX, or JSON otherwise."""
-    party = db.query(Party).filter(Party.id == party_id).first()
+    """Add an adventurer to a party."""
+    party = db.query(Party).filter(Party.id == operation.party_id).first()
     if party is None:
         raise HTTPException(status_code=404, detail="Party not found")
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Cannot add members to a party currently on expedition")
     adventurer = db.query(Adventurer).filter(
-        Adventurer.id == adventurer_id,
+        Adventurer.id == operation.adventurer_id,
         Adventurer.is_available == True
     ).first()
     if adventurer is None:
@@ -203,8 +197,7 @@ def add_adventurer_to_party(
         raise HTTPException(status_code=400, detail="Adventurer is already a member of this party")
     party.members.append(adventurer)
     db.commit()
-    if request.headers.get("HX-Request"):
-        return party_edit_form(request, party.id, db)
+    db.refresh(party)
     return party
 
 

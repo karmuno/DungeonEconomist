@@ -1,6 +1,6 @@
 import json
 import random
-from fastapi import APIRouter, HTTPException, Depends, Form, Query
+from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -90,18 +90,10 @@ def expedition_create_form(request: Request, party_id: Optional[int] = Query(Non
 
 @router.post("/expeditions/", response_model=ExpeditionResult)
 def launch_expedition(
-    party_id: int = Form(...),
-    dungeon_level: int = Form(...),
+    expedition_data: ExpeditionCreate,
     db: Session = Depends(get_db)
 ):
     """Launch a new expedition with a party to a dungeon"""
-    duration_days = 7
-    expedition_data = ExpeditionCreate(
-        party_id=party_id,
-        dungeon_level=dungeon_level,
-        duration_days=duration_days,
-        supplies_to_bring=[]
-    )
 
     party = db.query(Party).filter(Party.id == expedition_data.party_id).first()
     if not party:
@@ -202,12 +194,12 @@ def launch_expedition(
         db.refresh(game_time)
 
     start_day = game_time.current_day
-    return_day = start_day + duration_days
+    return_day = start_day + expedition_data.duration_days
 
     db_expedition = Expedition(
         party_id=expedition_data.party_id,
         start_day=start_day,
-        duration_days=duration_days,
+        duration_days=expedition_data.duration_days,
         return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
@@ -245,7 +237,7 @@ def launch_expedition(
 
     # Add DB expedition fields to result
     result["start_day"] = start_day
-    result["duration_days"] = duration_days
+    result["duration_days"] = expedition_data.duration_days
     result["return_day"] = return_day
 
     db_expedition.finished_at = datetime.now()

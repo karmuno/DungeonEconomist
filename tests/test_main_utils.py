@@ -262,7 +262,7 @@ def test_bankrupt_adventurer_cannot_launch_expedition(client: TestClient, db_ses
         "dungeon_level": 1,
         "duration_days": 5
     }
-    response = client.post("/expeditions/", data=expedition_data) # Use data for form
+    response = client.post("/expeditions/", json=expedition_data)
 
     assert response.status_code == 400
     assert "Party contains bankrupt members" in response.json()["detail"]
@@ -290,7 +290,7 @@ def test_non_bankrupt_party_launches_expedition(client: TestClient, db_session: 
     }
     # This test assumes the basic expedition setup is valid and doesn't require complex supplies etc.
     # The focus is solely on the bankrupt check.
-    response = client.post("/expeditions/", data=expedition_data)
+    response = client.post("/expeditions/", json=expedition_data)
 
     # Expecting success or a different error if other conditions aren't met, but not 400 due to bankruptcy
     assert response.status_code != 400
@@ -519,7 +519,7 @@ def test_create_party_successful_response(client: TestClient, db_session: Sessio
     party_name = "The Mighty Testers"
     party_funds = 123
 
-    response = client.post("/parties/", data={"name": party_name, "funds": party_funds})
+    response = client.post("/parties/", json={"name": party_name, "funds": party_funds})
     assert response.status_code == 200
 
     data = response.json()
