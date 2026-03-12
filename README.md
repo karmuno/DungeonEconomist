@@ -2,7 +2,7 @@
 
 A D&D-inspired party management simulation game. Manage a pool of adventurers, form parties, send them on dungeon expeditions, and run an economy of gold, XP, and upkeep.
 
-Built with **FastAPI**, **SQLAlchemy**, **HTMX**, and **Jinja2** templates. Inspired by OD&D/AD&D resource management.
+Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired by OD&D/AD&D resource management.
 
 ## Features
 
@@ -18,6 +18,7 @@ Built with **FastAPI**, **SQLAlchemy**, **HTMX**, and **Jinja2** templates. Insp
 ### Prerequisites
 
 - Python 3.11+
+- Node.js 18+
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
 ### Installation
@@ -26,21 +27,52 @@ Built with **FastAPI**, **SQLAlchemy**, **HTMX**, and **Jinja2** templates. Insp
 git clone https://github.com/Cody-Jane-Stahl/DungeonEconomist.git
 cd DungeonEconomist
 
-# Create virtual environment and install dependencies
+# Backend: create virtual environment and install dependencies
 uv venv
 uv pip install -r requirements.txt
+
+# Frontend: install dependencies
+cd frontend
+npm install
+cd ..
 ```
 
-### Running
+### Development
+
+Run the backend and frontend dev servers in separate terminals:
 
 ```bash
-source .venv/bin/activate      # Linux/macOS
-# .venv\Scripts\activate       # Windows
+# Terminal 1: Backend API (port 8000)
+uvicorn app.main:app --reload --port 8000
 
-uvicorn app.main:app --reload
+# Terminal 2: Frontend dev server (port 5173)
+cd frontend
+npm run dev
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for the web UI, or [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the interactive API docs.
+Open [http://localhost:5173](http://localhost:5173) for the app. The Vite dev server proxies all API requests to the backend.
+
+API docs are available at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+### Production Build
+
+```bash
+cd frontend
+npm run build
+cd ..
+
+# Serve everything from FastAPI
+uvicorn app.main:app --port 8000
+```
+
+The FastAPI server serves the Vue build from `frontend/dist/` automatically. Open [http://localhost:8000](http://localhost:8000).
+
+### Seeding Data
+
+```bash
+python -m app.seed_adventurers   # Creates 20 starting adventurers
+python -m app.seed_equipment     # Creates equipment and supply catalogs
+```
 
 ### Resetting the Database
 
@@ -48,14 +80,14 @@ The game uses a SQLite database at `./data/db.sqlite`. To start fresh:
 
 ```bash
 rm -f data/db.sqlite    # or delete the file manually
-# Restart the server — tables and seed data will be recreated
+# Restart the server — tables will be recreated
 ```
 
 ## Project Structure
 
 ```
 app/
-├── main.py              # FastAPI app setup and home page route
+├── main.py              # FastAPI app setup + Vue SPA serving
 ├── database.py          # Database engine, session, and dependency
 ├── models.py            # SQLAlchemy ORM models
 ├── schemas.py           # Pydantic request/response schemas
@@ -70,10 +102,19 @@ app/
 │   ├── parties.py       # Party management, members, supplies, funds
 │   ├── equipment.py     # Equipment catalog endpoints
 │   ├── expeditions.py   # Expedition launch, results, and turn advancement
-│   └── game.py          # Game time advancement and upkeep
-└── templates/           # Jinja2 + HTMX templates
+│   └── game.py          # Game time, upkeep, and dashboard stats
 
-static/                  # CSS and images
+frontend/                # Vue 3 + Vite + TypeScript SPA
+├── src/
+│   ├── api/             # Typed API client modules
+│   ├── assets/          # CSS (retro terminal theme)
+│   ├── components/      # Vue components (layout, shared, domain)
+│   ├── composables/     # Reusable composition functions
+│   ├── router/          # Vue Router configuration
+│   ├── stores/          # Pinia state management
+│   ├── types/           # TypeScript interfaces
+│   └── views/           # Page-level view components
+
 tests/                   # Pytest test suite
 buildplans/              # Design documents and roadmap
 ```
@@ -87,7 +128,7 @@ pytest
 ## Tech Stack
 
 - **Backend**: [FastAPI](https://fastapi.tiangolo.com/) + [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite
-- **Frontend**: [HTMX](https://htmx.org/) + [Jinja2](https://jinja.palletsprojects.com/) templates
+- **Frontend**: [Vue 3](https://vuejs.org/) + [Vite](https://vite.dev/) + [TypeScript](https://www.typescriptlang.org/) + [Pinia](https://pinia.vuejs.org/) + [Vue Router](https://router.vuejs.org/)
 - **Testing**: [pytest](https://pytest.org/) + [httpx](https://www.python-httpx.org/)
 
 ## License
