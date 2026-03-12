@@ -175,3 +175,8 @@ cython_debug/
 
 # SQL Files
 *.sqlite
+*.sqlite.backup.*
+test_db.sqlite
+
+# Claude Code
+.claude/

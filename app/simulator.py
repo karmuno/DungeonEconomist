@@ -94,7 +94,7 @@ class DungeonSimulator:
         
         if expedition.check_for_encounter():
             encounter_type = expedition.determine_encounter_type()
-            encounter_log = {"type": encounter_type}
+            encounter_log = {"type": encounter_type.value}
             
             if encounter_type == EncounterType.MONSTER:
                 monster_type = expedition._get_random_monster()

@@ -113,7 +113,7 @@ class Expedition:
             monster_xp += self.dungeon_level * 10
 
         return {
-            "outcome": outcome,
+            "outcome": outcome.value,
             "monster_type": monster_type,
             "hp_lost": hp_lost,
             "xp_earned": monster_xp
@@ -156,7 +156,7 @@ class Expedition:
             # Check for encounter
             if self.check_for_encounter():
                 encounter_type = self.determine_encounter_type()
-                encounter_log = {"type": encounter_type}
+                encounter_log = {"type": encounter_type.value}
                 
                 if encounter_type == EncounterType.MONSTER:
                     monster_type = self._get_random_monster()

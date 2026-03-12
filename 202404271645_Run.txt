@@ -1,5 +1,0 @@
-Database initialization error: (sqlite3.OperationalError) no such column: expeditions.start_day
-[SQL: SELECT expeditions.id AS expeditions_id, expeditions.party_id AS expeditions_party_id, expeditions.start_day AS expeditions_start_day, expeditions.duration_days AS expeditions_duration_days, expeditions.return_day AS expeditions_return_day, expeditions.started_at AS expeditions_started_at, expeditions.finished_at AS expeditions_finished_at, expeditions.result AS expeditions_result, expeditions.supplies_consumed AS expeditions_supplies_consumed, expeditions.equipment_lost AS expeditions_equipment_lost 
-FROM expeditions]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-INFO:     127.0.0.1:35034 - "GET / HTTP/1.1" 500 Internal Server Error
