@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import type { AdventurerOut } from '../types'
+import { useRouter } from 'vue-router'
+import type { AdventurerOut, PartyOut } from '../types'
 import * as adventurersApi from '../api/adventurers'
+import * as partiesApi from '../api/parties'
 import type { GraveyardEntry, DebtorEntry } from '../api/adventurers'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
@@ -11,17 +13,25 @@ import AdventurerFilters from '../components/adventurers/AdventurerFilters.vue'
 import AdventurerCard from '../components/adventurers/AdventurerCard.vue'
 import AdventurerList from '../components/adventurers/AdventurerList.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
+import { formatCurrency } from '../utils/currency'
+import { formatGameDay } from '../utils/calendar'
 
+const router = useRouter()
 const notifications = useNotificationsStore()
 
 const activeTab = ref<'roster' | 'graveyard' | 'debtors'>('roster')
 const adventurers = ref<AdventurerOut[]>([])
+const parties = ref<PartyOut[]>([])
 const graveyard = ref<GraveyardEntry[]>([])
 const debtors = ref<DebtorEntry[]>([])
 const loading = ref(true)
 const viewMode = ref<'card' | 'list'>('card')
 const selectedAdventurer = ref<AdventurerOut | null>(null)
 const showDetail = ref(false)
+
+// Party management in adventurer modal
+const selectedPartyId = ref<number | null>(null)
+const managingParty = ref(false)
 
 const filters = ref({
   classFilter: '',
@@ -72,10 +82,21 @@ const filteredAdventurers = computed(() => {
   return result
 })
 
+// Find which party an adventurer belongs to
+function adventurerParty(advId: number): PartyOut | undefined {
+  return parties.value.find((p) => p.members.some((m) => m.id === advId))
+}
+
+// Parties that can accept a new member
+const availableParties = computed(() =>
+  parties.value.filter((p) => p.members.length < 6 && !p.on_expedition)
+)
+
 async function fetchAdventurers() {
   loading.value = true
   try {
     adventurers.value = await adventurersApi.list()
+    parties.value = await partiesApi.list()
   } finally {
     loading.value = false
   }
@@ -98,6 +119,8 @@ async function onTabChange(tab: 'roster' | 'graveyard' | 'debtors') {
 async function onSelect(id: number) {
   try {
     selectedAdventurer.value = await adventurersApi.getById(id)
+    selectedPartyId.value = null
+    managingParty.value = false
     showDetail.value = true
   } catch {
     notifications.add('Failed to load adventurer details', 'error')
@@ -119,12 +142,43 @@ async function onLevelUp() {
   }
 }
 
+async function removeFromParty() {
+  if (!selectedAdventurer.value) return
+  const party = adventurerParty(selectedAdventurer.value.id)
+  if (!party) return
+  try {
+    await partiesApi.removeMember({ party_id: party.id, adventurer_id: selectedAdventurer.value.id })
+    notifications.add(`Removed ${selectedAdventurer.value.name} from ${party.name}`, 'success')
+    await fetchAdventurers()
+  } catch {
+    notifications.add('Failed to remove from party', 'error')
+  }
+}
+
+async function addToParty() {
+  if (!selectedAdventurer.value || !selectedPartyId.value) return
+  try {
+    await partiesApi.addMember({ party_id: selectedPartyId.value, adventurer_id: selectedAdventurer.value.id })
+    const partyName = parties.value.find((p) => p.id === selectedPartyId.value)?.name ?? 'party'
+    notifications.add(`Added ${selectedAdventurer.value.name} to ${partyName}`, 'success')
+    selectedPartyId.value = null
+    await fetchAdventurers()
+  } catch {
+    notifications.add('Failed to add to party', 'error')
+  }
+}
+
 onMounted(fetchAdventurers)
 </script>
 
 <template>
   <div>
-    <h1 class="mb-3">Adventurers</h1>
+    <div class="flex flex-between mb-3">
+      <h1>Tavern</h1>
+      <button class="btn btn-primary" @click="router.push('/form-party')">
+        Form Party
+      </button>
+    </div>
 
     <div class="flex flex-between mb-2">
       <div class="view-toggle">
@@ -210,7 +264,7 @@ onMounted(fetchAdventurers)
             <td>{{ entry.name }}</td>
             <td>{{ entry.class }}</td>
             <td>{{ entry.level }}</td>
-            <td>Day {{ entry.death_day }}</td>
+            <td>{{ formatGameDay(entry.death_day) }}</td>
           </tr>
         </tbody>
       </table>
@@ -233,23 +287,64 @@ onMounted(fetchAdventurers)
             <td>{{ entry.name }}</td>
             <td>{{ entry.class }}</td>
             <td>{{ entry.level }}</td>
-            <td>Day {{ entry.bankruptcy_day }}</td>
+            <td>{{ formatGameDay(entry.bankruptcy_day) }}</td>
           </tr>
         </tbody>
       </table>
     </template>
 
+    <!-- Adventurer Detail Modal with Party Management -->
     <ModalDialog
       :is-open="showDetail"
       :title="selectedAdventurer?.name ?? 'Adventurer'"
       @close="showDetail = false"
     >
-      <AdventurerDetail
-        v-if="selectedAdventurer"
-        :adventurer="selectedAdventurer"
-        @close="showDetail = false"
-        @level-up="onLevelUp"
-      />
+      <template v-if="selectedAdventurer">
+        <AdventurerDetail
+          :adventurer="selectedAdventurer"
+          @close="showDetail = false"
+          @level-up="onLevelUp"
+        />
+
+        <!-- Party Management Section -->
+        <div class="party-management mt-3" style="border-top: 1px solid var(--border-color); padding-top: 16px">
+          <h4 class="mb-2">Party Assignment</h4>
+          <template v-if="adventurerParty(selectedAdventurer.id)">
+            <p class="mb-1">
+              Currently in: <strong>{{ adventurerParty(selectedAdventurer.id)!.name }}</strong>
+            </p>
+            <button
+              class="btn btn-danger btn-sm"
+              :disabled="selectedAdventurer.on_expedition"
+              @click="removeFromParty"
+            >
+              Remove from Party
+            </button>
+          </template>
+          <template v-else-if="selectedAdventurer.is_available && !selectedAdventurer.on_expedition && !selectedAdventurer.is_dead && !selectedAdventurer.is_bankrupt">
+            <div class="flex gap-1">
+              <select v-model="selectedPartyId" class="form-select">
+                <option :value="null" disabled>Add to party...</option>
+                <option
+                  v-for="p in availableParties"
+                  :key="p.id"
+                  :value="p.id"
+                >
+                  {{ p.name }} ({{ p.members.length }}/6)
+                </option>
+              </select>
+              <button
+                class="btn btn-primary btn-sm"
+                :disabled="!selectedPartyId"
+                @click="addToParty"
+              >
+                Add
+              </button>
+            </div>
+          </template>
+          <p v-else class="text-muted">Not available for party assignment</p>
+        </div>
+      </template>
     </ModalDialog>
   </div>
 </template>
