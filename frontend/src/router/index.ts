@@ -1,8 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { get } from '../api/client'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: '/new-game',
+      name: 'new-game',
+      component: () => import('../views/NewGameView.vue'),
+    },
     {
       path: '/',
       name: 'dashboard',
@@ -24,6 +30,19 @@ const router = createRouter({
       component: () => import('../views/ExpeditionsView.vue'),
     },
   ],
+})
+
+router.beforeEach(async (to) => {
+  if (to.name === 'new-game') return true
+  try {
+    const status = await get<{ exists: boolean }>('/game/status')
+    if (!status.exists) {
+      return { name: 'new-game' }
+    }
+  } catch {
+    // If the API is unreachable, let the user through
+  }
+  return true
 })
 
 export default router

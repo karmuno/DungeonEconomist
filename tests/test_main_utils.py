@@ -252,7 +252,7 @@ def test_advance_day_adventurer_becomes_available_at_full_hp(client: TestClient,
     assert adv.is_available
 
 def test_game_initialization_auto_generates_adventurers(client: TestClient, db_session: Session):
-    """First game time fetch should auto-generate 6 adventurers and start at day 0"""
+    """First game time fetch should auto-generate 6 adventurers and start at day 1"""
     # No game time, no adventurers
     assert db_session.query(Adventurer).count() == 0
 
@@ -260,7 +260,7 @@ def test_game_initialization_auto_generates_adventurers(client: TestClient, db_s
     assert response.status_code == 200
 
     data = response.json()
-    assert data["current_day"] == 0
+    assert data["current_day"] == 1
 
     # Should have 6 adventurers (one per class)
     assert db_session.query(Adventurer).count() == 6

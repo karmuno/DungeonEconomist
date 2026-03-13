@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.database import get_db
-from app.models import Adventurer, AdventurerClass, Party, Expedition, Player, GameTime
+from app.models import (
+    Adventurer, AdventurerClass, Party, Expedition, Player, GameTime,
+    ExpeditionNodeResult, ExpeditionLog, party_adventurer,
+)
 from app.schemas import GameTimeInfo, AdvanceDayResult, GameEvent
 from app.routes.expeditions import resolve_expedition
 
@@ -377,17 +380,17 @@ def get_debtors_prison(db: Session = Depends(get_db)):
     ]
 
 
-def ensure_game_initialized(db: Session) -> GameTime:
+def ensure_game_initialized(db: Session, keep_name: str = "Default Keep") -> GameTime:
     """Ensure GameTime, Player, and starting adventurers exist."""
     game_time = db.query(GameTime).first()
     if not game_time:
-        game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
+        game_time = GameTime(current_day=1, day_started_at=datetime.now(), last_updated=datetime.now())
         db.add(game_time)
 
         # Ensure default player
         player = db.query(Player).first()
         if not player:
-            player = Player(name="Default Player", treasury_gold=0, treasury_silver=0, treasury_copper=0, total_score=0)
+            player = Player(name=keep_name, treasury_gold=0, treasury_silver=0, treasury_copper=0, total_score=0)
             db.add(player)
 
         # Auto-generate starting adventurers
@@ -396,6 +399,43 @@ def ensure_game_initialized(db: Session) -> GameTime:
         db.commit()
         db.refresh(game_time)
     return game_time
+
+
+@router.get("/game/status")
+def get_game_status(db: Session = Depends(get_db)):
+    """Check if a game exists. Returns {exists: bool, keep_name: str|null}."""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        return {"exists": False, "keep_name": None}
+    player = db.query(Player).first()
+    return {"exists": True, "keep_name": player.name if player else None}
+
+
+@router.post("/game/new")
+def new_game(data: dict = None, db: Session = Depends(get_db)):
+    """Start a new game. Deletes all data and reinitializes.
+    Accepts optional {keep_name: str}."""
+    keep_name = (data or {}).get("keep_name", "Default Keep")
+
+    # Delete all data in dependency order
+    db.execute(party_adventurer.delete())
+    db.query(ExpeditionLog).delete()
+    db.query(ExpeditionNodeResult).delete()
+    db.query(Expedition).delete()
+    db.query(Party).delete()
+    db.query(Adventurer).delete()
+    db.query(Player).delete()
+    db.query(GameTime).delete()
+    db.commit()
+
+    # Reinitialize
+    game_time = ensure_game_initialized(db, keep_name=keep_name)
+    player = db.query(Player).first()
+
+    return {
+        "current_day": game_time.current_day,
+        "keep_name": player.name if player else keep_name,
+    }
 
 
 @router.get("/time/", response_model=GameTimeInfo)
