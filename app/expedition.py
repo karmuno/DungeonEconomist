@@ -29,8 +29,6 @@ class Expedition:
         self.xp_earned = 0
         self.resources_used = {
             "hp_lost": 0,
-            "spells_used": 0,
-            "supplies_used": 0
         }
         self.dead = []
         
@@ -53,9 +51,9 @@ class Expedition:
     
     def resolve_combat(self, monster_type):
         """Resolve combat with a monster encounter"""
-        # Calculate party strength
+        # Calculate party strength (sum of levels)
         party_strength = sum(
-            member["level"] * self._get_class_multiplier(member["character_class"])
+            member["level"]
             for member in self.party if member.get("current_hp", 1) > 0
         )
         
@@ -102,8 +100,6 @@ class Expedition:
         
         # Update resources used
         self.resources_used["hp_lost"] += hp_lost
-        self.resources_used["spells_used"] += self._calculate_spells_used(outcome)
-        self.resources_used["supplies_used"] += 1
         
         # Calculate XP from monster
         monster_xp = int(monster_hit_dice * (100 + (self.dungeon_level * 10))) # Base XP + bonus per dungeon level
@@ -214,19 +210,6 @@ class Expedition:
         return results
     
     # Helper methods
-    def _get_class_multiplier(self, character_class):
-        """Get the strength multiplier for a character class"""
-        multipliers = {
-            "Fighter": 1.2,
-            "Cleric": 1.0,
-            "Magic-User": 0.8,
-            "Thief": 0.9,
-            "Dwarf": 1.3,
-            "Elf": 1.1,
-            "Hobbit": 0.8
-        }
-        return multipliers.get(character_class, 1.0)
-    
     def _get_monster_hit_dice(self, monster_type, dungeon_level):
         """Get hit dice for a monster based on type and dungeon level"""
         # Simplified version - would be expanded with actual monster tables
@@ -293,17 +276,6 @@ class Expedition:
             monster_tables[1]
         )
         return random.choice(level_table)
-    
-    def _calculate_spells_used(self, combat_outcome):
-        """Calculate spells used based on combat outcome"""
-        spell_use = {
-            CombatOutcome.CLEAR_VICTORY: 1,
-            CombatOutcome.VICTORY: 2,
-            CombatOutcome.TOUGH_FIGHT: 3,
-            CombatOutcome.RETREAT: 4,
-            CombatOutcome.DISASTER: 5
-        }
-        return spell_use.get(combat_outcome, 0)
     
 def main(argv):
     # Create a party of adventurers

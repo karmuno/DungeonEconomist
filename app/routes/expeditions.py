@@ -1,5 +1,4 @@
 import json
-import random
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -11,8 +10,7 @@ from typing import Optional
 from app.database import get_db
 from app.models import (
     Adventurer, Party, Expedition, ExpeditionNodeResult, ExpeditionLog,
-    Equipment, Supply, Player, GameTime,
-    adventurer_equipment, party_supply
+    Player, GameTime,
 )
 from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator, calculate_loot_split
@@ -111,54 +109,15 @@ def launch_expedition(
                 status_code=400,
                 detail=f"Party contains bankrupt members who cannot go on expeditions. Member: {member.name} is bankrupt."
             )
-
-    # Process supplies
-    supplies_to_bring = {}
-    if expedition_data.supplies_to_bring:
-        for supply_data in expedition_data.supplies_to_bring:
-            for supply_id_str, quantity in supply_data.items():
-                try:
-                    supply_id = int(supply_id_str)
-                    stmt = party_supply.select().where(
-                        party_supply.c.party_id == party.id,
-                        party_supply.c.supply_id == supply_id
-                    )
-                    result = db.execute(stmt).first()
-
-                    if not result:
-                        supply = db.query(Supply).filter(Supply.id == supply_id).first()
-                        if not supply:
-                            raise HTTPException(status_code=404, detail=f"Supply with ID {supply_id} not found")
-                        raise HTTPException(status_code=400, detail=f"Party does not have supply: {supply.name}")
-
-                    if result.quantity < quantity:
-                        supply = db.query(Supply).filter(Supply.id == supply_id).first()
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Not enough {supply.name}, have {result.quantity}, requested {quantity}"
-                        )
-
-                    supplies_to_bring[supply_id] = quantity
-                except ValueError:
-                    raise HTTPException(status_code=400, detail=f"Invalid supply ID: {supply_id_str}")
+        if member.is_dead:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Party contains dead members. Member: {member.name} is dead."
+            )
 
     # Convert party to simulator format
     party_members = []
     for member in party.members:
-        equipment_list = []
-        for assoc in db.query(adventurer_equipment).filter(
-            adventurer_equipment.c.adventurer_id == member.id,
-            adventurer_equipment.c.equipped == True
-        ).all():
-            equipment = db.query(Equipment).filter(Equipment.id == assoc.equipment_id).first()
-            if equipment:
-                equipment_list.append({
-                    "id": equipment.id,
-                    "name": equipment.name,
-                    "type": equipment.equipment_type.value,
-                    "properties": equipment.properties or {}
-                })
-
         party_members.append({
             "id": member.id,
             "name": member.name,
@@ -167,7 +126,6 @@ def launch_expedition(
             "hit_points": member.hp_max,
             "current_hp": member.hp_current,
             "xp": member.xp,
-            "equipment": equipment_list
         })
 
     # Add party to simulator
@@ -203,8 +161,6 @@ def launch_expedition(
         return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
-        supplies_consumed={},
-        equipment_lost={}
     )
     db.add(db_expedition)
     db.commit()
@@ -215,20 +171,7 @@ def launch_expedition(
 
     for member in party.members:
         member.on_expedition = True
-        member.expedition_status = "active"
         member.is_available = False
-
-    # Consume supplies
-    supplies_consumed = {}
-    for supply_id, quantity in supplies_to_bring.items():
-        supply = db.query(Supply).filter(Supply.id == supply_id).first()
-        if supply:
-            supplies_consumed[supply.name] = quantity
-            stmt = party_supply.update().where(
-                party_supply.c.party_id == party.id,
-                party_supply.c.supply_id == supply_id
-            ).values(quantity=party_supply.c.quantity - quantity)
-            db.execute(stmt)
 
     db.commit()
 
@@ -242,41 +185,6 @@ def launch_expedition(
 
     db_expedition.finished_at = datetime.now()
     db_expedition.result = "completed"
-    db_expedition.supplies_consumed = supplies_consumed
-
-    # Equipment loss (5% chance per adventurer)
-    equipment_lost = {}
-    for member in party.members:
-        if random.random() < 0.05:
-            stmt = adventurer_equipment.select().where(
-                adventurer_equipment.c.adventurer_id == member.id,
-                adventurer_equipment.c.equipped == True
-            )
-            equipped_items = list(db.execute(stmt).all())
-
-            if equipped_items:
-                lost_item = random.choice(equipped_items)
-                equipment = db.query(Equipment).filter(Equipment.id == lost_item.equipment_id).first()
-
-                if equipment:
-                    if member.name not in equipment_lost:
-                        equipment_lost[member.name] = []
-                    equipment_lost[member.name].append(equipment.name)
-
-                    if lost_item.quantity <= 1:
-                        stmt = adventurer_equipment.delete().where(
-                            adventurer_equipment.c.adventurer_id == member.id,
-                            adventurer_equipment.c.equipment_id == lost_item.equipment_id
-                        )
-                    else:
-                        stmt = adventurer_equipment.update().where(
-                            adventurer_equipment.c.adventurer_id == member.id,
-                            adventurer_equipment.c.equipment_id == lost_item.equipment_id
-                        ).values(quantity=lost_item.quantity - 1)
-
-                    db.execute(stmt)
-
-    db_expedition.equipment_lost = equipment_lost
 
     party.on_expedition = False
     party.current_expedition_id = None
@@ -287,41 +195,52 @@ def launch_expedition(
             expedition_id=db_expedition.id,
             node_id=1,
             success=True,
-            xp_earned=int(result["xp_earned"] / len(result["log"])),
-            loot=int(result["treasure_total"] / len(result["log"])),
+            xp_earned=int(result["xp_earned"] / len(result["log"])) if result["log"] else 0,
+            loot=int(result["treasure_total"] / len(result["log"])) if result["log"] else 0,
             log=json.dumps(node_result)
         )
         db.add(exp_node)
 
+    # Determine living and dead members
+    dead_names = set(result["dead_members"])
+    living_members = []
+
     for member in party.members:
-        is_dead = member.name in result["dead_members"]
+        is_dead = member.name in dead_names
         log = ExpeditionLog(
             expedition_id=db_expedition.id,
             adventurer_id=member.id,
             xp_share=int(result["xp_per_party_member"]),
-            hp_change=-10 if is_dead else -5,
+            hp_change=-member.hp_max if is_dead else -(member.hp_max - max(1, member.hp_current - 5)),
             status="dead" if is_dead else "alive"
         )
         db.add(log)
 
+        # XP goes to all members (dead included, they earned it)
         member.xp += int(result["xp_per_party_member"])
 
         if is_dead:
-            member.hp_current = 1
-            member.expedition_status = "injured"
+            member.hp_current = 0
+            member.is_dead = True
+            member.death_day = game_time.current_day
+            member.on_expedition = False
+            member.is_available = False
         else:
+            # Apply some damage from the expedition
             member.hp_current = max(1, member.hp_current - 5)
-            member.expedition_status = "resting"
+            member.on_expedition = False
+            member.is_available = (member.hp_current == member.hp_max)
+            living_members.append(member)
 
-        member.on_expedition = False
-        member.is_available = member.hp_current > (member.hp_max / 2)
-
-    # Loot split
+    # Loot split: 30% player, 70% split evenly among living adventurers
     total_loot = result["treasure_total"]
-    party_size = len(party.members)
-    loot_split = calculate_loot_split(total_loot, party_size, player_split=0.3)
+    living_count = len(living_members)
+    loot_split = calculate_loot_split(total_loot, living_count, player_split=0.3)
 
-    party.funds += loot_split["adventurers_share"]
+    # Distribute gold to living adventurers individually
+    if loot_split["individual_share"] > 0:
+        for member in living_members:
+            member.gold += loot_split["individual_share"]
 
     if party.player_id:
         player = db.query(Player).filter(Player.id == party.player_id).first()
@@ -329,16 +248,10 @@ def launch_expedition(
             player.treasury += loot_split["player_treasury"]
             player.total_score += loot_split["player_treasury"]
 
-    if loot_split["individual_share"] > 0:
-        for member in party.members:
-            member.gold += loot_split["individual_share"]
-
-    result["loot_split"] = loot_split
+    # Remove dead members from party
+    party.members = [m for m in party.members if not m.is_dead]
 
     db.commit()
-
-    result["supplies_consumed"] = supplies_consumed
-    result["equipment_lost"] = equipment_lost
 
     return result
 
@@ -458,7 +371,7 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
             "special_items": [],
             "xp_earned": sum(node.xp_earned for node in node_results),
             "xp_per_party_member": sum(node.xp_earned for node in node_results) / max(1, len(party.members)) if party else 0,
-            "resources_used": {"hp_lost": 0, "spells_used": 0, "supplies_used": 0},
+            "resources_used": {"hp_lost": 0},
             "dead_members": [l.adventurer.name for l in expedition_logs if l.status == "dead"],
             "party_status": party_status,
             "log": log,
@@ -498,11 +411,7 @@ def advance_expedition_turn(expedition_id: int, db: Session = Depends(get_db)):
 
                 for member in party.members:
                     member.on_expedition = False
-                    if member.hp_current <= 1:
-                        member.expedition_status = "injured"
-                    else:
-                        member.expedition_status = "resting"
-                    member.is_available = member.hp_current > (member.hp_max / 2)
+                    member.is_available = (member.hp_current == member.hp_max)
 
             db.commit()
 

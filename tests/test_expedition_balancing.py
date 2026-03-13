@@ -8,10 +8,10 @@ from app.expedition import Expedition as SimulationExpedition, CombatOutcome
 # Standard party composition for balancing tests
 # Ensure current_hp is part of the initial setup for each member
 BASE_PARTY_COMPOSITION = [
-    {"name": "Valerius", "character_class": "Fighter", "level": 3, "hit_points": 30, "current_hp": 30, "equipment": []},
-    {"name": "Sorina", "character_class": "Magic-User", "level": 3, "hit_points": 15, "current_hp": 15, "equipment": []},
-    {"name": "Borin", "character_class": "Dwarf", "level": 3, "hit_points": 35, "current_hp": 35, "equipment": []},
-    {"name": "Lyssa", "character_class": "Thief", "level": 3, "hit_points": 20, "current_hp": 20, "equipment": []},
+    {"name": "Valerius", "character_class": "Fighter", "level": 3, "hit_points": 30, "current_hp": 30},
+    {"name": "Sorina", "character_class": "Magic-User", "level": 3, "hit_points": 15, "current_hp": 15},
+    {"name": "Borin", "character_class": "Dwarf", "level": 3, "hit_points": 35, "current_hp": 35},
+    {"name": "Lyssa", "character_class": "Thief", "level": 3, "hit_points": 20, "current_hp": 20},
 ]
 
 NUM_SIMULATION_RUNS = 20 # Number of times to run the simulation for averaging

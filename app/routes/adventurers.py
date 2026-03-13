@@ -6,11 +6,8 @@ from starlette.requests import Request
 from typing import List, Optional
 
 from app.database import get_db
-from app.models import Adventurer, Player, adventurer_equipment, Equipment
-from app.schemas import (
-    AdventurerOut, AdventurerCreate, LevelUpResult,
-    EquipmentOperation, AdventurerEquipmentOut, EquipmentOut
-)
+from app.models import Adventurer, Player
+from app.schemas import AdventurerOut, AdventurerCreate, LevelUpResult
 from app.progression import (
     calculate_xp_for_next_level, check_for_level_up,
     calculate_hp_gain, get_class_level_bonuses
@@ -47,7 +44,6 @@ def create_adventurer(adventurer: AdventurerCreate, db: Session = Depends(get_db
         xp=0,
         gold=0,
         is_available=True,
-        carry_capacity=adventurer.carry_capacity or 150
     )
     db.add(adv)
     db.commit()
@@ -95,9 +91,6 @@ def level_up_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
 
     class_bonuses = get_class_level_bonuses(adventurer.adventurer_class, adventurer.level)
 
-    if "carry_capacity_bonus" in class_bonuses:
-        adventurer.carry_capacity += int(class_bonuses["carry_capacity_bonus"])
-
     db.commit()
     db.refresh(adventurer)
 
@@ -110,135 +103,6 @@ def level_up_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
         "next_level_xp": next_level_xp,
         "class_bonuses": class_bonuses
     }
-
-
-@router.post("/adventurers/{adventurer_id}/equipment", response_model=AdventurerOut)
-def add_equipment_to_adventurer(
-    adventurer_id: int,
-    operation: EquipmentOperation,
-    db: Session = Depends(get_db)
-):
-    """Add equipment to an adventurer's inventory"""
-    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
-    if not adventurer:
-        raise HTTPException(status_code=404, detail="Adventurer not found")
-
-    equipment = db.query(Equipment).filter(Equipment.id == operation.equipment_id).first()
-    if not equipment:
-        raise HTTPException(status_code=404, detail="Equipment not found")
-
-    if adventurer.on_expedition:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot modify equipment for adventurer currently on expedition"
-        )
-
-    stmt = adventurer_equipment.select().where(
-        adventurer_equipment.c.adventurer_id == adventurer_id,
-        adventurer_equipment.c.equipment_id == operation.equipment_id
-    )
-    result = db.execute(stmt).first()
-
-    if result:
-        stmt = adventurer_equipment.update().where(
-            adventurer_equipment.c.adventurer_id == adventurer_id,
-            adventurer_equipment.c.equipment_id == operation.equipment_id
-        ).values(quantity=result.quantity + operation.quantity)
-        db.execute(stmt)
-    else:
-        stmt = adventurer_equipment.insert().values(
-            adventurer_id=adventurer_id,
-            equipment_id=operation.equipment_id,
-            quantity=operation.quantity,
-            equipped=operation.equip if operation.equip is not None else False
-        )
-        db.execute(stmt)
-
-    db.commit()
-    db.refresh(adventurer)
-    return adventurer
-
-
-@router.put("/adventurers/{adventurer_id}/equipment/{equipment_id}/equip", response_model=AdventurerOut)
-def toggle_equipment_equipped(
-    adventurer_id: int,
-    equipment_id: int,
-    equip: bool = True,
-    db: Session = Depends(get_db)
-):
-    """Toggle whether an equipment item is equipped or not"""
-    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
-    if not adventurer:
-        raise HTTPException(status_code=404, detail="Adventurer not found")
-
-    if adventurer.on_expedition:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot modify equipment for adventurer currently on expedition"
-        )
-
-    stmt = adventurer_equipment.select().where(
-        adventurer_equipment.c.adventurer_id == adventurer_id,
-        adventurer_equipment.c.equipment_id == equipment_id
-    )
-    result = db.execute(stmt).first()
-
-    if not result:
-        raise HTTPException(status_code=404, detail="Equipment not found in adventurer's inventory")
-
-    stmt = adventurer_equipment.update().where(
-        adventurer_equipment.c.adventurer_id == adventurer_id,
-        adventurer_equipment.c.equipment_id == equipment_id
-    ).values(equipped=equip)
-    db.execute(stmt)
-
-    db.commit()
-    db.refresh(adventurer)
-    return adventurer
-
-
-@router.delete("/adventurers/{adventurer_id}/equipment/{equipment_id}")
-def remove_equipment_from_adventurer(
-    adventurer_id: int,
-    equipment_id: int,
-    quantity: int = 1,
-    db: Session = Depends(get_db)
-):
-    """Remove equipment from an adventurer's inventory"""
-    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
-    if not adventurer:
-        raise HTTPException(status_code=404, detail="Adventurer not found")
-
-    if adventurer.on_expedition:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot modify equipment for adventurer currently on expedition"
-        )
-
-    stmt = adventurer_equipment.select().where(
-        adventurer_equipment.c.adventurer_id == adventurer_id,
-        adventurer_equipment.c.equipment_id == equipment_id
-    )
-    result = db.execute(stmt).first()
-
-    if not result:
-        raise HTTPException(status_code=404, detail="Equipment not found in adventurer's inventory")
-
-    if result.quantity <= quantity:
-        stmt = adventurer_equipment.delete().where(
-            adventurer_equipment.c.adventurer_id == adventurer_id,
-            adventurer_equipment.c.equipment_id == equipment_id
-        )
-    else:
-        stmt = adventurer_equipment.update().where(
-            adventurer_equipment.c.adventurer_id == adventurer_id,
-            adventurer_equipment.c.equipment_id == equipment_id
-        ).values(quantity=result.quantity - quantity)
-
-    db.execute(stmt)
-    db.commit()
-
-    return {"message": "Equipment removed successfully"}
 
 
 # --- Frontend Routes ---

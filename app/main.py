@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.database import create_tables
-from app.routes import adventurers, players, parties, equipment, expeditions, game
+from app.routes import adventurers, players, parties, expeditions, game
 
 # Create tables on startup
 create_tables()
@@ -31,7 +31,6 @@ app.add_middleware(
 app.include_router(adventurers.router)
 app.include_router(players.router)
 app.include_router(parties.router)
-app.include_router(equipment.router)
 app.include_router(expeditions.router)
 app.include_router(game.router)
 

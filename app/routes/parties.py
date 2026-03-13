@@ -8,14 +8,8 @@ from datetime import datetime
 from typing import List, Optional
 
 from app.database import get_db
-from app.models import (
-    Adventurer, Party, Player, GameTime, Supply, Equipment,
-    SupplyType, party_supply, party_adventurer
-)
-from app.schemas import (
-    PartyOut, PartyCreate, PartyMemberOperation, PartyFundsUpdate,
-    SupplyOut, SupplyCreate, SupplyOperation, PartySupplyOut
-)
+from app.models import Adventurer, Party, Player, GameTime, party_adventurer
+from app.schemas import PartyOut, PartyCreate, PartyMemberOperation
 from app.routes.adventurers import add_progression_data
 
 router = APIRouter()
@@ -31,7 +25,6 @@ def create_party(
     new_party = Party(
         name=party_data.name,
         created_at=datetime.now(),
-        funds=party_data.funds,
         player_id=party_data.player_id
     )
 
@@ -44,7 +37,6 @@ def create_party(
     db.commit()
     db.refresh(new_party)
     _ = new_party.members
-    _ = new_party.supplies
     return new_party
 
 
@@ -115,7 +107,6 @@ def update_party(
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
     party.name = party_data.name
-    party.funds = party_data.funds
     party.player_id = party_data.player_id
     db.commit()
     db.refresh(party)
@@ -154,7 +145,6 @@ def get_party_expedition_status(party_id: int, db: Session = Depends(get_db)):
             "hp_max": member.hp_max,
             "hp_percentage": (member.hp_current / member.hp_max) * 100 if member.hp_max > 0 else 0,
             "on_expedition": member.on_expedition,
-            "expedition_status": member.expedition_status,
             "is_available": member.is_available
         })
 
@@ -226,163 +216,6 @@ def remove_adventurer_from_party(operation: PartyMemberOperation, db: Session = 
     return party
 
 
-@router.put("/parties/{party_id}/funds", response_model=PartyOut)
-def update_party_funds(
-    party_id: int,
-    funds_update: PartyFundsUpdate,
-    db: Session = Depends(get_db)
-):
-    """Update a party's funds (add or remove gold)"""
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-
-    if funds_update.amount < 0 and abs(funds_update.amount) > party.funds:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Not enough funds. Attempting to remove {abs(funds_update.amount)}, Available: {party.funds}"
-        )
-
-    party.funds += funds_update.amount
-    db.commit()
-    db.refresh(party)
-    return party
-
-
-# --- Supply Endpoints ---
-
-@router.post("/supplies/", response_model=SupplyOut)
-def create_supply(supply: SupplyCreate, db: Session = Depends(get_db)):
-    """Create a new supply item"""
-    db_supply = Supply(
-        name=supply.name,
-        supply_type=supply.supply_type,
-        description=supply.description,
-        cost=supply.cost,
-        weight=supply.weight,
-        uses_per_unit=supply.uses_per_unit
-    )
-    db.add(db_supply)
-    db.commit()
-    db.refresh(db_supply)
-    return db_supply
-
-
-@router.get("/supplies/", response_model=List[SupplyOut])
-def list_supplies(
-    type_filter: Optional[SupplyType] = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """List all supply items, optionally filtered by type"""
-    query = db.query(Supply)
-    if type_filter:
-        query = query.filter(Supply.supply_type == type_filter)
-    return query.offset(skip).limit(limit).all()
-
-
-@router.get("/supplies/{supply_id}", response_model=SupplyOut)
-def get_supply(supply_id: int, db: Session = Depends(get_db)):
-    """Get a specific supply item by ID"""
-    supply = db.query(Supply).filter(Supply.id == supply_id).first()
-    if not supply:
-        raise HTTPException(status_code=404, detail="Supply not found")
-    return supply
-
-
-@router.post("/parties/{party_id}/supplies", response_model=PartyOut)
-def add_supply_to_party(
-    party_id: int,
-    operation: SupplyOperation,
-    db: Session = Depends(get_db)
-):
-    """Add supplies to a party's inventory"""
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-
-    if party.on_expedition:
-        raise HTTPException(status_code=400, detail="Cannot modify supplies for party currently on expedition")
-
-    supply = db.query(Supply).filter(Supply.id == operation.supply_id).first()
-    if not supply:
-        raise HTTPException(status_code=404, detail="Supply not found")
-
-    total_cost = supply.cost * operation.quantity
-    if total_cost > party.funds:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Not enough funds. Required: {total_cost}, Available: {party.funds}"
-        )
-
-    stmt = party_supply.select().where(
-        party_supply.c.party_id == party_id,
-        party_supply.c.supply_id == operation.supply_id
-    )
-    result = db.execute(stmt).first()
-
-    if result:
-        stmt = party_supply.update().where(
-            party_supply.c.party_id == party_id,
-            party_supply.c.supply_id == operation.supply_id
-        ).values(quantity=result.quantity + operation.quantity)
-        db.execute(stmt)
-    else:
-        stmt = party_supply.insert().values(
-            party_id=party_id,
-            supply_id=operation.supply_id,
-            quantity=operation.quantity
-        )
-        db.execute(stmt)
-
-    party.funds -= total_cost
-    db.commit()
-    db.refresh(party)
-    return party
-
-
-@router.delete("/parties/{party_id}/supplies/{supply_id}")
-def remove_supply_from_party(
-    party_id: int,
-    supply_id: int,
-    quantity: int = 1,
-    db: Session = Depends(get_db)
-):
-    """Remove supplies from a party's inventory"""
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-
-    if party.on_expedition:
-        raise HTTPException(status_code=400, detail="Cannot modify supplies for party currently on expedition")
-
-    stmt = party_supply.select().where(
-        party_supply.c.party_id == party_id,
-        party_supply.c.supply_id == supply_id
-    )
-    result = db.execute(stmt).first()
-
-    if not result:
-        raise HTTPException(status_code=404, detail="Supply not found in party's inventory")
-
-    if result.quantity <= quantity:
-        stmt = party_supply.delete().where(
-            party_supply.c.party_id == party_id,
-            party_supply.c.supply_id == supply_id
-        )
-    else:
-        stmt = party_supply.update().where(
-            party_supply.c.party_id == party_id,
-            party_supply.c.supply_id == supply_id
-        ).values(quantity=result.quantity - quantity)
-
-    db.execute(stmt)
-    db.commit()
-
-    return {"message": "Supply removed successfully"}
-
-
 # --- Frontend Routes ---
 
 @router.get("/parties", response_class=HTMLResponse)
@@ -433,8 +266,6 @@ def get_party_list_html(
             member_count,
             Party.id == member_count.c.party_id
         ).order_by(member_count.c.member_count.desc(), Party.name)
-    elif sort_by == "funds":
-        query = query.order_by(Party.funds.desc(), Party.name)
     else:
         query = query.order_by(Party.name)
 
@@ -507,74 +338,4 @@ def filter_party_adventurers(
             "available_adventurers": available_adventurers,
             "game_time": game_time
         }
-    )
-
-
-@router.get("/parties/{party_id}/supplies", response_class=HTMLResponse)
-def party_supplies_page(
-    request: Request,
-    party_id: int,
-    type: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    """Show and manage party supplies"""
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-
-    supply_types = list(SupplyType)
-    query = db.query(Supply)
-    if type:
-        query = query.filter(Supply.supply_type == type)
-    available_supplies = query.order_by(Supply.supply_type, Supply.cost, Supply.name).all()
-
-    treasury_gold = 0
-    player = db.query(Player).first()
-    if player:
-        treasury_gold = player.treasury
-
-    return templates.TemplateResponse(
-        "partials/party_supplies.html",
-        {
-            "request": request,
-            "party": party,
-            "supply_types": supply_types,
-            "available_supplies": available_supplies,
-            "active_filter": type,
-            "treasury_gold": treasury_gold
-        }
-    )
-
-
-@router.get("/parties/{party_id}/add-funds-form", response_class=HTMLResponse)
-def add_party_funds_form(
-    request: Request,
-    party_id: int,
-    db: Session = Depends(get_db)
-):
-    """Show form to add funds to a party"""
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-
-    return templates.TemplateResponse(
-        "partials/party_funds_form.html",
-        {"request": request, "party": party, "action": "add"}
-    )
-
-
-@router.get("/parties/{party_id}/remove-funds-form", response_class=HTMLResponse)
-def remove_party_funds_form(
-    request: Request,
-    party_id: int,
-    db: Session = Depends(get_db)
-):
-    """Show form to remove funds from a party"""
-    party = db.query(Party).filter(Party.id == party_id).first()
-    if not party:
-        raise HTTPException(status_code=404, detail="Party not found")
-
-    return templates.TemplateResponse(
-        "partials/party_funds_form.html",
-        {"request": request, "party": party, "action": "remove"}
     )

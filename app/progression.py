@@ -31,30 +31,22 @@ HP_GAIN_BY_CLASS = {
 # Class-specific bonuses on level up
 CLASS_BONUSES = {
     AdventurerClass.FIGHTER: {
-        "hp_multiplier": 1.1,  # Fighters get 10% more HP
-        "carry_capacity_bonus": 10,  # Can carry more equipment
+        "hp_multiplier": 1.1,
     },
     AdventurerClass.CLERIC: {
-        "hp_multiplier": 1.0,  
-        "healing_effectiveness": 0.1,  # +10% healing effectiveness per level
+        "hp_multiplier": 1.0,
     },
     AdventurerClass.MAGIC_USER: {
-        "hp_multiplier": 0.9,  # Magic-Users get slightly less HP
-        "spell_power": 0.15,  # +15% spell power per level
+        "hp_multiplier": 0.9,
     },
     AdventurerClass.ELF: {
         "hp_multiplier": 1.0,
-        "perception_bonus": 0.1,  # +10% chance to find secret doors/traps
     },
     AdventurerClass.DWARF: {
-        "hp_multiplier": 1.05,  # Dwarves are hardy
-        "carry_capacity_bonus": 5,
-        "poison_resistance": 0.1,  # +10% resistance per level
+        "hp_multiplier": 1.05,
     },
     AdventurerClass.HOBBIT: {
-        "hp_multiplier": 0.95,  # Hobbits are small
-        "stealth_bonus": 0.1,  # +10% stealth per level
-        "luck_bonus": 0.05,  # +5% luck per level
+        "hp_multiplier": 0.95,
     }
 }
 
