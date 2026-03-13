@@ -4,6 +4,7 @@ import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore, type NotificationType } from '../../stores/notifications'
 import type { GameEvent } from '../../types'
+import { formatGameDay } from '../../utils/calendar'
 
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
@@ -69,7 +70,8 @@ async function advance(days: number) {
 <template>
   <div class="card">
     <h3 class="mb-2">Time Controls</h3>
-    <p class="mb-2">Current Day: <strong>{{ gameTime.currentDay }}</strong></p>
+    <p class="mb-1">Current Day: <strong>{{ gameTime.currentDay }}</strong></p>
+    <p class="mb-2 text-muted">{{ formatGameDay(gameTime.currentDay) }}</p>
     <div class="flex gap-1">
       <button class="btn btn-primary" :disabled="loading" @click="advance(1)">
         Advance Day

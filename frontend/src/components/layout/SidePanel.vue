@@ -3,6 +3,7 @@ import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore } from '../../stores/notifications'
 import { formatCurrency } from '../../utils/currency'
+import { formatGameDay } from '../../utils/calendar'
 
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
@@ -38,6 +39,7 @@ async function advanceDay() {
     <div class="panel-section">
       <h3 class="section-label">Game Day</h3>
       <div class="day-value">{{ gameTime.currentDay }}</div>
+      <div class="day-calendar">{{ formatGameDay(gameTime.currentDay) }}</div>
     </div>
 
     <div class="panel-section">
@@ -87,6 +89,12 @@ async function advanceDay() {
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
+}
+
+.day-calendar {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
 }
 
 .treasury-value {

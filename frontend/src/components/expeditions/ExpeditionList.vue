@@ -2,6 +2,7 @@
 import type { ExpeditionSummary } from '../../types'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
+import { formatGameDayShort } from '../../utils/calendar'
 
 defineProps<{
   expeditions: ExpeditionSummary[]
@@ -36,8 +37,8 @@ const emit = defineEmits<{
           <td>{{ exp.id }}</td>
           <td>{{ exp.party_id }}</td>
           <td>{{ exp.duration_days }}</td>
-          <td>Day {{ exp.start_day }}</td>
-          <td>Day {{ exp.return_day }}</td>
+          <td>{{ formatGameDayShort(exp.start_day) }}</td>
+          <td>{{ formatGameDayShort(exp.return_day) }}</td>
           <td>
             <StatusBadge :status="exp.result === 'in_progress' ? 'On Expedition' : 'Completed'" />
           </td>

@@ -205,6 +205,22 @@ def process_upkeep(db: Session, current_day: int) -> list[GameEvent]:
     return events
 
 
+def heal_adventurer(adv: Adventurer, days: int = 1) -> list[GameEvent]:
+    """Heal an adventurer by 1 HP per day. Returns events if fully healed."""
+    events: list[GameEvent] = []
+    for _ in range(days):
+        if adv.hp_current >= adv.hp_max:
+            break
+        adv.hp_current = min(adv.hp_current + 1, adv.hp_max)
+    if adv.hp_current == adv.hp_max:
+        adv.is_available = True
+        events.append(GameEvent(
+            type="healing",
+            message=f"{adv.name} fully recovered and is available"
+        ))
+    return events
+
+
 @router.post("/time/advance-day", response_model=AdvanceDayResult)
 def advance_day(db: Session = Depends(get_db)):
     """Advances the game time by one day and updates expedition statuses."""
@@ -218,7 +234,7 @@ def advance_day(db: Session = Depends(get_db)):
     game_time.current_day += 1
     game_time.last_updated = datetime.now()
 
-    # Daily healing: all non-expedition, non-dead, non-bankrupt adventurers heal 1 HP/day
+    # Daily healing
     healing_adventurers = db.query(Adventurer).filter(
         Adventurer.on_expedition == False,
         Adventurer.is_dead == False,
@@ -226,13 +242,8 @@ def advance_day(db: Session = Depends(get_db)):
         Adventurer.hp_current < Adventurer.hp_max,
     ).all()
     for adv in healing_adventurers:
-        adv.hp_current = min(adv.hp_current + 1, adv.hp_max)
-        if adv.hp_current == adv.hp_max:
-            adv.is_available = True
-            events.append(GameEvent(
-                type="healing",
-                message=f"{adv.name} fully recovered and is available"
-            ))
+        heal_events = heal_adventurer(adv)
+        events.extend(heal_events)
 
     # Daily recruitment
     new_recruits = run_daily_recruitment(db)

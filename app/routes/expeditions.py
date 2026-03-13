@@ -247,7 +247,7 @@ def launch_expedition(
         db.refresh(game_time)
 
     start_day = game_time.current_day
-    return_day = start_day + expedition_data.duration_days
+    return_day = start_day + expedition_data.duration_days - 1
 
     # Run simulation now but store results for later
     sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
