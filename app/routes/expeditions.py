@@ -19,8 +19,99 @@ from app.progression import check_for_level_up
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+
+def _make_json_safe(obj):
+    """Recursively convert datetime objects to ISO strings for JSON storage."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _make_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_make_json_safe(v) for v in obj]
+    return obj
+
 # Shared simulator instance
 simulator = DungeonSimulator()
+
+
+def resolve_expedition(expedition: Expedition, db: Session, current_day: int) -> dict:
+    """Apply stored simulation results when an expedition returns.
+    Returns a summary dict with events for notifications."""
+    sim_result = expedition.simulation_data
+    if not sim_result:
+        return {"events": []}
+
+    party = expedition.party
+    events = []
+
+    expedition.result = "completed"
+    expedition.finished_at = datetime.now()
+
+    # Store node result logs
+    for node_result in sim_result.get("log", []):
+        log_entries = sim_result.get("log", [])
+        exp_node = ExpeditionNodeResult(
+            expedition_id=expedition.id,
+            node_id=1,
+            success=True,
+            xp_earned=int(sim_result["xp_earned"] / len(log_entries)) if log_entries else 0,
+            loot=int(sim_result["treasure_total"] / len(log_entries)) if log_entries else 0,
+            log=json.dumps(node_result)
+        )
+        db.add(exp_node)
+
+    # Apply results to adventurers
+    dead_names = set(sim_result.get("dead_members", []))
+    living_members = []
+
+    if party:
+        party.on_expedition = False
+        party.current_expedition_id = None
+
+        for member in party.members:
+            is_dead = member.name in dead_names
+            log = ExpeditionLog(
+                expedition_id=expedition.id,
+                adventurer_id=member.id,
+                xp_share=int(sim_result["xp_per_party_member"]),
+                hp_change=-member.hp_max if is_dead else -(member.hp_max - max(1, member.hp_current - 5)),
+                status="dead" if is_dead else "alive"
+            )
+            db.add(log)
+
+            # XP goes to all members (dead included, they earned it)
+            member.xp += int(sim_result["xp_per_party_member"])
+
+            if is_dead:
+                member.hp_current = 0
+                member.is_dead = True
+                member.death_day = current_day
+                member.on_expedition = False
+                member.is_available = False
+                events.append({"type": "death", "message": f"{member.name} died during the expedition"})
+            else:
+                # Apply damage from the expedition
+                member.hp_current = max(1, member.hp_current - 5)
+                member.on_expedition = False
+                member.is_available = True  # Immediately available on return
+                living_members.append(member)
+
+        # All loot goes to living adventurers evenly
+        # Player treasury is funded only through monthly upkeep
+        total_loot = sim_result.get("treasure_total", 0)
+        living_count = len(living_members)
+        if living_count > 0 and total_loot > 0:
+            individual_share = total_loot // living_count
+            for member in living_members:
+                member.gold += individual_share
+
+        if total_loot > 0:
+            events.append({"type": "loot", "message": f"Earned {total_loot} GP ({total_loot // max(1, living_count)} GP each to {living_count} adventurer{'s' if living_count != 1 else ''})"})
+
+        # Remove dead members from party
+        party.members = [m for m in party.members if not m.is_dead]
+
+    return {"events": events, "simulation_data": sim_result}
 
 
 @router.get("/expeditions/active", response_class=HTMLResponse)
@@ -86,12 +177,12 @@ def expedition_create_form(request: Request, party_id: Optional[int] = Query(Non
     )
 
 
-@router.post("/expeditions/", response_model=ExpeditionResult)
+@router.post("/expeditions/")
 def launch_expedition(
     expedition_data: ExpeditionCreate,
     db: Session = Depends(get_db)
 ):
-    """Launch a new expedition with a party to a dungeon"""
+    """Launch a new expedition. The party departs and results are applied on return."""
 
     party = db.query(Party).filter(Party.id == expedition_data.party_id).first()
     if not party:
@@ -146,13 +237,16 @@ def launch_expedition(
 
     game_time = db.query(GameTime).first()
     if not game_time:
-        game_time = GameTime(current_day=1)
+        game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
         db.add(game_time)
         db.commit()
         db.refresh(game_time)
 
     start_day = game_time.current_day
     return_day = start_day + expedition_data.duration_days
+
+    # Run simulation now but store results for later
+    sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
 
     db_expedition = Expedition(
         party_id=expedition_data.party_id,
@@ -161,6 +255,7 @@ def launch_expedition(
         return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
+        simulation_data=_make_json_safe(sim_result),
     )
     db.add(db_expedition)
     db.commit()
@@ -175,85 +270,14 @@ def launch_expedition(
 
     db.commit()
 
-    # Run expedition
-    result = simulator.run_expedition_to_completion(expedition_id_sim)
-
-    # Add DB expedition fields to result
-    result["start_day"] = start_day
-    result["duration_days"] = expedition_data.duration_days
-    result["return_day"] = return_day
-
-    db_expedition.finished_at = datetime.now()
-    db_expedition.result = "completed"
-
-    party.on_expedition = False
-    party.current_expedition_id = None
-
-    # Store logs
-    for node_result in result["log"]:
-        exp_node = ExpeditionNodeResult(
-            expedition_id=db_expedition.id,
-            node_id=1,
-            success=True,
-            xp_earned=int(result["xp_earned"] / len(result["log"])) if result["log"] else 0,
-            loot=int(result["treasure_total"] / len(result["log"])) if result["log"] else 0,
-            log=json.dumps(node_result)
-        )
-        db.add(exp_node)
-
-    # Determine living and dead members
-    dead_names = set(result["dead_members"])
-    living_members = []
-
-    for member in party.members:
-        is_dead = member.name in dead_names
-        log = ExpeditionLog(
-            expedition_id=db_expedition.id,
-            adventurer_id=member.id,
-            xp_share=int(result["xp_per_party_member"]),
-            hp_change=-member.hp_max if is_dead else -(member.hp_max - max(1, member.hp_current - 5)),
-            status="dead" if is_dead else "alive"
-        )
-        db.add(log)
-
-        # XP goes to all members (dead included, they earned it)
-        member.xp += int(result["xp_per_party_member"])
-
-        if is_dead:
-            member.hp_current = 0
-            member.is_dead = True
-            member.death_day = game_time.current_day
-            member.on_expedition = False
-            member.is_available = False
-        else:
-            # Apply some damage from the expedition
-            member.hp_current = max(1, member.hp_current - 5)
-            member.on_expedition = False
-            member.is_available = (member.hp_current == member.hp_max)
-            living_members.append(member)
-
-    # Loot split: 30% player, 70% split evenly among living adventurers
-    total_loot = result["treasure_total"]
-    living_count = len(living_members)
-    loot_split = calculate_loot_split(total_loot, living_count, player_split=0.3)
-
-    # Distribute gold to living adventurers individually
-    if loot_split["individual_share"] > 0:
-        for member in living_members:
-            member.gold += loot_split["individual_share"]
-
-    if party.player_id:
-        player = db.query(Player).filter(Player.id == party.player_id).first()
-        if player:
-            player.treasury += loot_split["player_treasury"]
-            player.total_score += loot_split["player_treasury"]
-
-    # Remove dead members from party
-    party.members = [m for m in party.members if not m.is_dead]
-
-    db.commit()
-
-    return result
+    return {
+        "expedition_id": db_expedition.id,
+        "party_id": party.id,
+        "start_day": start_day,
+        "return_day": return_day,
+        "duration_days": expedition_data.duration_days,
+        "result": "in_progress",
+    }
 
 
 @router.get("/expeditions/{expedition_id}/details", response_class=HTMLResponse)
@@ -381,10 +405,23 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
         return result
 
 
-@router.get("/expeditions/", response_model=list)
+@router.get("/expeditions/")
 def list_expeditions(db: Session = Depends(get_db)):
     """List all expeditions in the database"""
-    return db.query(Expedition).all()
+    expeditions = db.query(Expedition).all()
+    return [
+        {
+            "id": e.id,
+            "party_id": e.party_id,
+            "start_day": e.start_day,
+            "duration_days": e.duration_days,
+            "return_day": e.return_day,
+            "result": e.result,
+            "started_at": e.started_at.isoformat() if e.started_at else None,
+            "finished_at": e.finished_at.isoformat() if e.finished_at else None,
+        }
+        for e in expeditions
+    ]
 
 
 @router.post("/expeditions/{expedition_id}/advance", response_model=TurnResult)

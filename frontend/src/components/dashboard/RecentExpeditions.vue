@@ -18,7 +18,8 @@ defineProps<{
           <th>Party ID</th>
           <th>Duration</th>
           <th>Status</th>
-          <th>Started</th>
+          <th>Departs</th>
+          <th>Returns</th>
         </tr>
       </thead>
       <tbody>
@@ -27,7 +28,8 @@ defineProps<{
           <td>{{ exp.party_id }}</td>
           <td>{{ exp.duration_days }} days</td>
           <td><StatusBadge :status="exp.result" /></td>
-          <td>{{ exp.started_at ?? 'N/A' }}</td>
+          <td>Day {{ exp.start_day }}</td>
+          <td>Day {{ exp.return_day }}</td>
         </tr>
       </tbody>
     </table>

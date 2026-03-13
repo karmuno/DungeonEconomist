@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import type { AdventurerOut } from '../types'
 import * as adventurersApi from '../api/adventurers'
+import type { GraveyardEntry, DebtorEntry } from '../api/adventurers'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import EmptyState from '../components/shared/EmptyState.vue'
@@ -13,7 +14,10 @@ import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
 
 const notifications = useNotificationsStore()
 
+const activeTab = ref<'roster' | 'graveyard' | 'debtors'>('roster')
 const adventurers = ref<AdventurerOut[]>([])
+const graveyard = ref<GraveyardEntry[]>([])
+const debtors = ref<DebtorEntry[]>([])
 const loading = ref(true)
 const viewMode = ref<'card' | 'list'>('card')
 const selectedAdventurer = ref<AdventurerOut | null>(null)
@@ -45,9 +49,6 @@ const filteredAdventurers = computed(() => {
       case 'injured':
         result = result.filter((a) => a.hp_current < a.hp_max)
         break
-      case 'bankrupt':
-        result = result.filter((a) => a.is_bankrupt)
-        break
     }
   }
 
@@ -78,6 +79,20 @@ async function fetchAdventurers() {
   } finally {
     loading.value = false
   }
+}
+
+async function fetchGraveyard() {
+  graveyard.value = await adventurersApi.getGraveyard()
+}
+
+async function fetchDebtors() {
+  debtors.value = await adventurersApi.getDebtorsPrison()
+}
+
+async function onTabChange(tab: 'roster' | 'graveyard' | 'debtors') {
+  activeTab.value = tab
+  if (tab === 'graveyard') await fetchGraveyard()
+  if (tab === 'debtors') await fetchDebtors()
 }
 
 async function onSelect(id: number) {
@@ -115,6 +130,29 @@ onMounted(fetchAdventurers)
       <div class="view-toggle">
         <button
           class="btn btn-sm"
+          :class="activeTab === 'roster' ? 'btn-primary' : 'btn-secondary'"
+          @click="onTabChange('roster')"
+        >
+          Roster
+        </button>
+        <button
+          class="btn btn-sm"
+          :class="activeTab === 'graveyard' ? 'btn-primary' : 'btn-secondary'"
+          @click="onTabChange('graveyard')"
+        >
+          Graveyard
+        </button>
+        <button
+          class="btn btn-sm"
+          :class="activeTab === 'debtors' ? 'btn-primary' : 'btn-secondary'"
+          @click="onTabChange('debtors')"
+        >
+          Debtor's Prison
+        </button>
+      </div>
+      <div v-if="activeTab === 'roster'" class="view-toggle">
+        <button
+          class="btn btn-sm"
           :class="{ 'btn-primary': viewMode === 'card' }"
           @click="viewMode = 'card'"
         >
@@ -130,26 +168,75 @@ onMounted(fetchAdventurers)
       </div>
     </div>
 
-    <AdventurerFilters v-model="filters" class="mb-3" />
+    <!-- Roster Tab -->
+    <template v-if="activeTab === 'roster'">
+      <AdventurerFilters v-model="filters" class="mb-3" />
 
-    <LoadingSpinner v-if="loading" />
-    <template v-else>
-      <template v-if="filteredAdventurers.length > 0">
-        <div v-if="viewMode === 'card'" class="stats-grid">
-          <AdventurerCard
-            v-for="adv in filteredAdventurers"
-            :key="adv.id"
-            :adventurer="adv"
+      <LoadingSpinner v-if="loading" />
+      <template v-else>
+        <template v-if="filteredAdventurers.length > 0">
+          <div v-if="viewMode === 'card'" class="stats-grid">
+            <AdventurerCard
+              v-for="adv in filteredAdventurers"
+              :key="adv.id"
+              :adventurer="adv"
+              @select="onSelect"
+            />
+          </div>
+          <AdventurerList
+            v-else
+            :adventurers="filteredAdventurers"
             @select="onSelect"
           />
-        </div>
-        <AdventurerList
-          v-else
-          :adventurers="filteredAdventurers"
-          @select="onSelect"
-        />
+        </template>
+        <EmptyState v-else message="No adventurers match your filters" />
       </template>
-      <EmptyState v-else message="No adventurers match your filters" />
+    </template>
+
+    <!-- Graveyard Tab -->
+    <template v-if="activeTab === 'graveyard'">
+      <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
+      <table v-else class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Class</th>
+            <th>Level</th>
+            <th>Died On</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="entry in graveyard" :key="entry.id">
+            <td>{{ entry.name }}</td>
+            <td>{{ entry.class }}</td>
+            <td>{{ entry.level }}</td>
+            <td>Day {{ entry.death_day }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
+
+    <!-- Debtor's Prison Tab -->
+    <template v-if="activeTab === 'debtors'">
+      <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
+      <table v-else class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Class</th>
+            <th>Level</th>
+            <th>Bankrupt On</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="entry in debtors" :key="entry.id">
+            <td>{{ entry.name }}</td>
+            <td>{{ entry.class }}</td>
+            <td>{{ entry.level }}</td>
+            <td>Day {{ entry.bankruptcy_day }}</td>
+          </tr>
+        </tbody>
+      </table>
     </template>
 
     <ModalDialog
@@ -164,6 +251,5 @@ onMounted(fetchAdventurers)
         @level-up="onLevelUp"
       />
     </ModalDialog>
-
   </div>
 </template>

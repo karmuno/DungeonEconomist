@@ -447,9 +447,38 @@ textarea.form-input {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  cursor: pointer;
   animation: slide-in 0.2s ease-out;
   border: 1px solid transparent;
+}
+
+.toast-text {
+  flex: 1;
+}
+
+.toast-action {
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.toast-action:hover {
+  opacity: 1;
+}
+
+.toast-dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+
+.toast-dismiss:hover {
+  opacity: 1;
 }
 
 .toast.success {
@@ -468,6 +497,12 @@ textarea.form-input {
   background-color: #0c1929;
   border-color: #1e3a5f;
   color: var(--accent-blue);
+}
+
+.toast.warning {
+  background-color: #422006;
+  border-color: #78350f;
+  color: #fbbf24;
 }
 
 @keyframes slide-in {

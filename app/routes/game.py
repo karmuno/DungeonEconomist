@@ -6,7 +6,8 @@ from datetime import datetime
 
 from app.database import get_db
 from app.models import Adventurer, AdventurerClass, Party, Expedition, Player, GameTime
-from app.schemas import GameTimeInfo
+from app.schemas import GameTimeInfo, AdvanceDayResult, GameEvent
+from app.routes.expeditions import resolve_expedition
 
 router = APIRouter()
 
@@ -92,6 +93,12 @@ def auto_start_day_one(db: Session) -> list:
     if adventurer_count > 0:
         return []
 
+    # Ensure a default player exists
+    player = db.query(Player).first()
+    if not player:
+        player = Player(name="Default Player", treasury=0, total_score=0)
+        db.add(player)
+
     new_adventurers = []
     for adv_class in AdventurerClass:
         adv = create_random_adventurer(adv_class, db)
@@ -100,88 +107,84 @@ def auto_start_day_one(db: Session) -> list:
     return new_adventurers
 
 
-@router.put("/upkeep")
-def run_upkeep(db: Session = Depends(get_db)):
+def process_upkeep(db: Session, current_day: int) -> list[GameEvent]:
     """
-    Run monthly upkeep. If current_day is a multiple of 30, charge upkeep costs.
+    Run monthly upkeep if current_day is a multiple of 30.
     Upkeep cost is 1% of XP (floored). If adventurer cannot pay, they are
     permanently removed to debtor's prison.
+    Returns list of events.
     """
-    game_time = db.query(GameTime).first()
-    if not game_time:
-        game_time = GameTime(current_day=1)
-        db.add(game_time)
-        db.commit()
-        db.refresh(game_time)
+    if current_day == 0 or current_day % 30 != 0:
+        return []
 
-    # Ensure a default player exists
+    events: list[GameEvent] = []
+
     player = db.query(Player).first()
     if not player:
         player = Player(name="Default Player", treasury=0, total_score=0)
         db.add(player)
-        db.commit()
-        db.refresh(player)
+        db.flush()
 
-    if game_time.current_day % 30 == 0:
-        # Only process active (non-dead, non-bankrupt) adventurers
-        adventurers = db.query(Adventurer).filter(
-            Adventurer.is_dead == False,
-        ).all()
-        adventurers_processed = 0
-        bankrupt_adventurers = 0
-        total_gold_deducted_from_adventurers = 0
-        total_gold_transferred_to_treasury = 0
+    # Only process active (non-dead, non-bankrupt) adventurers
+    adventurers = db.query(Adventurer).filter(
+        Adventurer.is_dead == False,
+        Adventurer.is_bankrupt == False,
+    ).all()
+    total_gold_transferred = 0
+    bankrupt_count = 0
 
-        for adv in adventurers:
-            adventurers_processed += 1
-            cost = math.floor(adv.xp * 0.01)
+    for adv in adventurers:
+        cost = math.floor(adv.xp * 0.01)
 
-            if cost <= 0:
-                continue
+        if cost <= 0:
+            continue
 
-            if adv.gold >= cost:
-                adv.gold -= cost
-                total_gold_deducted_from_adventurers += cost
+        if adv.gold >= cost:
+            adv.gold -= cost
+            player.treasury += cost
+            player.total_score += cost
+            total_gold_transferred += cost
+        else:
+            # Bankruptcy is permanent — adventurer goes to debtor's prison
+            if adv.gold > 0:
+                player.treasury += adv.gold
+                player.total_score += adv.gold
+                total_gold_transferred += adv.gold
 
-                player.treasury += cost
-                player.total_score += cost
-                total_gold_transferred_to_treasury += cost
-            else:
-                # Bankruptcy is permanent — adventurer goes to debtor's prison
-                if adv.gold > 0:
-                    player.treasury += adv.gold
-                    player.total_score += adv.gold
-                    total_gold_transferred_to_treasury += adv.gold
-                    total_gold_deducted_from_adventurers += adv.gold
+            adv.gold = 0
+            adv.is_bankrupt = True
+            adv.bankruptcy_day = current_day
+            adv.is_available = False
+            adv.on_expedition = False
+            bankrupt_count += 1
 
-                adv.gold = 0
-                adv.is_bankrupt = True
-                adv.bankruptcy_day = game_time.current_day
-                adv.is_available = False
-                adv.on_expedition = False
-                bankrupt_adventurers += 1
+            # Remove from all parties
+            adv.parties = []
 
-                # Remove from all parties
-                adv.parties = []
+            events.append(GameEvent(
+                type="upkeep",
+                message=f"{adv.name} went bankrupt and was sent to debtor's prison"
+            ))
 
-        db.commit()
-        return {
-            "message": f"Upkeep applied for day {game_time.current_day}. "
-                       f"{adventurers_processed} adventurers processed. "
-                       f"{bankrupt_adventurers} became bankrupt. "
-                       f"Total gold deducted from adventurers: {total_gold_deducted_from_adventurers} GP. "
-                       f"Total gold transferred to player treasury: {total_gold_transferred_to_treasury} GP."
-        }
+    if total_gold_transferred > 0:
+        events.insert(0, GameEvent(
+            type="upkeep",
+            message=f"Upkeep day! {total_gold_transferred} GP collected to treasury"
+        ))
     else:
-        return {
-            "message": f"No upkeep applied for day {game_time.current_day}. "
-                       "Upkeep runs every 30 days."
-        }
+        events.insert(0, GameEvent(
+            type="upkeep",
+            message="Upkeep day! No gold collected (adventurers have no XP costs yet)"
+        ))
+
+    return events
 
 
-@router.post("/time/advance-day", response_model=GameTimeInfo)
+@router.post("/time/advance-day", response_model=AdvanceDayResult)
 def advance_day(db: Session = Depends(get_db)):
     """Advances the game time by one day and updates expedition statuses."""
+    events: list[GameEvent] = []
+
     game_time = db.query(GameTime).first()
     if not game_time:
         game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
@@ -189,12 +192,6 @@ def advance_day(db: Session = Depends(get_db)):
 
     game_time.current_day += 1
     game_time.last_updated = datetime.now()
-
-    # Day 1 auto-start: generate starting adventurers if none exist
-    if game_time.current_day == 1:
-        new_starters = auto_start_day_one(db)
-        if new_starters:
-            db.flush()
 
     # Daily healing: all non-expedition, non-dead, non-bankrupt adventurers heal 1 HP/day
     healing_adventurers = db.query(Adventurer).filter(
@@ -207,31 +204,47 @@ def advance_day(db: Session = Depends(get_db)):
         adv.hp_current = min(adv.hp_current + 1, adv.hp_max)
         if adv.hp_current == adv.hp_max:
             adv.is_available = True
+            events.append(GameEvent(
+                type="healing",
+                message=f"{adv.name} fully recovered and is available"
+            ))
 
     # Daily recruitment
-    run_daily_recruitment(db)
+    new_recruits = run_daily_recruitment(db)
+    for adv in new_recruits:
+        events.append(GameEvent(
+            type="recruitment",
+            message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern"
+        ))
 
     # Process expedition completions
     active_expeditions_to_check = db.query(Expedition).filter(Expedition.result == "in_progress").all()
     for expedition in active_expeditions_to_check:
         if expedition.return_day <= game_time.current_day:
-            expedition.result = "completed"
-            expedition.finished_at = datetime.now()
+            party_name = expedition.party.name if expedition.party else "Unknown"
 
-            if expedition.party:
-                expedition.party.on_expedition = False
-                for adventurer in expedition.party.members:
-                    adventurer.on_expedition = False
-                    # Don't set available — they need to heal to full HP first
-                    adventurer.is_available = (adventurer.hp_current == adventurer.hp_max)
+            # Apply simulation results (XP, loot, deaths, etc.)
+            resolution = resolve_expedition(expedition, db, game_time.current_day)
+
+            events.append(GameEvent(
+                type="expedition_complete",
+                message=f"Party '{party_name}' returned from expedition"
+            ))
+            for evt in resolution.get("events", []):
+                events.append(GameEvent(type=evt["type"], message=evt["message"]))
+
+    # Monthly upkeep (every 30 days)
+    upkeep_events = process_upkeep(db, game_time.current_day)
+    events.extend(upkeep_events)
 
     db.commit()
     db.refresh(game_time)
 
-    return GameTimeInfo(
+    return AdvanceDayResult(
         current_day=game_time.current_day,
         day_started_at=game_time.day_started_at,
-        last_updated=game_time.last_updated
+        last_updated=game_time.last_updated,
+        events=events,
     )
 
 
@@ -248,19 +261,9 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     graveyard_count = db.query(Adventurer).filter(Adventurer.is_dead == True).count()
     debtors_prison_count = db.query(Adventurer).filter(Adventurer.is_bankrupt == True).count()
 
-    player = db.query(Player).first()
-    if not player:
-        player = Player(name="Default Player", treasury=0, total_score=0)
-        db.add(player)
-        db.commit()
-        db.refresh(player)
+    game_time = ensure_game_initialized(db)
 
-    game_time = db.query(GameTime).first()
-    if not game_time:
-        game_time = GameTime(current_day=1)
-        db.add(game_time)
-        db.commit()
-        db.refresh(game_time)
+    player = db.query(Player).first()
 
     active_expeditions = db.query(Expedition).filter(
         Expedition.result == "in_progress"
@@ -336,10 +339,29 @@ def get_debtors_prison(db: Session = Depends(get_db)):
     ]
 
 
+def ensure_game_initialized(db: Session) -> GameTime:
+    """Ensure GameTime, Player, and starting adventurers exist."""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
+        db.add(game_time)
+
+        # Ensure default player
+        player = db.query(Player).first()
+        if not player:
+            player = Player(name="Default Player", treasury=0, total_score=0)
+            db.add(player)
+
+        # Auto-generate starting adventurers
+        auto_start_day_one(db)
+
+        db.commit()
+        db.refresh(game_time)
+    return game_time
+
+
 @router.get("/time/", response_model=GameTimeInfo)
 def get_game_time(db: Session = Depends(get_db)):
     """Get current game time"""
-    game_time = db.query(GameTime).first()
-    if not game_time:
-        raise HTTPException(status_code=404, detail="Game time not initialized")
+    game_time = ensure_game_initialized(db)
     return game_time

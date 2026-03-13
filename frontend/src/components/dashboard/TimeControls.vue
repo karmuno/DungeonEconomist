@@ -2,22 +2,62 @@
 import { ref } from 'vue'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
-import { useNotificationsStore } from '../../stores/notifications'
+import { useNotificationsStore, type NotificationType } from '../../stores/notifications'
+import type { GameEvent } from '../../types'
 
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
 
+const emit = defineEmits<{
+  'day-advanced': []
+}>()
+
 const loading = ref(false)
+
+function eventNotificationType(event: GameEvent): NotificationType {
+  switch (event.type) {
+    case 'death':
+      return 'error'
+    case 'expedition_complete':
+      return 'success'
+    case 'healing':
+      return 'success'
+    case 'upkeep':
+      return 'warning'
+    case 'recruitment':
+    case 'auto_start':
+    case 'loot':
+    default:
+      return 'info'
+  }
+}
 
 async function advance(days: number) {
   loading.value = true
   try {
+    const allEvents: GameEvent[] = []
     for (let i = 0; i < days; i++) {
-      await gameTime.advanceDay()
+      const result = await gameTime.advanceDay()
+      allEvents.push(...result.events)
     }
     await player.fetchPlayer()
-    notifications.add(`Advanced ${days} day${days > 1 ? 's' : ''}`, 'success')
+
+    // Show individual event notifications
+    for (const event of allEvents) {
+      notifications.add(event.message, {
+        type: eventNotificationType(event),
+      })
+    }
+
+    if (allEvents.length === 0) {
+      notifications.add(`Advanced ${days} day${days > 1 ? 's' : ''} — nothing happened`, {
+        type: 'info',
+        duration: 3000,
+      })
+    }
+
+    emit('day-advanced')
   } catch (err) {
     notifications.add('Failed to advance time', 'error')
   } finally {

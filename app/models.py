@@ -45,7 +45,7 @@ class Adventurer(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    adventurer_class = Column(Enum(AdventurerClass), nullable=False)
+    adventurer_class = Column(Enum(AdventurerClass, values_callable=lambda x: [e.value for e in x]), nullable=False)
     level = Column(Integer, default=1)
     xp = Column(Integer, default=0)
     hp_current = Column(Integer, default=10)
@@ -95,6 +95,7 @@ class Expedition(Base):
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
     result = Column(String)  # e.g., 'in_progress', 'completed', 'success', 'failure'
+    simulation_data = Column(JSON, nullable=True)  # Stores sim results until expedition returns
 
     # Relationship to owning Party; specify foreign_keys to disambiguate multiple FKs between tables
     party = relationship(

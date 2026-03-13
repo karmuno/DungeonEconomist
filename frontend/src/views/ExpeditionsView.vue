@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import type { ExpeditionResult } from '../types'
+import type { ExpeditionResult, ExpeditionSummary } from '../types'
 import * as expeditionsApi from '../api/expeditions'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
@@ -15,7 +15,7 @@ const route = useRoute()
 const gameTime = useGameTimeStore()
 const notifications = useNotificationsStore()
 
-const expeditions = ref<ExpeditionResult[]>([])
+const expeditions = ref<ExpeditionSummary[]>([])
 const loading = ref(false)
 const activeTab = ref<'active' | 'completed'>('active')
 const showLaunch = ref(false)
@@ -28,11 +28,11 @@ const preselectedPartyId = computed(() => {
 })
 
 const activeExpeditions = computed(() =>
-  expeditions.value.filter((e) => !e.end_time)
+  expeditions.value.filter((e) => e.result === 'in_progress')
 )
 
 const completedExpeditions = computed(() =>
-  expeditions.value.filter((e) => !!e.end_time)
+  expeditions.value.filter((e) => e.result !== 'in_progress')
 )
 
 async function fetchExpeditions() {

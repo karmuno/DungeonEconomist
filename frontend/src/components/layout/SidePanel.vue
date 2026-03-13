@@ -1,13 +1,34 @@
 <script setup lang="ts">
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
+import { useNotificationsStore } from '../../stores/notifications'
 
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
+const notifications = useNotificationsStore()
 
 async function advanceDay() {
-  await gameTime.advanceDay()
-  await player.fetchPlayer()
+  try {
+    const result = await gameTime.advanceDay()
+    await player.fetchPlayer()
+    for (const event of result.events) {
+      const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
+        recruitment: 'info',
+        auto_start: 'info',
+        loot: 'info',
+        healing: 'success',
+        expedition_complete: 'success',
+        death: 'error',
+        upkeep: 'warning',
+      }
+      notifications.add(event.message, { type: typeMap[event.type] ?? 'info' })
+    }
+    if (result.events.length === 0) {
+      notifications.add('Day advanced — nothing happened', { type: 'info', duration: 3000 })
+    }
+  } catch {
+    notifications.add('Failed to advance time', 'error')
+  }
 }
 </script>
 

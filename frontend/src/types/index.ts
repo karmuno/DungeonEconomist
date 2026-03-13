@@ -98,13 +98,36 @@ export interface PartyStatus {
 
 // Game Time
 
+export interface GameEvent {
+  type: 'recruitment' | 'healing' | 'expedition_complete' | 'auto_start' | 'upkeep' | string
+  message: string
+}
+
 export interface GameTimeInfo {
   current_day: number
   day_started_at: string
   last_updated: string
 }
 
+export interface AdvanceDayResult {
+  current_day: number
+  day_started_at: string
+  last_updated: string
+  events: GameEvent[]
+}
+
 // Expeditions
+
+export interface ExpeditionSummary {
+  id: number
+  party_id: number
+  start_day: number
+  duration_days: number
+  return_day: number
+  result: string
+  started_at: string | null
+  finished_at: string | null
+}
 
 export interface ExpeditionCreate {
   party_id: number

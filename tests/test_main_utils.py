@@ -80,13 +80,13 @@ def create_player_db(db: Session, name: str, treasury: int = 0, total_score: int
 
 def test_upkeep_successful_payment(client: TestClient, db_session: Session):
     player = create_player_db(db_session, name="TestPlayer1")
-    create_game_time_db(db_session, 30)
+    create_game_time_db(db_session, 29)  # advance_day will move to 30
     adv_xp = 2000
     adv_gold_initial = 100
     upkeep_cost = math.floor(adv_xp * 0.01) # 20
     adv = create_adventurer_db(db_session, name="TestAdv1", xp=adv_xp, gold=adv_gold_initial)
 
-    response = client.put("/upkeep")
+    response = client.post("/time/advance-day")
     assert response.status_code == 200
 
     db_session.refresh(adv)
@@ -99,12 +99,12 @@ def test_upkeep_successful_payment(client: TestClient, db_session: Session):
 
 def test_upkeep_adventurer_goes_bankrupt_permanently(client: TestClient, db_session: Session):
     player = create_player_db(db_session, name="TestPlayer2")
-    create_game_time_db(db_session, 30)
+    create_game_time_db(db_session, 29)  # advance_day will move to 30
     adv_xp = 2000
     adv_initial_gold = 10
     adv = create_adventurer_db(db_session, name="TestAdv2", xp=adv_xp, gold=adv_initial_gold)
 
-    response = client.put("/upkeep")
+    response = client.post("/time/advance-day")
     assert response.status_code == 200
 
     db_session.refresh(adv)
@@ -118,26 +118,23 @@ def test_upkeep_adventurer_goes_bankrupt_permanently(client: TestClient, db_sess
 
 def test_upkeep_no_upkeep_due_not_day_30(client: TestClient, db_session: Session):
     player = create_player_db(db_session, name="TestPlayer5")
-    create_game_time_db(db_session, 29)
+    create_game_time_db(db_session, 28)  # advance_day will move to 29
     adv = create_adventurer_db(db_session, name="TestAdv5", xp=1000, gold=100)
 
     initial_adv_gold = adv.gold
 
-    response = client.put("/upkeep")
+    response = client.post("/time/advance-day")
     assert response.status_code == 200
 
     db_session.refresh(adv)
     assert adv.gold == initial_adv_gold
 
-    data = response.json()
-    assert "No upkeep applied for day 29" in data["message"]
-
 def test_upkeep_zero_xp_adventurer(client: TestClient, db_session: Session):
     player = create_player_db(db_session, name="TestPlayer6")
-    create_game_time_db(db_session, 30)
+    create_game_time_db(db_session, 29)  # advance_day will move to 30
     adv = create_adventurer_db(db_session, name="TestAdv6", xp=0, gold=0)
 
-    response = client.put("/upkeep")
+    response = client.post("/time/advance-day")
     assert response.status_code == 200
 
     db_session.refresh(adv)
@@ -252,19 +249,22 @@ def test_advance_day_adventurer_becomes_available_at_full_hp(client: TestClient,
     assert adv.hp_current == 10
     assert adv.is_available
 
-def test_advance_day_day1_auto_generates_adventurers(client: TestClient, db_session: Session):
-    """Day 1 with no adventurers should auto-generate 6"""
+def test_game_initialization_auto_generates_adventurers(client: TestClient, db_session: Session):
+    """First game time fetch should auto-generate 6 adventurers and start at day 0"""
     # No game time, no adventurers
     assert db_session.query(Adventurer).count() == 0
 
-    response = client.post("/time/advance-day")
+    response = client.get("/time/")
     assert response.status_code == 200
 
     data = response.json()
-    assert data["current_day"] == 1
+    assert data["current_day"] == 0
 
     # Should have 6 adventurers (one per class)
     assert db_session.query(Adventurer).count() == 6
+
+    # Should have at least one player
+    assert db_session.query(Player).count() >= 1
 
 
 # --- Test for POST /parties/ ---

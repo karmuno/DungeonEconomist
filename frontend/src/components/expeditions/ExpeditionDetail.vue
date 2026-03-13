@@ -27,12 +27,16 @@ defineEmits<{
         <strong>{{ expedition.dungeon_level }}</strong>
       </div>
       <div class="stat-card">
-        <span class="text-muted">Duration</span>
-        <strong>{{ expedition.duration_days }} days ({{ expedition.turns }} turns)</strong>
+        <span class="text-muted">Departed</span>
+        <strong>Day {{ expedition.start_day }}</strong>
       </div>
       <div class="stat-card">
-        <span class="text-muted">Status</span>
-        <strong>{{ expedition.end_time ? 'Completed' : 'In Progress' }}</strong>
+        <span class="text-muted">Returns</span>
+        <strong>Day {{ expedition.return_day }}</strong>
+      </div>
+      <div class="stat-card">
+        <span class="text-muted">Duration</span>
+        <strong>{{ expedition.duration_days }} days ({{ expedition.turns }} turns)</strong>
       </div>
     </div>
 

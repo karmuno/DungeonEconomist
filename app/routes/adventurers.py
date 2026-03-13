@@ -53,7 +53,10 @@ def create_adventurer(adventurer: AdventurerCreate, db: Session = Depends(get_db
 
 @router.get("/adventurers/", response_model=list[AdventurerOut])
 def list_adventurers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    adventurers = db.query(Adventurer).offset(skip).limit(limit).all()
+    adventurers = db.query(Adventurer).filter(
+        Adventurer.is_dead == False,
+        Adventurer.is_bankrupt == False,
+    ).offset(skip).limit(limit).all()
     return [add_progression_data(adv) for adv in adventurers]
 
 

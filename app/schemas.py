@@ -138,10 +138,20 @@ class AdventurerLevelUpInfo(BaseModel):
     current_level: int
     next_level: int
 
+class GameEvent(BaseModel):
+    type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep'
+    message: str
+
 class GameTimeInfo(BaseModel):
     current_day: int
     day_started_at: datetime
     last_updated: datetime
+
+class AdvanceDayResult(BaseModel):
+    current_day: int
+    day_started_at: datetime
+    last_updated: datetime
+    events: List[GameEvent] = []
 
 class ExpeditionResult(BaseModel):
     expedition_id: int

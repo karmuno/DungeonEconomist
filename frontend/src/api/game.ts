@@ -1,12 +1,12 @@
 import { get, post, put } from './client'
-import type { GameTimeInfo, DashboardStats } from '../types'
+import type { GameTimeInfo, AdvanceDayResult, DashboardStats } from '../types'
 
 export function getTime(): Promise<GameTimeInfo> {
   return get<GameTimeInfo>('/time/')
 }
 
-export function advanceDay(): Promise<GameTimeInfo> {
-  return post<GameTimeInfo>('/time/advance-day')
+export function advanceDay(): Promise<AdvanceDayResult> {
+  return post<AdvanceDayResult>('/time/advance-day')
 }
 
 export function runUpkeep(): Promise<unknown> {

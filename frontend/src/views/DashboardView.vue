@@ -10,13 +10,15 @@ import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(true)
 
-onMounted(async () => {
+async function fetchStats() {
   try {
     stats.value = await getDashboardStats()
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(fetchStats)
 </script>
 
 <template>
@@ -25,7 +27,7 @@ onMounted(async () => {
     <LoadingSpinner v-if="loading" />
     <template v-else-if="stats">
       <DashboardStatsComponent :stats="stats" class="mb-3" />
-      <TimeControls class="mb-3" />
+      <TimeControls class="mb-3" @day-advanced="fetchStats" />
       <RecentExpeditions :expeditions="stats.recent_expeditions" />
     </template>
   </div>

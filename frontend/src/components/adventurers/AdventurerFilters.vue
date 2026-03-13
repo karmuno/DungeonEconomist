@@ -61,7 +61,6 @@ const classOptions = Object.values(AdventurerClass)
         <option value="available">Available</option>
         <option value="on_expedition">On Expedition</option>
         <option value="injured">Recovering</option>
-        <option value="bankrupt">Bankrupt</option>
       </select>
     </div>
     <div class="form-group">

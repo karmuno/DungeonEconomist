@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as gameApi from '../api/game'
+import type { AdvanceDayResult } from '../types'
 
 export const useGameTimeStore = defineStore('gameTime', () => {
   const currentDay = ref(0)
@@ -14,11 +15,12 @@ export const useGameTimeStore = defineStore('gameTime', () => {
     lastUpdated.value = data.last_updated
   }
 
-  async function advanceDay() {
+  async function advanceDay(): Promise<AdvanceDayResult> {
     const data = await gameApi.advanceDay()
     currentDay.value = data.current_day
     dayStartedAt.value = data.day_started_at
     lastUpdated.value = data.last_updated
+    return data
   }
 
   return {

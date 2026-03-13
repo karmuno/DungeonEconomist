@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { ExpeditionResult } from '../../types'
+import type { ExpeditionSummary } from '../../types'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
 
 defineProps<{
-  expeditions: ExpeditionResult[]
+  expeditions: ExpeditionSummary[]
 }>()
 
 const emit = defineEmits<{
@@ -20,28 +20,26 @@ const emit = defineEmits<{
         <tr>
           <th>ID</th>
           <th>Party</th>
-          <th>Dungeon Lvl</th>
-          <th>Turns</th>
-          <th>Treasure</th>
-          <th>XP</th>
+          <th>Days</th>
+          <th>Departs</th>
+          <th>Returns</th>
           <th>Status</th>
         </tr>
       </thead>
       <tbody>
         <tr
           v-for="exp in expeditions"
-          :key="exp.expedition_id"
+          :key="exp.id"
           style="cursor: pointer"
-          @click="emit('select', exp.expedition_id)"
+          @click="emit('select', exp.id)"
         >
-          <td>{{ exp.expedition_id }}</td>
+          <td>{{ exp.id }}</td>
           <td>{{ exp.party_id }}</td>
-          <td>{{ exp.dungeon_level }}</td>
-          <td>{{ exp.turns }}</td>
-          <td class="text-gold">{{ exp.treasure_total }} GP</td>
-          <td>{{ exp.xp_earned }}</td>
+          <td>{{ exp.duration_days }}</td>
+          <td>Day {{ exp.start_day }}</td>
+          <td>Day {{ exp.return_day }}</td>
           <td>
-            <StatusBadge :status="exp.end_time ? 'Completed' : 'In Progress'" />
+            <StatusBadge :status="exp.result === 'in_progress' ? 'On Expedition' : 'Completed'" />
           </td>
         </tr>
       </tbody>
