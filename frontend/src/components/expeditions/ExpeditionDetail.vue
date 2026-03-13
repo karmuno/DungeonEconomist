@@ -52,20 +52,6 @@ defineEmits<{
       <p v-for="(name, i) in expedition.dead_members" :key="i" class="text-danger">{{ name }}</p>
     </div>
 
-    <div v-if="expedition.supplies_consumed" class="mb-2">
-      <h4 class="mb-1">Supplies Consumed</h4>
-      <p v-for="(qty, name) in expedition.supplies_consumed" :key="String(name)">
-        {{ name }}: {{ qty }}
-      </p>
-    </div>
-
-    <div v-if="expedition.equipment_lost" class="mb-2">
-      <h4 class="mb-1">Equipment Lost</h4>
-      <p v-for="(ids, name) in expedition.equipment_lost" :key="String(name)">
-        {{ name }}: {{ Array.isArray(ids) ? ids.length : ids }} items
-      </p>
-    </div>
-
     <ExpeditionLog :log="expedition.log" />
   </div>
 </template>

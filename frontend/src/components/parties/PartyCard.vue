@@ -21,7 +21,6 @@ const emit = defineEmits<{
     </div>
     <div class="card-body">
       <p>{{ party.members.length }} members</p>
-      <p class="text-gold">{{ party.funds }} GP</p>
       <div class="mt-1">
         <span
           v-for="member in party.members.slice(0, 4)"

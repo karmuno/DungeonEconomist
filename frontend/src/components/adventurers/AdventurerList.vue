@@ -13,11 +13,12 @@ const emit = defineEmits<{
 }>()
 
 function displayStatus(adv: AdventurerOut): string {
-  if (adv.expedition_status) return adv.expedition_status
-  if (adv.on_expedition) return 'on_expedition'
+  if (adv.is_dead) return 'Dead'
   if (adv.is_bankrupt) return 'Bankrupt'
-  if (adv.is_available) return 'available'
-  return 'resting'
+  if (adv.on_expedition) return 'On Expedition'
+  if (adv.is_available) return 'Available'
+  if (adv.hp_current < adv.hp_max) return 'Recovering'
+  return 'Unavailable'
 }
 </script>
 

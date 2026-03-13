@@ -9,59 +9,6 @@ export enum AdventurerClass {
   HOBBIT = 'Hobbit',
 }
 
-export enum EquipmentType {
-  WEAPON = 'Weapon',
-  ARMOR = 'Armor',
-  SHIELD = 'Shield',
-  MAGIC_ITEM = 'Magic Item',
-  POTION = 'Potion',
-  TOOL = 'Tool',
-  MISCELLANEOUS = 'Miscellaneous',
-}
-
-export enum SupplyType {
-  FOOD = 'Food',
-  WATER = 'Water',
-  LIGHT = 'Light',
-  MEDICAL = 'Medical',
-  TOOL = 'Tool',
-  ADVENTURE = 'Adventure',
-  MISCELLANEOUS = 'Miscellaneous',
-}
-
-// Equipment
-
-export interface EquipmentOut {
-  id: number
-  name: string
-  type: EquipmentType
-  cost: number
-  weight: number
-  description?: string
-}
-
-export interface AdventurerEquipmentOut {
-  equipment: EquipmentOut
-  equipped: boolean
-  quantity: number
-}
-
-// Supplies
-
-export interface SupplyOut {
-  id: number
-  name: string
-  type: SupplyType
-  cost: number
-  weight: number
-  description?: string
-}
-
-export interface PartySupplyOut {
-  supply: SupplyOut
-  quantity: number
-}
-
 // Adventurers
 
 export interface LevelUpResult {
@@ -83,11 +30,10 @@ export interface AdventurerOut {
   gold: number
   is_available: boolean
   on_expedition: boolean
-  expedition_status?: string | null
-  healing_until_day?: number | null
-  carry_capacity: number
   is_bankrupt: boolean
-  equipment?: AdventurerEquipmentOut[] | null
+  is_dead: boolean
+  death_day?: number | null
+  bankruptcy_day?: number | null
   next_level_xp?: number | null
   xp_progress?: number | null
 }
@@ -97,7 +43,6 @@ export interface AdventurerCreate {
   adventurer_class: AdventurerClass
   level?: number
   hp_max?: number
-  carry_capacity?: number | null
 }
 
 export interface AdventurerLevelUpInfo {
@@ -124,7 +69,6 @@ export interface PlayerCreate {
 
 export interface PartyCreate {
   name: string
-  funds?: number
   player_id?: number | null
 }
 
@@ -134,25 +78,13 @@ export interface PartyOut {
   created_at?: string | null
   on_expedition: boolean
   current_expedition_id?: number | null
-  funds: number
   player_id?: number | null
   members: AdventurerOut[]
-  supplies?: PartySupplyOut[] | null
 }
 
 export interface PartyMemberOperation {
   party_id: number
   adventurer_id: number
-}
-
-export interface PartyFundsUpdate {
-  amount: number
-}
-
-export interface SupplyOperation {
-  party_id: number
-  supply_id: number
-  quantity?: number
 }
 
 export interface PartyStatus {
@@ -178,7 +110,6 @@ export interface ExpeditionCreate {
   party_id: number
   dungeon_level?: number
   duration_days?: number
-  supplies_to_bring?: Array<Record<string, number>> | null
 }
 
 export interface ExpeditionResult {
@@ -196,8 +127,6 @@ export interface ExpeditionResult {
   xp_earned: number
   xp_per_party_member: number
   resources_used: Record<string, unknown>
-  supplies_consumed?: Record<string, number> | null
-  equipment_lost?: Record<string, number[]> | null
   dead_members: string[]
   party_status: PartyStatus
   log: unknown[]
@@ -208,6 +137,8 @@ export interface ExpeditionResult {
 
 export interface DashboardStats {
   adventurer_count: number
+  graveyard_count: number
+  debtors_prison_count: number
   party_count: number
   expedition_count: number
   treasury: number

@@ -8,13 +8,11 @@ export default defineConfig({
     proxy: {
       '/adventurers': 'http://localhost:8000',
       '/parties': 'http://localhost:8000',
-      '/players': 'http://localhost:8000',
-      '/equipment': 'http://localhost:8000',
-      '/supplies': 'http://localhost:8000',
       '/expeditions': 'http://localhost:8000',
       '/time': 'http://localhost:8000',
       '/upkeep': 'http://localhost:8000',
       '/dashboard': 'http://localhost:8000',
+      '/ui': 'http://localhost:8000',
     },
   },
 })

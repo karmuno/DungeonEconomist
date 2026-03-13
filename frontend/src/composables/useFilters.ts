@@ -4,7 +4,7 @@ import { AdventurerClass } from '../types'
 
 export interface FilterState {
   classFilter: AdventurerClass | ''
-  statusFilter: 'available' | 'on_expedition' | 'healing' | ''
+  statusFilter: 'available' | 'on_expedition' | 'recovering' | ''
   nameSearch: string
   sortBy: 'name' | 'level' | 'hp_current' | 'gold'
   sortDir: 'asc' | 'desc'
@@ -34,8 +34,8 @@ export function useFilters(adventurers: Ref<AdventurerOut[]>) {
         case 'on_expedition':
           result = result.filter((a) => a.on_expedition)
           break
-        case 'healing':
-          result = result.filter((a) => a.healing_until_day != null)
+        case 'recovering':
+          result = result.filter((a) => !a.is_available && !a.on_expedition && a.hp_current < a.hp_max)
           break
       }
     }

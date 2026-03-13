@@ -21,16 +21,13 @@ const canLevelUp = computed(() => {
 })
 
 function displayStatus(adv: AdventurerOut): string {
-  if (adv.expedition_status) return adv.expedition_status
-  if (adv.on_expedition) return 'on_expedition'
+  if (adv.is_dead) return 'Dead'
   if (adv.is_bankrupt) return 'Bankrupt'
-  if (adv.is_available) return 'available'
-  return 'resting'
+  if (adv.on_expedition) return 'On Expedition'
+  if (adv.is_available) return 'Available'
+  if (adv.hp_current < adv.hp_max) return 'Recovering'
+  return 'Unavailable'
 }
-
-const hasEquipment = computed(() => {
-  return props.adventurer.equipment && props.adventurer.equipment.length > 0
-})
 </script>
 
 <template>
@@ -53,10 +50,6 @@ const hasEquipment = computed(() => {
         <div class="stat-value text-gold">{{ adventurer.gold }} GP</div>
         <div class="stat-label">Gold</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ adventurer.carry_capacity }}</div>
-        <div class="stat-label">Carry Capacity</div>
-      </div>
     </div>
 
     <div class="mb-2">
@@ -77,36 +70,12 @@ const hasEquipment = computed(() => {
       />
     </div>
 
-    <div v-if="hasEquipment" class="mb-3">
-      <h3 class="mb-1">Equipment</h3>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Qty</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in adventurer.equipment" :key="item.equipment.id">
-            <td>{{ item.equipment.name }}</td>
-            <td>{{ item.equipment.type }}</td>
-            <td>{{ item.quantity }}</td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-if="adventurer.is_dead" class="mb-2 text-danger">
+      Died on day {{ adventurer.death_day }}
     </div>
 
-    <div class="mb-2">
-      <strong>Status:</strong>
-      <span v-if="adventurer.is_available"> Available</span>
-      <span v-else-if="adventurer.on_expedition"> On Expedition</span>
-      <span v-else> Resting</span>
-      <span v-if="adventurer.expedition_status"> ({{ adventurer.expedition_status }})</span>
-    </div>
-
-    <div v-if="adventurer.is_bankrupt" class="mb-2">
-      <StatusBadge status="Bankrupt" />
+    <div v-if="adventurer.is_bankrupt" class="mb-2 text-danger">
+      Sent to debtor's prison on day {{ adventurer.bankruptcy_day }}
     </div>
 
     <div class="flex gap-1 mt-3">

@@ -60,8 +60,7 @@ const classOptions = Object.values(AdventurerClass)
         <option value="">All</option>
         <option value="available">Available</option>
         <option value="on_expedition">On Expedition</option>
-        <option value="resting">Resting</option>
-        <option value="injured">Injured</option>
+        <option value="injured">Recovering</option>
         <option value="bankrupt">Bankrupt</option>
       </select>
     </div>

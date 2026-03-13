@@ -10,7 +10,6 @@ import AdventurerFilters from '../components/adventurers/AdventurerFilters.vue'
 import AdventurerCard from '../components/adventurers/AdventurerCard.vue'
 import AdventurerList from '../components/adventurers/AdventurerList.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
-import AdventurerForm from '../components/adventurers/AdventurerForm.vue'
 
 const notifications = useNotificationsStore()
 
@@ -18,7 +17,6 @@ const adventurers = ref<AdventurerOut[]>([])
 const loading = ref(true)
 const viewMode = ref<'card' | 'list'>('card')
 const selectedAdventurer = ref<AdventurerOut | null>(null)
-const showCreate = ref(false)
 const showDetail = ref(false)
 
 const filters = ref({
@@ -43,9 +41,6 @@ const filteredAdventurers = computed(() => {
         break
       case 'on_expedition':
         result = result.filter((a) => a.on_expedition)
-        break
-      case 'resting':
-        result = result.filter((a) => !a.is_available && !a.on_expedition && a.healing_until_day != null)
         break
       case 'injured':
         result = result.filter((a) => a.hp_current < a.hp_max)
@@ -109,11 +104,6 @@ async function onLevelUp() {
   }
 }
 
-async function onCreated() {
-  showCreate.value = false
-  await fetchAdventurers()
-}
-
 onMounted(fetchAdventurers)
 </script>
 
@@ -138,7 +128,6 @@ onMounted(fetchAdventurers)
           List
         </button>
       </div>
-      <button class="btn btn-primary" @click="showCreate = true">New Adventurer</button>
     </div>
 
     <AdventurerFilters v-model="filters" class="mb-3" />
@@ -176,15 +165,5 @@ onMounted(fetchAdventurers)
       />
     </ModalDialog>
 
-    <ModalDialog
-      :is-open="showCreate"
-      title="New Adventurer"
-      @close="showCreate = false"
-    >
-      <AdventurerForm
-        @created="onCreated"
-        @cancel="showCreate = false"
-      />
-    </ModalDialog>
   </div>
 </template>

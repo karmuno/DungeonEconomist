@@ -12,7 +12,6 @@ const route = useRoute()
       <router-link to="/adventurers" :class="{ active: route.path === '/adventurers' }">Adventurers</router-link>
       <router-link to="/parties" :class="{ active: route.path === '/parties' }">Parties</router-link>
       <router-link to="/expeditions" :class="{ active: route.path === '/expeditions' }">Expeditions</router-link>
-      <router-link to="/players" :class="{ active: route.path === '/players' }">Players</router-link>
     </nav>
   </header>
 </template>

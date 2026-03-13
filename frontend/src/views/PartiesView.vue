@@ -6,8 +6,6 @@ import { useNotificationsStore } from '../stores/notifications'
 import PartyCard from '../components/parties/PartyCard.vue'
 import PartyForm from '../components/parties/PartyForm.vue'
 import PartyMemberManager from '../components/parties/PartyMemberManager.vue'
-import PartySupplyManager from '../components/parties/PartySupplyManager.vue'
-import PartyFundsForm from '../components/parties/PartyFundsForm.vue'
 import ModalDialog from '../components/shared/ModalDialog.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import EmptyState from '../components/shared/EmptyState.vue'
@@ -19,9 +17,9 @@ const loading = ref(false)
 const showCreate = ref(false)
 const showEdit = ref(false)
 const showMembers = ref(false)
-const showSupplies = ref(false)
-const showFunds = ref(false)
 const selectedParty = ref<PartyOut | null>(null)
+// Track newly created party so we can open member manager right away
+const newPartyId = ref<number | null>(null)
 
 async function fetchParties() {
   loading.value = true
@@ -41,21 +39,18 @@ function openMembers(party: PartyOut) {
   showMembers.value = true
 }
 
-function openSupplies(party: PartyOut) {
-  selectedParty.value = party
-  showSupplies.value = true
-}
-
-function openFunds(party: PartyOut) {
-  selectedParty.value = party
-  showFunds.value = true
-}
-
-async function onSaved() {
+async function onSaved(party?: PartyOut) {
   showCreate.value = false
   showEdit.value = false
   await fetchParties()
   notifications.add('Party saved', 'success')
+
+  // If we just created a new party, open member manager
+  if (party && newPartyId.value === null && !showEdit.value) {
+    newPartyId.value = party.id
+    selectedParty.value = await partiesApi.getById(party.id)
+    showMembers.value = true
+  }
 }
 
 async function onMembersUpdated() {
@@ -64,22 +59,15 @@ async function onMembersUpdated() {
   notifications.add('Party members updated', 'success')
 }
 
-async function onSuppliesUpdated() {
-  await refreshSelectedParty()
-  await fetchParties()
-  notifications.add('Party supplies updated', 'success')
-}
-
-async function onFundsUpdated() {
-  showFunds.value = false
-  await fetchParties()
-  notifications.add('Party funds updated', 'success')
-}
-
 async function refreshSelectedParty() {
   if (selectedParty.value) {
     selectedParty.value = await partiesApi.getById(selectedParty.value.id)
   }
+}
+
+function onMembersClose() {
+  showMembers.value = false
+  newPartyId.value = null
 }
 </script>
 
@@ -115,22 +103,10 @@ async function refreshSelectedParty() {
       <PartyForm v-if="selectedParty" :party="selectedParty" @saved="onSaved" @cancel="showEdit = false" />
     </ModalDialog>
 
-    <ModalDialog :is-open="showMembers" title="Manage Members" @close="showMembers = false">
+    <ModalDialog :is-open="showMembers" title="Manage Members" @close="onMembersClose">
       <template v-if="selectedParty">
         <PartyMemberManager :party="selectedParty" @updated="onMembersUpdated" />
-        <div class="mt-2">
-          <button class="btn btn-secondary btn-sm" @click="openSupplies(selectedParty!)">Manage Supplies</button>
-          <button class="btn btn-secondary btn-sm" @click="openFunds(selectedParty!)">Manage Funds</button>
-        </div>
       </template>
-    </ModalDialog>
-
-    <ModalDialog :is-open="showSupplies" title="Manage Supplies" @close="showSupplies = false">
-      <PartySupplyManager v-if="selectedParty" :party="selectedParty" @updated="onSuppliesUpdated" />
-    </ModalDialog>
-
-    <ModalDialog :is-open="showFunds" title="Manage Funds" @close="showFunds = false">
-      <PartyFundsForm v-if="selectedParty" :party="selectedParty" @updated="onFundsUpdated" @cancel="showFunds = false" />
     </ModalDialog>
   </div>
 </template>
