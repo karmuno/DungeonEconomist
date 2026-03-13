@@ -23,7 +23,16 @@ async function advanceDay() {
         death: 'error',
         upkeep: 'warning',
       }
-      notifications.add(event.message, { type: typeMap[event.type] ?? 'info' })
+      const opts: Parameters<typeof notifications.add>[1] = {
+        type: typeMap[event.type] ?? 'info',
+      }
+      if (event.type === 'expedition_complete' && event.expedition_id) {
+        opts.action = {
+          label: 'View Summary',
+          route: `/expedition/${event.expedition_id}/summary`,
+        }
+      }
+      notifications.add(event.message, opts)
     }
     if (result.events.length === 0) {
       notifications.add('Day advanced — nothing happened', { type: 'info', duration: 3000 })

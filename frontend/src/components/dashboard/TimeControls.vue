@@ -46,9 +46,16 @@ async function advance(days: number) {
 
     // Show individual event notifications
     for (const event of allEvents) {
-      notifications.add(event.message, {
+      const opts: Parameters<typeof notifications.add>[1] = {
         type: eventNotificationType(event),
-      })
+      }
+      if (event.type === 'expedition_complete' && event.expedition_id) {
+        opts.action = {
+          label: 'View Summary',
+          route: `/expedition/${event.expedition_id}/summary`,
+        }
+      }
+      notifications.add(event.message, opts)
     }
 
     if (allEvents.length === 0) {

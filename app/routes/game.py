@@ -267,7 +267,8 @@ def advance_day(db: Session = Depends(get_db)):
 
             events.append(GameEvent(
                 type="expedition_complete",
-                message=f"Party '{party_name}' returned from expedition"
+                message=f"Party '{party_name}' returned from expedition",
+                expedition_id=expedition.id,
             ))
             for evt in resolution.get("events", []):
                 events.append(GameEvent(type=evt["type"], message=evt["message"]))

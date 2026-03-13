@@ -428,6 +428,72 @@ def list_expeditions(db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/expeditions/{expedition_id}/summary")
+def get_expedition_summary(expedition_id: int, db: Session = Depends(get_db)):
+    """Get expedition summary with member results and readiness estimate."""
+    expedition = db.query(Expedition).filter(Expedition.id == expedition_id).first()
+    if not expedition:
+        raise HTTPException(status_code=404, detail="Expedition not found")
+
+    party = db.query(Party).filter(Party.id == expedition.party_id).first()
+    logs = db.query(ExpeditionLog).filter(
+        ExpeditionLog.expedition_id == expedition_id
+    ).all()
+
+    member_results = []
+    max_heal_days = 0
+    for log in logs:
+        adv = log.adventurer
+        is_alive = log.status != "dead"
+        if is_alive and adv.hp_current < adv.hp_max:
+            heal_days = adv.hp_max - adv.hp_current
+            max_heal_days = max(max_heal_days, heal_days)
+        member_results.append({
+            "name": adv.name,
+            "adventurer_class": adv.adventurer_class.value,
+            "level": adv.level,
+            "alive": is_alive,
+            "hp_current": adv.hp_current,
+            "hp_max": adv.hp_max,
+            "xp_gained": log.xp_share,
+            "gold": adv.gold,
+            "silver": adv.silver,
+            "copper": adv.copper,
+        })
+
+    game_time = db.query(GameTime).first()
+    current_day = game_time.current_day if game_time else 0
+    estimated_readiness_day = current_day + max_heal_days if max_heal_days > 0 else current_day
+
+    node_results = db.query(ExpeditionNodeResult).filter(
+        ExpeditionNodeResult.expedition_id == expedition_id
+    ).all()
+    total_loot = sum(n.loot for n in node_results)
+    total_xp = sum(n.xp_earned for n in node_results)
+
+    events_log = []
+    for node in node_results:
+        try:
+            events_log.append(json.loads(node.log))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return {
+        "expedition_id": expedition_id,
+        "party_id": expedition.party_id,
+        "party_name": party.name if party else "Unknown",
+        "start_day": expedition.start_day,
+        "return_day": expedition.return_day,
+        "duration_days": expedition.duration_days,
+        "result": expedition.result,
+        "member_results": member_results,
+        "total_loot": total_loot,
+        "total_xp": total_xp,
+        "events_log": events_log,
+        "estimated_readiness_day": estimated_readiness_day,
+    }
+
+
 @router.post("/expeditions/{expedition_id}/advance", response_model=TurnResult)
 def advance_expedition_turn(expedition_id: int, db: Session = Depends(get_db)):
     """Advance an expedition by one turn"""

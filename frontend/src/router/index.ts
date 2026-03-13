@@ -34,6 +34,16 @@ const router = createRouter({
       name: 'expeditions',
       component: () => import('../views/ExpeditionsView.vue'),
     },
+    {
+      path: '/launch-expedition/:partyId?',
+      name: 'launch-expedition',
+      component: () => import('../views/ExpeditionLaunchView.vue'),
+    },
+    {
+      path: '/expedition/:id/summary',
+      name: 'expedition-summary',
+      component: () => import('../views/ExpeditionSummaryView.vue'),
+    },
   ],
 })
 

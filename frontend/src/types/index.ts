@@ -105,6 +105,7 @@ export interface PartyStatus {
 export interface GameEvent {
   type: 'recruitment' | 'healing' | 'expedition_complete' | 'auto_start' | 'upkeep' | string
   message: string
+  expedition_id?: number | null
 }
 
 export interface GameTimeInfo {

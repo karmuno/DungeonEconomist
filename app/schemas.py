@@ -145,6 +145,7 @@ class AdventurerLevelUpInfo(BaseModel):
 class GameEvent(BaseModel):
     type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep'
     message: str
+    expedition_id: Optional[int] = None
 
 class GameTimeInfo(BaseModel):
     current_day: int
