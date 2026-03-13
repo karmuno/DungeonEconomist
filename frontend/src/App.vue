@@ -24,9 +24,13 @@ function handleAction(notification: (typeof notifications.messages.value)[0]) {
   notifications.remove(notification.id)
 }
 
-onMounted(() => {
-  gameTime.fetchTime()
-  player.fetchPlayer()
+onMounted(async () => {
+  try {
+    await gameTime.fetchTime()
+    await player.fetchPlayer()
+  } catch {
+    // Game doesn't exist yet — nav guard will redirect to /new-game
+  }
 })
 </script>
 

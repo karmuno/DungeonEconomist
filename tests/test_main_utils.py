@@ -200,14 +200,11 @@ def test_advance_day_existing_gametime(client: TestClient, db_session: Session):
     data = response.json()
     assert data["current_day"] == 6
 
-def test_advance_day_no_initial_gametime(client: TestClient, db_session: Session):
+def test_advance_day_no_initial_gametime_returns_404(client: TestClient, db_session: Session):
     assert db_session.query(GameTime).first() is None
 
     response = client.post("/time/advance-day")
-    assert response.status_code == 200
-
-    data = response.json()
-    assert data["current_day"] == 1
+    assert response.status_code == 404
 
 def test_advance_day_heals_adventurers(client: TestClient, db_session: Session):
     """Adventurers heal 1 HP per day when not on expedition"""
@@ -251,22 +248,32 @@ def test_advance_day_adventurer_becomes_available_at_full_hp(client: TestClient,
     assert adv.hp_current == 10
     assert adv.is_available
 
-def test_game_initialization_auto_generates_adventurers(client: TestClient, db_session: Session):
-    """First game time fetch should auto-generate 6 adventurers and start at day 1"""
-    # No game time, no adventurers
-    assert db_session.query(Adventurer).count() == 0
+def test_game_time_returns_404_when_no_game(client: TestClient, db_session: Session):
+    """GET /time/ should return 404 when no game exists"""
+    assert db_session.query(GameTime).first() is None
 
     response = client.get("/time/")
+    assert response.status_code == 404
+
+
+def test_new_game_creates_adventurers_and_starts_at_day_1(client: TestClient, db_session: Session):
+    """POST /game/new should create 6 adventurers and start at day 1"""
+    assert db_session.query(Adventurer).count() == 0
+
+    response = client.post("/game/new", json={"keep_name": "Test Keep"})
     assert response.status_code == 200
 
     data = response.json()
     assert data["current_day"] == 1
+    assert data["keep_name"] == "Test Keep"
 
     # Should have 6 adventurers (one per class)
     assert db_session.query(Adventurer).count() == 6
 
-    # Should have at least one player
-    assert db_session.query(Player).count() >= 1
+    # Should have one player named "Test Keep"
+    player = db_session.query(Player).first()
+    assert player is not None
+    assert player.name == "Test Keep"
 
 
 # --- Test for POST /parties/ ---

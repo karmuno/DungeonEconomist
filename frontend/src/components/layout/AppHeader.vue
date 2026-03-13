@@ -27,9 +27,9 @@ function handleRestart() {
 }
 
 async function doRestart() {
-  await post('/game/new', {})
-  await gameTime.fetchTime()
-  await player.fetchPlayer()
+  await post('/game/reset')
+  gameTime.currentDay = 0
+  player.name = ''
   router.push({ name: 'new-game' })
 }
 </script>

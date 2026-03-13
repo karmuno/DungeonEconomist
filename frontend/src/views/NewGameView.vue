@@ -19,7 +19,7 @@ async function createKeep() {
     await post('/game/new', { keep_name: keepName.value.trim() })
     await gameTime.fetchTime()
     await player.fetchPlayer()
-    router.push('/')
+    router.push('/form-party')
   } finally {
     submitting.value = false
   }

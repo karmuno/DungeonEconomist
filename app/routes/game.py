@@ -231,8 +231,7 @@ def advance_day(db: Session = Depends(get_db)):
 
     game_time = db.query(GameTime).first()
     if not game_time:
-        game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
-        db.add(game_time)
+        raise HTTPException(status_code=404, detail="No game exists. Start a new game first.")
 
     game_time.current_day += 1
     game_time.last_updated = datetime.now()
@@ -301,7 +300,9 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     graveyard_count = db.query(Adventurer).filter(Adventurer.is_dead == True).count()
     debtors_prison_count = db.query(Adventurer).filter(Adventurer.is_bankrupt == True).count()
 
-    game_time = ensure_game_initialized(db)
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        raise HTTPException(status_code=404, detail="No game exists")
 
     player = db.query(Player).first()
 
@@ -412,13 +413,8 @@ def get_game_status(db: Session = Depends(get_db)):
     return {"exists": True, "keep_name": player.name if player else None}
 
 
-@router.post("/game/new")
-def new_game(data: dict = None, db: Session = Depends(get_db)):
-    """Start a new game. Deletes all data and reinitializes.
-    Accepts optional {keep_name: str}."""
-    keep_name = (data or {}).get("keep_name", "Default Keep")
-
-    # Delete all data in dependency order
+def _delete_all_game_data(db: Session) -> None:
+    """Delete all game data in dependency order."""
     db.execute(party_adventurer.delete())
     db.query(ExpeditionLog).delete()
     db.query(ExpeditionNodeResult).delete()
@@ -429,7 +425,18 @@ def new_game(data: dict = None, db: Session = Depends(get_db)):
     db.query(GameTime).delete()
     db.commit()
 
-    # Reinitialize
+
+@router.post("/game/new")
+def new_game(data: dict = None, db: Session = Depends(get_db)):
+    """Start a new game. Deletes all existing data and initializes with keep_name.
+    Requires {keep_name: str}."""
+    keep_name = (data or {}).get("keep_name")
+    if not keep_name:
+        raise HTTPException(status_code=400, detail="keep_name is required")
+
+    _delete_all_game_data(db)
+
+    # Initialize
     game_time = ensure_game_initialized(db, keep_name=keep_name)
     player = db.query(Player).first()
 
@@ -439,8 +446,17 @@ def new_game(data: dict = None, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/game/reset")
+def reset_game(db: Session = Depends(get_db)):
+    """Delete all game data. Returns to pre-game state."""
+    _delete_all_game_data(db)
+    return {"status": "ok"}
+
+
 @router.get("/time/", response_model=GameTimeInfo)
 def get_game_time(db: Session = Depends(get_db)):
-    """Get current game time"""
-    game_time = ensure_game_initialized(db)
+    """Get current game time. Does NOT auto-initialize — use POST /game/new."""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        raise HTTPException(status_code=404, detail="No game exists. Start a new game first.")
     return game_time
