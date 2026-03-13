@@ -53,6 +53,8 @@ def seed():
                 hp_max=hp_max,
                 hp_current=hp_max,
                 gold=100,
+                silver=0,
+                copper=0,
                 is_available=True,
             )
             db.add(adventurer)

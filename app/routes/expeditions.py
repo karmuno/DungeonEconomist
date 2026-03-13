@@ -96,17 +96,21 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
                 member.is_available = True  # Immediately available on return
                 living_members.append(member)
 
-        # All loot goes to living adventurers evenly
+        # All loot goes to living adventurers evenly (loot is in copper)
         # Player treasury is funded only through monthly upkeep
-        total_loot = sim_result.get("treasure_total", 0)
+        total_loot_copper = sim_result.get("treasure_total", 0) * 100  # convert GP to copper
         living_count = len(living_members)
-        if living_count > 0 and total_loot > 0:
-            individual_share = total_loot // living_count
+        if living_count > 0 and total_loot_copper > 0:
+            individual_share_copper = total_loot_copper // living_count
             for member in living_members:
-                member.gold += individual_share
+                member.add_currency(individual_share_copper)
 
-        if total_loot > 0:
-            events.append({"type": "loot", "message": f"Earned {total_loot} GP ({total_loot // max(1, living_count)} GP each to {living_count} adventurer{'s' if living_count != 1 else ''})"})
+        if total_loot_copper > 0:
+            from app.routes.game import format_currency, copper_to_parts
+            share_copper = total_loot_copper // max(1, living_count)
+            g, s, c = copper_to_parts(share_copper)
+            total_g, total_s, total_c = copper_to_parts(total_loot_copper)
+            events.append({"type": "loot", "message": f"Earned {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each to {living_count} adventurer{'s' if living_count != 1 else ''})"})
 
         # Remove dead members from party
         party.members = [m for m in party.members if not m.is_dead]

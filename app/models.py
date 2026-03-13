@@ -16,13 +16,31 @@ class GameTime(Base):
 
 class Player(Base):
     __tablename__ = 'players'
-    
+
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    treasury = Column(Integer, default=0)  # Treasury for collecting gold (30% of loot)
-    total_score = Column(Integer, default=0)  # Total gold collected over time (for scoring)
-    
+    treasury_gold = Column(Integer, default=0)
+    treasury_silver = Column(Integer, default=0)
+    treasury_copper = Column(Integer, default=0)
+    total_score = Column(Integer, default=0)  # Total copper collected over time (for scoring)
+
     parties = relationship('Party', back_populates='player')
+
+    @property
+    def treasury(self) -> int:
+        """Legacy accessor: total treasury in gold pieces (floored)."""
+        return self.treasury_total_copper() // 100
+
+    def treasury_total_copper(self) -> int:
+        """Convert all treasury currency to copper pieces."""
+        return (self.treasury_gold * 100) + (self.treasury_silver * 10) + self.treasury_copper
+
+    def add_treasury(self, copper_amount: int) -> None:
+        """Add currency to treasury given as copper, distributing into gp/sp/cp."""
+        total = self.treasury_total_copper() + copper_amount
+        self.treasury_gold = total // 100
+        self.treasury_silver = (total % 100) // 10
+        self.treasury_copper = total % 10
 
 # Association table between Party and Adventurer
 party_adventurer = Table(
@@ -51,6 +69,8 @@ class Adventurer(Base):
     hp_current = Column(Integer, default=10)
     hp_max = Column(Integer, default=10)
     gold = Column(Integer, default=0)
+    silver = Column(Integer, default=0)
+    copper = Column(Integer, default=0)
     is_available = Column(Boolean, default=True)
     on_expedition = Column(Boolean, default=False)
     is_bankrupt = Column(Boolean, default=False, nullable=False)
@@ -60,6 +80,28 @@ class Adventurer(Base):
 
     parties = relationship('Party', secondary=party_adventurer, back_populates='members')
     expedition_logs = relationship('ExpeditionLog', back_populates='adventurer')
+
+    def total_copper(self) -> int:
+        """Convert all currency to copper pieces."""
+        return (self.gold * 100) + (self.silver * 10) + self.copper
+
+    def add_currency(self, copper_amount: int) -> None:
+        """Add currency given as copper, distributing into gp/sp/cp."""
+        total = self.total_copper() + copper_amount
+        self.gold = total // 100
+        self.silver = (total % 100) // 10
+        self.copper = total % 10
+
+    def subtract_currency(self, copper_amount: int) -> bool:
+        """Subtract currency given as copper. Returns False if insufficient funds."""
+        total = self.total_copper()
+        if total < copper_amount:
+            return False
+        remaining = total - copper_amount
+        self.gold = remaining // 100
+        self.silver = (remaining % 100) // 10
+        self.copper = remaining % 10
+        return True
 
 class Party(Base):
     __tablename__ = 'parties'

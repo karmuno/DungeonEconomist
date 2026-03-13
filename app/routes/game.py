@@ -96,7 +96,7 @@ def auto_start_day_one(db: Session) -> list:
     # Ensure a default player exists
     player = db.query(Player).first()
     if not player:
-        player = Player(name="Default Player", treasury=0, total_score=0)
+        player = Player(name="Default Player", treasury_gold=0, treasury_silver=0, treasury_copper=0, total_score=0)
         db.add(player)
 
     new_adventurers = []
@@ -107,10 +107,30 @@ def auto_start_day_one(db: Session) -> list:
     return new_adventurers
 
 
+def format_currency(gold: int, silver: int, copper: int) -> str:
+    """Format currency as a human-readable string like '2gp 3sp 5cp'."""
+    parts = []
+    if gold > 0:
+        parts.append(f"{gold}gp")
+    if silver > 0:
+        parts.append(f"{silver}sp")
+    if copper > 0:
+        parts.append(f"{copper}cp")
+    return " ".join(parts) if parts else "0cp"
+
+
+def copper_to_parts(total_copper: int) -> tuple[int, int, int]:
+    """Convert a copper amount to (gold, silver, copper) tuple."""
+    g = total_copper // 100
+    s = (total_copper % 100) // 10
+    c = total_copper % 10
+    return g, s, c
+
+
 def process_upkeep(db: Session, current_day: int) -> list[GameEvent]:
     """
     Run monthly upkeep if current_day is a multiple of 30.
-    Upkeep cost is 1% of XP (floored). If adventurer cannot pay, they are
+    Upkeep cost is 1 cp per XP (floored). If adventurer cannot pay, they are
     permanently removed to debtor's prison.
     Returns list of events.
     """
@@ -121,7 +141,7 @@ def process_upkeep(db: Session, current_day: int) -> list[GameEvent]:
 
     player = db.query(Player).first()
     if not player:
-        player = Player(name="Default Player", treasury=0, total_score=0)
+        player = Player(name="Default Player", treasury_gold=0, treasury_silver=0, treasury_copper=0, total_score=0)
         db.add(player)
         db.flush()
 
@@ -130,28 +150,32 @@ def process_upkeep(db: Session, current_day: int) -> list[GameEvent]:
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
     ).all()
-    total_gold_transferred = 0
+    total_copper_transferred = 0
     bankrupt_count = 0
 
     for adv in adventurers:
-        cost = math.floor(adv.xp * 0.01)
+        # Upkeep cost: 1 copper per XP
+        cost_copper = math.floor(adv.xp * 1)
 
-        if cost <= 0:
+        if cost_copper <= 0:
             continue
 
-        if adv.gold >= cost:
-            adv.gold -= cost
-            player.treasury += cost
-            player.total_score += cost
-            total_gold_transferred += cost
+        if adv.total_copper() >= cost_copper:
+            adv.subtract_currency(cost_copper)
+            player.add_treasury(cost_copper)
+            player.total_score += cost_copper
+            total_copper_transferred += cost_copper
         else:
             # Bankruptcy is permanent — adventurer goes to debtor's prison
-            if adv.gold > 0:
-                player.treasury += adv.gold
-                player.total_score += adv.gold
-                total_gold_transferred += adv.gold
+            remaining = adv.total_copper()
+            if remaining > 0:
+                player.add_treasury(remaining)
+                player.total_score += remaining
+                total_copper_transferred += remaining
 
             adv.gold = 0
+            adv.silver = 0
+            adv.copper = 0
             adv.is_bankrupt = True
             adv.bankruptcy_day = current_day
             adv.is_available = False
@@ -166,10 +190,11 @@ def process_upkeep(db: Session, current_day: int) -> list[GameEvent]:
                 message=f"{adv.name} went bankrupt and was sent to debtor's prison"
             ))
 
-    if total_gold_transferred > 0:
+    if total_copper_transferred > 0:
+        g, s, c = copper_to_parts(total_copper_transferred)
         events.insert(0, GameEvent(
             type="upkeep",
-            message=f"Upkeep day! {total_gold_transferred} GP collected to treasury"
+            message=f"Upkeep day! {format_currency(g, s, c)} collected to treasury"
         ))
     else:
         events.insert(0, GameEvent(
@@ -278,8 +303,10 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         "debtors_prison_count": debtors_prison_count,
         "party_count": party_count,
         "expedition_count": expedition_count,
-        "treasury": player.treasury,
-        "total_score": player.total_score,
+        "treasury_gold": player.treasury_gold if player else 0,
+        "treasury_silver": player.treasury_silver if player else 0,
+        "treasury_copper": player.treasury_copper if player else 0,
+        "total_score": player.total_score if player else 0,
         "current_day": game_time.current_day,
         "active_expeditions": [
             {
@@ -349,7 +376,7 @@ def ensure_game_initialized(db: Session) -> GameTime:
         # Ensure default player
         player = db.query(Player).first()
         if not player:
-            player = Player(name="Default Player", treasury=0, total_score=0)
+            player = Player(name="Default Player", treasury_gold=0, treasury_silver=0, treasury_copper=0, total_score=0)
             db.add(player)
 
         # Auto-generate starting adventurers

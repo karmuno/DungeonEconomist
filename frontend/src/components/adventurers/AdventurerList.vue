@@ -3,6 +3,7 @@ import type { AdventurerOut } from '../../types'
 import ProgressBar from '../shared/ProgressBar.vue'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
+import { formatCurrency } from '../../utils/currency'
 
 defineProps<{
   adventurers: AdventurerOut[]
@@ -47,7 +48,7 @@ function displayStatus(adv: AdventurerOut): string {
         <td>{{ adv.level }}</td>
         <td><ProgressBar :value="adv.hp_current" :max="adv.hp_max" /></td>
         <td>{{ adv.xp }}</td>
-        <td class="text-gold">{{ adv.gold }} GP</td>
+        <td class="text-gold">{{ formatCurrency(adv.gold, adv.silver, adv.copper) }}</td>
         <td><StatusBadge :status="displayStatus(adv)" /></td>
       </tr>
     </tbody>

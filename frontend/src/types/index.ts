@@ -28,6 +28,8 @@ export interface AdventurerOut {
   hp_current: number
   hp_max: number
   gold: number
+  silver: number
+  copper: number
   is_available: boolean
   on_expedition: boolean
   is_bankrupt: boolean
@@ -57,7 +59,9 @@ export interface AdventurerLevelUpInfo {
 export interface PlayerOut {
   id: number
   name: string
-  treasury: number
+  treasury_gold: number
+  treasury_silver: number
+  treasury_copper: number
   total_score: number
 }
 
@@ -164,7 +168,9 @@ export interface DashboardStats {
   debtors_prison_count: number
   party_count: number
   expedition_count: number
-  treasury: number
+  treasury_gold: number
+  treasury_silver: number
+  treasury_copper: number
   total_score: number
   current_day: number
   active_expeditions: Array<{

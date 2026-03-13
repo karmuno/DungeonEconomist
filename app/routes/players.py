@@ -12,7 +12,7 @@ router = APIRouter()
 @router.post("/players/", response_model=PlayerOut)
 def create_player(player: PlayerCreate, db: Session = Depends(get_db)):
     """Create a new player"""
-    db_player = Player(name=player.name, treasury=0, total_score=0)
+    db_player = Player(name=player.name, treasury_gold=0, treasury_silver=0, treasury_copper=0, total_score=0)
     db.add(db_player)
     db.commit()
     db.refresh(db_player)

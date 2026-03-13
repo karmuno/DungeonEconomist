@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DashboardStats } from '../../types'
+import { formatCurrency } from '../../utils/currency'
 
 defineProps<{
   stats: DashboardStats
@@ -21,7 +22,7 @@ defineProps<{
       <div class="stat-label">Expeditions</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value text-green">{{ stats.treasury }} GP</div>
+      <div class="stat-value text-green">{{ formatCurrency(stats.treasury_gold, stats.treasury_silver, stats.treasury_copper) }}</div>
       <div class="stat-label">Treasury</div>
     </div>
     <div class="stat-card">

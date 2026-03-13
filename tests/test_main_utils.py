@@ -69,8 +69,8 @@ def create_game_time_db(db: Session, current_day: int):
     return gt
 
 # Helper to create Player
-def create_player_db(db: Session, name: str, treasury: int = 0, total_score: int = 0):
-    player = Player(name=name, treasury=treasury, total_score=total_score)
+def create_player_db(db: Session, name: str, treasury_gold: int = 0, total_score: int = 0):
+    player = Player(name=name, treasury_gold=treasury_gold, treasury_silver=0, treasury_copper=0, total_score=total_score)
     db.add(player)
     db.commit()
     db.refresh(player)
@@ -83,38 +83,40 @@ def test_upkeep_successful_payment(client: TestClient, db_session: Session):
     create_game_time_db(db_session, 29)  # advance_day will move to 30
     adv_xp = 2000
     adv_gold_initial = 100
-    upkeep_cost = math.floor(adv_xp * 0.01) # 20
+    # Upkeep cost: 1 copper per XP = 2000cp = 20gp
+    upkeep_cost_copper = math.floor(adv_xp * 1)
     adv = create_adventurer_db(db_session, name="TestAdv1", xp=adv_xp, gold=adv_gold_initial)
 
     response = client.post("/time/advance-day")
     assert response.status_code == 200
 
     db_session.refresh(adv)
-    assert adv.gold == adv_gold_initial - upkeep_cost
+    # 100gp = 10000cp, minus 2000cp = 8000cp = 80gp
+    assert adv.total_copper() == (adv_gold_initial * 100) - upkeep_cost_copper
     assert not adv.is_bankrupt
 
     db_session.refresh(player)
-    assert player.treasury == upkeep_cost
-    assert player.total_score == upkeep_cost
+    assert player.treasury_total_copper() == upkeep_cost_copper
+    assert player.total_score == upkeep_cost_copper
 
 def test_upkeep_adventurer_goes_bankrupt_permanently(client: TestClient, db_session: Session):
     player = create_player_db(db_session, name="TestPlayer2")
     create_game_time_db(db_session, 29)  # advance_day will move to 30
     adv_xp = 2000
-    adv_initial_gold = 10
+    adv_initial_gold = 10  # 10gp = 1000cp, cost = 2000cp -> bankrupt
     adv = create_adventurer_db(db_session, name="TestAdv2", xp=adv_xp, gold=adv_initial_gold)
 
     response = client.post("/time/advance-day")
     assert response.status_code == 200
 
     db_session.refresh(adv)
-    assert adv.gold == 0
+    assert adv.total_copper() == 0
     assert adv.is_bankrupt
     assert adv.bankruptcy_day == 30
     assert not adv.is_available
 
     db_session.refresh(player)
-    assert player.treasury == adv_initial_gold
+    assert player.treasury_total_copper() == adv_initial_gold * 100
 
 def test_upkeep_no_upkeep_due_not_day_30(client: TestClient, db_session: Session):
     player = create_player_db(db_session, name="TestPlayer5")

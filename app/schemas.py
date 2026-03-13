@@ -40,6 +40,8 @@ class AdventurerOut(BaseModel):
     hp_current: int
     hp_max: int
     gold: int
+    silver: int = 0
+    copper: int = 0
     is_available: bool
     on_expedition: bool = False
     is_bankrupt: bool = False
@@ -66,7 +68,9 @@ class PlayerCreate(PlayerBase):
 
 class PlayerOut(PlayerBase):
     id: int
-    treasury: int = 0
+    treasury_gold: int = 0
+    treasury_silver: int = 0
+    treasury_copper: int = 0
     total_score: int = 0
 
     class Config:

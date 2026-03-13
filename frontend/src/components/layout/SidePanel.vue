@@ -2,6 +2,7 @@
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore } from '../../stores/notifications'
+import { formatCurrency } from '../../utils/currency'
 
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
@@ -41,7 +42,7 @@ async function advanceDay() {
 
     <div class="panel-section">
       <h3 class="section-label">Treasury</h3>
-      <div class="treasury-value">{{ player.treasury }} GP</div>
+      <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
     </div>
 
     <div class="panel-section">

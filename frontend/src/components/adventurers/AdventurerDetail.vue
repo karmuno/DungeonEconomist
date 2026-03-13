@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { AdventurerOut } from '../../types'
 import ProgressBar from '../shared/ProgressBar.vue'
 import StatusBadge from '../shared/StatusBadge.vue'
+import { formatCurrency } from '../../utils/currency'
 
 const props = defineProps<{
   adventurer: AdventurerOut
@@ -47,8 +48,8 @@ function displayStatus(adv: AdventurerOut): string {
         <div class="stat-label">Level</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value text-gold">{{ adventurer.gold }} GP</div>
-        <div class="stat-label">Gold</div>
+        <div class="stat-value text-gold">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</div>
+        <div class="stat-label">Wealth</div>
       </div>
     </div>
 
