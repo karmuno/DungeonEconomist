@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useGameTimeStore } from './stores/gameTime'
 import { usePlayerStore } from './stores/player'
 import { useNotificationsStore } from './stores/notifications'
@@ -8,9 +8,12 @@ import AppHeader from './components/layout/AppHeader.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 
 const router = useRouter()
+const route = useRoute()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
+
+const isNewGame = computed(() => route.name === 'new-game')
 
 function handleAction(notification: (typeof notifications.messages.value)[0]) {
   if (notification.action?.callback) {
@@ -28,13 +31,20 @@ onMounted(() => {
 </script>
 
 <template>
-  <AppHeader />
-  <div class="app-layout">
-    <SidePanel />
-    <div class="main-content">
+  <template v-if="isNewGame">
+    <div class="main-content" style="margin-left: 0">
       <router-view />
     </div>
-  </div>
+  </template>
+  <template v-else>
+    <AppHeader />
+    <div class="app-layout">
+      <SidePanel />
+      <div class="main-content">
+        <router-view />
+      </div>
+    </div>
+  </template>
 
   <div class="toast-container">
     <div
