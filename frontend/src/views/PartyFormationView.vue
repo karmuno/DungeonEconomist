@@ -68,7 +68,7 @@ async function formParty() {
       await partiesApi.addMember({ party_id: party.id, adventurer_id: member.id })
     }
     notifications.add(`Party "${party.name}" formed with ${selectedMembers.value.length} members`, 'success')
-    router.push({ name: 'expeditions', query: { partyId: party.id } })
+    router.push('/')
   } catch {
     notifications.add('Failed to form party', 'error')
   } finally {
