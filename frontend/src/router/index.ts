@@ -25,6 +25,11 @@ const router = createRouter({
       component: () => import('../views/PartiesView.vue'),
     },
     {
+      path: '/form-party',
+      name: 'form-party',
+      component: () => import('../views/PartyFormationView.vue'),
+    },
+    {
       path: '/expeditions',
       name: 'expeditions',
       component: () => import('../views/ExpeditionsView.vue'),
