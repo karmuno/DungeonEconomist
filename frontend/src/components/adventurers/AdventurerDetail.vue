@@ -30,31 +30,18 @@ const canLevelUp = computed(() => {
       <StatusBadge :status="displayStatus(adventurer)" />
     </div>
 
-    <div class="stats-grid mb-3">
-      <div class="stat-card">
-        <div class="stat-value">{{ adventurer.adventurer_class }}</div>
-        <div class="stat-label">Class</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ adventurer.level }}</div>
-        <div class="stat-label">Level</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value text-gold">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</div>
-        <div class="stat-label">Wealth</div>
-      </div>
+    <div class="detail-stats mb-2">
+      <span><strong>{{ adventurer.adventurer_class }}</strong> Lv.{{ adventurer.level }}</span>
+      <span class="text-gold">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</span>
     </div>
 
-    <div class="mb-2">
-      <strong>HP</strong>
+    <div class="mb-1">
+      <span class="bar-label">HP</span>
       <ProgressBar :value="adventurer.hp_current" :max="adventurer.hp_max" />
     </div>
 
-    <div class="mb-2">
-      <strong>XP: {{ adventurer.xp }}</strong>
-      <template v-if="adventurer.next_level_xp != null">
-        / {{ adventurer.next_level_xp }}
-      </template>
+    <div class="mb-1">
+      <span class="bar-label">XP: {{ adventurer.xp }}<template v-if="adventurer.next_level_xp != null"> / {{ adventurer.next_level_xp }}</template></span>
       <ProgressBar
         v-if="adventurer.next_level_xp != null"
         :value="adventurer.xp"
@@ -63,15 +50,15 @@ const canLevelUp = computed(() => {
       />
     </div>
 
-    <div v-if="adventurer.is_dead" class="mb-2 text-danger">
+    <div v-if="adventurer.is_dead" class="mb-1 text-danger">
       Died on day {{ adventurer.death_day }}
     </div>
 
-    <div v-if="adventurer.is_bankrupt" class="mb-2 text-danger">
+    <div v-if="adventurer.is_bankrupt" class="mb-1 text-danger">
       Sent to debtor's prison on day {{ adventurer.bankruptcy_day }}
     </div>
 
-    <div class="flex gap-1 mt-3">
+    <div class="flex gap-1 mt-2">
       <button
         v-if="canLevelUp"
         class="btn btn-primary"
@@ -83,3 +70,16 @@ const canLevelUp = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.detail-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+</style>

@@ -246,18 +246,18 @@ async function deleteParty() {
 .formation-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 12px;
 }
 
 .formation-column {
-  min-height: 400px;
+  min-height: 200px;
 }
 
 .formation-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 6px;
+  padding: 4px 0;
   border-bottom: 1px solid var(--border-color);
 }
 

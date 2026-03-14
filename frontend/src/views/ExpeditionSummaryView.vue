@@ -185,8 +185,8 @@ function outcomeClass(outcome: string): string {
 <style scoped>
 .summary-stats {
   display: flex;
-  gap: 20px;
-  font-size: 13px;
+  gap: 12px;
+  font-size: 12px;
 }
 
 .badge-alive {
@@ -215,19 +215,19 @@ function outcomeClass(outcome: string): string {
 }
 
 .events-log {
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
 }
 
 .turn-entry {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .turn-header {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -235,10 +235,10 @@ function outcomeClass(outcome: string): string {
 .event-entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: 6px;
+  padding: 3px 0;
   border-bottom: 1px solid var(--border-color);
-  font-size: 14px;
+  font-size: 12px;
   flex-wrap: wrap;
 }
 </style>

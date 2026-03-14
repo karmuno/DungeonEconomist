@@ -77,21 +77,22 @@ async function skipToEvent() {
   <aside class="side-panel">
     <div class="panel-section">
       <h3 class="section-label">Game Day</h3>
-      <div class="day-value">{{ gameTime.currentDay }}</div>
-      <div class="day-calendar">{{ formatGameDay(gameTime.currentDay) }}</div>
+      <div class="day-row">
+        <div class="day-value">{{ gameTime.currentDay }}</div>
+        <div class="day-calendar">{{ formatGameDay(gameTime.currentDay) }}</div>
+      </div>
     </div>
 
-    <div class="panel-section">
-      <h3 class="section-label">Treasury</h3>
-      <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
+    <div class="panel-row">
+      <div class="panel-stat">
+        <h3 class="section-label">Treasury</h3>
+        <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
+      </div>
+      <div class="panel-stat">
+        <h3 class="section-label">Score</h3>
+        <div class="score-value">{{ player.totalScore }}</div>
+      </div>
     </div>
-
-    <div class="panel-section">
-      <h3 class="section-label">Score</h3>
-      <div class="score-value">{{ player.totalScore }}</div>
-    </div>
-
-    <hr class="divider" />
 
     <div class="time-controls">
       <button class="advance-btn" @click="advanceDay">Advance Day</button>
@@ -138,69 +139,77 @@ async function skipToEvent() {
   height: calc(100vh - 56px);
   background: var(--bg-primary);
   border-right: 1px solid var(--border-color);
-  padding: 24px 20px;
+  padding: 14px 16px;
   box-sizing: border-box;
   overflow-y: auto;
 }
 
 .panel-section {
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .section-label {
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 1.5px;
   color: var(--text-muted);
-  margin: 0 0 8px;
+  margin: 0 0 2px;
+}
+
+.day-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .day-value {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
 }
 
 .day-calendar {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
-  margin-top: 4px;
+}
+
+.panel-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.panel-stat {
+  flex: 1;
 }
 
 .treasury-value {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--accent-green);
 }
 
 .score-value {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 
-.divider {
-  border: none;
-  border-top: 1px solid var(--border-color);
-  margin: 24px 0;
-}
-
 .time-controls {
   display: flex;
-  flex-direction: column;
   gap: 6px;
 }
 
 .advance-btn {
-  width: 100%;
-  padding: 10px 16px;
+  flex: 1;
+  padding: 8px 12px;
   background: var(--accent-green-dark);
   color: #000;
   border: none;
   border-radius: var(--border-radius);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.15s;
@@ -211,14 +220,14 @@ async function skipToEvent() {
 }
 
 .skip-btn {
-  width: 100%;
-  padding: 8px 16px;
+  flex: 1;
+  padding: 8px 12px;
   background: var(--bg-secondary);
   color: var(--text-muted);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
@@ -237,7 +246,7 @@ async function skipToEvent() {
 .notif-header {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .clear-btn {
@@ -255,21 +264,21 @@ async function skipToEvent() {
 }
 
 .notification-feed {
-  margin-top: 6px;
-  max-height: calc(100vh - 380px);
+  margin-top: 4px;
+  max-height: calc(100vh - 310px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .notif {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 4px;
+  padding: 4px 6px;
   border-radius: var(--border-radius);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.3;
   border: 1px solid transparent;
   background: var(--bg-secondary);
