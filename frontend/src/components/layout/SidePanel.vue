@@ -100,6 +100,9 @@ async function skipToEvent() {
       </button>
     </div>
 
+    <div v-if="notifications.messages.length > 0" class="notif-header">
+      <button class="clear-btn" @click="notifications.clear()">Clear</button>
+    </div>
     <div v-if="notifications.messages.length > 0" class="notification-feed">
       <div
         v-for="notification in notifications.messages"
@@ -231,8 +234,28 @@ async function skipToEvent() {
   cursor: not-allowed;
 }
 
-.notification-feed {
+.notif-header {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 16px;
+}
+
+.clear-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.clear-btn:hover {
+  color: var(--text-primary);
+}
+
+.notification-feed {
+  margin-top: 6px;
   max-height: calc(100vh - 380px);
   overflow-y: auto;
   display: flex;

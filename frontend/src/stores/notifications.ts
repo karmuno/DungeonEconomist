@@ -49,10 +49,15 @@ export const useNotificationsStore = defineStore('notifications', () => {
     messages.value = messages.value.filter((m) => day - m.createdDay < EXPIRY_DAYS)
   }
 
+  function clear() {
+    messages.value = []
+  }
+
   return {
     messages,
     add,
     remove,
     onDayAdvanced,
+    clear,
   }
 })

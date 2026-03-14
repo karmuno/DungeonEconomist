@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { usePlayerStore } from '../../stores/player'
 import { post } from '../../api/client'
 import { useGameTimeStore } from '../../stores/gameTime'
+import { useNotificationsStore } from '../../stores/notifications'
 
 const route = useRoute()
 const router = useRouter()
 const player = usePlayerStore()
 const gameTime = useGameTimeStore()
+const notifications = useNotificationsStore()
 
 const confirmingRestart = ref(false)
 let restartTimeout: ReturnType<typeof setTimeout> | null = null
@@ -30,6 +32,7 @@ async function doRestart() {
   await post('/game/reset')
   gameTime.currentDay = 0
   player.name = ''
+  notifications.clear()
   router.push({ name: 'new-game' })
 }
 </script>
