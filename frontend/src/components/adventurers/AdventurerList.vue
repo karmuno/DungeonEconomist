@@ -4,6 +4,7 @@ import ProgressBar from '../shared/ProgressBar.vue'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
 import { formatCurrency } from '../../utils/currency'
+import { displayStatus } from '../../utils/adventurer'
 
 defineProps<{
   adventurers: AdventurerOut[]
@@ -13,15 +14,6 @@ defineProps<{
 const emit = defineEmits<{
   select: [id: number]
 }>()
-
-function displayStatus(adv: AdventurerOut): string {
-  if (adv.is_dead) return 'Dead'
-  if (adv.is_bankrupt) return 'Bankrupt'
-  if (adv.on_expedition) return 'On Expedition'
-  if (adv.is_available) return 'Available'
-  if (adv.hp_current < adv.hp_max) return 'Recovering'
-  return 'Unavailable'
-}
 </script>
 
 <template>
@@ -49,7 +41,10 @@ function displayStatus(adv: AdventurerOut): string {
         <td>{{ adv.adventurer_class }}</td>
         <td>{{ adv.level }}</td>
         <td>{{ partyNameMap?.[adv.id] ?? '—' }}</td>
-        <td><ProgressBar :value="adv.hp_current" :max="adv.hp_max" /></td>
+        <td>
+          <ProgressBar v-if="!adv.is_dead" :value="adv.hp_current" :max="adv.hp_max" />
+          <span v-else>&mdash;</span>
+        </td>
         <td>{{ adv.xp }}</td>
         <td class="text-gold">{{ formatCurrency(adv.gold, adv.silver, adv.copper) }}</td>
         <td><StatusBadge :status="displayStatus(adv)" /></td>

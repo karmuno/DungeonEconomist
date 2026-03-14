@@ -6,16 +6,19 @@ const props = defineProps<{
 }>()
 
 const badgeClass = computed(() => {
-  switch (props.status) {
+  switch (props.status.toLowerCase()) {
     case 'available':
     case 'alive':
     case 'completed':
       return 'badge-success'
     case 'resting':
+    case 'recovering':
+    case 'on expedition':
     case 'in_progress':
       return 'badge-info'
     case 'injured':
-    case 'Bankrupt':
+    case 'bankrupt':
+    case 'unavailable':
       return 'badge-warning'
     case 'dead':
       return 'badge-danger'

@@ -8,6 +8,7 @@ import { useNotificationsStore } from '../stores/notifications'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import StatusBadge from '../components/shared/StatusBadge.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import { displayStatus } from '../utils/adventurer'
 
 const router = useRouter()
 const notifications = useNotificationsStore()
@@ -63,14 +64,6 @@ async function fetchAll() {
 watch(selectedPartyId, () => {
   confirmingDisband.value = false
 })
-
-function displayStatus(adv: AdventurerOut): string {
-  if (adv.is_dead) return 'Dead'
-  if (adv.is_bankrupt) return 'Bankrupt'
-  if (adv.on_expedition) return 'On Expedition'
-  if (adv.hp_current < adv.hp_max) return 'Recovering'
-  return 'Available'
-}
 
 async function addMember(adv: AdventurerOut) {
   if (!selectedParty.value || selectedParty.value.members.length >= MAX_PARTY_SIZE) return

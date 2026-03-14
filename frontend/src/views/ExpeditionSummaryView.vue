@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as expeditionsApi from '../api/expeditions'
 import type { ExpeditionSummaryDetail } from '../api/expeditions'
 import { useNotificationsStore } from '../stores/notifications'
+import { useGameTimeStore } from '../stores/gameTime'
 import { formatCurrency } from '../utils/currency'
 import { formatGameDayShort } from '../utils/calendar'
 import ProgressBar from '../components/shared/ProgressBar.vue'
@@ -12,14 +13,23 @@ import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 const router = useRouter()
 const route = useRoute()
 const notifications = useNotificationsStore()
+const gameTime = useGameTimeStore()
 
 const summary = ref<ExpeditionSummaryDetail | null>(null)
 const loading = ref(true)
 
-onMounted(async () => {
+async function fetchSummary() {
   const id = Number(route.params.id)
+  summary.value = await expeditionsApi.getSummary(id)
+}
+
+watch(() => gameTime.currentDay, () => {
+  fetchSummary()
+})
+
+onMounted(async () => {
   try {
-    summary.value = await expeditionsApi.getSummary(id)
+    await fetchSummary()
   } catch {
     notifications.add('Failed to load expedition summary', 'error')
     router.push('/')

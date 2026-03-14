@@ -10,7 +10,6 @@ import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import EmptyState from '../components/shared/EmptyState.vue'
 import ModalDialog from '../components/shared/ModalDialog.vue'
 import AdventurerFilters from '../components/adventurers/AdventurerFilters.vue'
-import AdventurerCard from '../components/adventurers/AdventurerCard.vue'
 import AdventurerList from '../components/adventurers/AdventurerList.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
 
@@ -31,7 +30,6 @@ const parties = ref<PartyOut[]>([])
 const graveyard = ref<AdventurerOut[]>([])
 const debtors = ref<AdventurerOut[]>([])
 const loading = ref(true)
-const viewMode = ref<'card' | 'list'>('card')
 const selectedAdventurer = ref<AdventurerOut | null>(null)
 const showDetail = ref(false)
 
@@ -220,41 +218,25 @@ onMounted(fetchAdventurers)
       </button>
     </div>
 
-    <div class="flex flex-between mb-2">
-      <div class="view-toggle">
-        <button
-          :class="{ active: activeTab === 'roster' }"
-          @click="onTabChange('roster')"
-        >
-          Roster
-        </button>
-        <button
-          :class="{ active: activeTab === 'graveyard' }"
-          @click="onTabChange('graveyard')"
-        >
-          Graveyard
-        </button>
-        <button
-          :class="{ active: activeTab === 'debtors' }"
-          @click="onTabChange('debtors')"
-        >
-          Debtor's Prison
-        </button>
-      </div>
-      <div class="view-toggle">
-        <button
-          :class="{ active: viewMode === 'card' }"
-          @click="viewMode = 'card'"
-        >
-          Cards
-        </button>
-        <button
-          :class="{ active: viewMode === 'list' }"
-          @click="viewMode = 'list'"
-        >
-          List
-        </button>
-      </div>
+    <div class="view-toggle mb-2">
+      <button
+        :class="{ active: activeTab === 'roster' }"
+        @click="onTabChange('roster')"
+      >
+        Roster
+      </button>
+      <button
+        :class="{ active: activeTab === 'graveyard' }"
+        @click="onTabChange('graveyard')"
+      >
+        Graveyard
+      </button>
+      <button
+        :class="{ active: activeTab === 'debtors' }"
+        @click="onTabChange('debtors')"
+      >
+        Debtor's Prison
+      </button>
     </div>
 
     <!-- Roster Tab -->
@@ -264,17 +246,7 @@ onMounted(fetchAdventurers)
       <LoadingSpinner v-if="loading" />
       <template v-else>
         <template v-if="filteredAdventurers.length > 0">
-          <div v-if="viewMode === 'card'" class="stats-grid">
-            <AdventurerCard
-              v-for="adv in filteredAdventurers"
-              :key="adv.id"
-              :adventurer="adv"
-              :party-name="partyNameMap[adv.id]"
-              @select="onSelect"
-            />
-          </div>
           <AdventurerList
-            v-else
             :adventurers="filteredAdventurers"
             :party-name-map="partyNameMap"
             @select="onSelect"
@@ -287,41 +259,21 @@ onMounted(fetchAdventurers)
     <!-- Graveyard Tab -->
     <template v-if="activeTab === 'graveyard'">
       <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
-      <template v-else>
-        <div v-if="viewMode === 'card'" class="stats-grid">
-          <AdventurerCard
-            v-for="adv in graveyard"
-            :key="adv.id"
-            :adventurer="adv"
-            @select="onSelect"
-          />
-        </div>
-        <AdventurerList
-          v-else
-          :adventurers="graveyard"
-          @select="onSelect"
-        />
-      </template>
+      <AdventurerList
+        v-else
+        :adventurers="graveyard"
+        @select="onSelect"
+      />
     </template>
 
     <!-- Debtor's Prison Tab -->
     <template v-if="activeTab === 'debtors'">
       <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
-      <template v-else>
-        <div v-if="viewMode === 'card'" class="stats-grid">
-          <AdventurerCard
-            v-for="adv in debtors"
-            :key="adv.id"
-            :adventurer="adv"
-            @select="onSelect"
-          />
-        </div>
-        <AdventurerList
-          v-else
-          :adventurers="debtors"
-          @select="onSelect"
-        />
-      </template>
+      <AdventurerList
+        v-else
+        :adventurers="debtors"
+        @select="onSelect"
+      />
     </template>
 
     <!-- Adventurer Detail Modal with Party Management -->

@@ -3,6 +3,7 @@ import type { AdventurerOut } from '../../types'
 import StatusBadge from '../shared/StatusBadge.vue'
 import ProgressBar from '../shared/ProgressBar.vue'
 import { formatCurrency } from '../../utils/currency'
+import { displayStatus } from '../../utils/adventurer'
 
 const props = defineProps<{
   adventurer: AdventurerOut
@@ -12,15 +13,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [id: number]
 }>()
-
-function displayStatus(adv: AdventurerOut): string {
-  if (adv.is_dead) return 'Dead'
-  if (adv.is_bankrupt) return 'Bankrupt'
-  if (adv.on_expedition) return 'On Expedition'
-  if (adv.is_available) return 'Available'
-  if (adv.hp_current < adv.hp_max) return 'Recovering'
-  return 'Unavailable'
-}
 </script>
 
 <template>

@@ -9,6 +9,7 @@ import ProgressBar from '../components/shared/ProgressBar.vue'
 import StatusBadge from '../components/shared/StatusBadge.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import { formatCurrency } from '../utils/currency'
+import { displayStatus } from '../utils/adventurer'
 
 const router = useRouter()
 const notifications = useNotificationsStore()
@@ -63,14 +64,6 @@ function addMember(adv: AdventurerOut) {
 
 function removeMember(id: number) {
   selectedMembers.value = selectedMembers.value.filter((m) => m.id !== id)
-}
-
-function displayStatus(adv: AdventurerOut): string {
-  if (adv.is_dead) return 'Dead'
-  if (adv.is_bankrupt) return 'Bankrupt'
-  if (adv.on_expedition) return 'On Expedition'
-  if (adv.hp_current < adv.hp_max) return 'Recovering'
-  return 'Available'
 }
 
 async function formParty() {
