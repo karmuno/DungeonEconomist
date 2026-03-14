@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="stats-grid">
+  <div class="dashboard-stats">
     <div class="stat-card">
       <div class="stat-value">{{ stats.adventurer_count }}</div>
       <div class="stat-label">Adventurers</div>
@@ -31,3 +31,15 @@ defineProps<{
     </div>
   </div>
 </template>
+
+<style scoped>
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+
+.dashboard-stats .stat-card .stat-value {
+  white-space: nowrap;
+}
+</style>
