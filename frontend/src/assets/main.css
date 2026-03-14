@@ -37,7 +37,8 @@
 
 html {
   font-size: 16px;
-  scroll-behavior: smooth;
+  overflow: hidden;
+  height: 100%;
 }
 
 body {
@@ -45,7 +46,8 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -88,7 +90,8 @@ img {
   display: grid;
   grid-template-columns: 260px 1fr;
   grid-template-rows: 56px 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .app-header {
@@ -144,10 +147,10 @@ img {
 .main-content {
   grid-column: 2;
   grid-row: 2;
-  padding: 1rem 1.5rem;
+  padding: 0.5rem 1.5rem 1rem;
   margin-top: 56px;
   overflow-y: auto;
-  min-height: calc(100vh - 56px);
+  height: calc(100vh - 56px);
 }
 
 /* ---------- Buttons ---------- */
@@ -695,7 +698,7 @@ textarea.form-input {
 
   .main-content {
     grid-column: 1;
-    padding: 1rem;
+    padding: 0.5rem 1rem 1rem;
   }
 
   .stats-grid {
