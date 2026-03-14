@@ -36,7 +36,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const id = nextId++
     const type = options.type ?? 'info'
 
-    messages.value.push({ id, text, type, createdDay: currentDay, action: options.action })
+    messages.value.unshift({ id, text, type, createdDay: currentDay, action: options.action })
   }
 
   function remove(id: number) {
