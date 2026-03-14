@@ -88,7 +88,7 @@ img {
 /* ---------- Layout ---------- */
 .app-layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 300px 1fr;
   grid-template-rows: 56px 1fr;
   height: 100vh;
   overflow: hidden;
@@ -120,7 +120,7 @@ img {
   top: 56px;
   left: 0;
   bottom: 0;
-  width: 260px;
+  width: 300px;
   background-color: var(--bg-primary);
   border-right: 1px solid var(--border-color);
   overflow-y: auto;
