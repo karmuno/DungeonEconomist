@@ -5,10 +5,7 @@ import type { AdventurerOut, PartyOut } from '../types'
 import * as adventurersApi from '../api/adventurers'
 import * as partiesApi from '../api/parties'
 import { useNotificationsStore } from '../stores/notifications'
-import ProgressBar from '../components/shared/ProgressBar.vue'
-import StatusBadge from '../components/shared/StatusBadge.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
-import { displayStatus } from '../utils/adventurer'
 
 const router = useRouter()
 const notifications = useNotificationsStore()
@@ -64,6 +61,13 @@ async function fetchAll() {
 watch(selectedPartyId, () => {
   confirmingDisband.value = false
 })
+
+function hpColor(adv: AdventurerOut): string {
+  const pct = adv.hp_max > 0 ? adv.hp_current / adv.hp_max : 0
+  if (pct >= 0.6) return 'var(--accent-green)'
+  if (pct >= 0.3) return '#fbbf24'
+  return 'var(--accent-red, #e74c3c)'
+}
 
 async function addMember(adv: AdventurerOut) {
   if (!selectedParty.value || selectedParty.value.members.length >= MAX_PARTY_SIZE) return
@@ -160,23 +164,23 @@ async function deleteParty() {
           <div
             v-for="adv in availableAdventurers"
             :key="adv.id"
-            class="formation-row"
+            class="adv-row"
           >
-            <div class="formation-info">
-              <strong>{{ adv.name }}</strong>
+            <div class="adv-main">
+              <span class="adv-name">{{ adv.name }}</span>
               <span class="badge">{{ adv.adventurer_class }}</span>
-              <span class="text-muted">Lv {{ adv.level }}</span>
             </div>
-            <div class="formation-meta">
-              <ProgressBar :value="adv.hp_current" :max="adv.hp_max" />
-              <StatusBadge :status="displayStatus(adv)" />
+            <div class="adv-stats">
+              <span class="stat">Lv {{ adv.level }}</span>
+              <span class="stat" :style="{ color: hpColor(adv) }">{{ adv.hp_current }}/{{ adv.hp_max }} HP</span>
+              <span class="stat xp">{{ adv.xp }} XP<template v-if="adv.next_level_xp"> / {{ adv.next_level_xp }}</template></span>
             </div>
             <button
               class="btn btn-primary btn-sm"
               :disabled="!selectedParty || selectedParty.members.length >= MAX_PARTY_SIZE"
               @click="addMember(adv)"
             >
-              Add &rarr;
+              +
             </button>
           </div>
         </template>
@@ -204,19 +208,23 @@ async function deleteParty() {
           <div
             v-for="member in selectedParty.members"
             :key="member.id"
-            class="formation-row"
+            class="adv-row"
           >
-            <div class="formation-info">
-              <strong>{{ member.name }}</strong>
+            <div class="adv-main">
+              <span class="adv-name">{{ member.name }}</span>
               <span class="badge">{{ member.adventurer_class }}</span>
-              <span class="text-muted">Lv {{ member.level }}</span>
+            </div>
+            <div class="adv-stats">
+              <span class="stat">Lv {{ member.level }}</span>
+              <span class="stat" :style="{ color: hpColor(member) }">{{ member.hp_current }}/{{ member.hp_max }} HP</span>
+              <span class="stat xp">{{ member.xp }} XP</span>
             </div>
             <button
               class="btn btn-danger btn-sm"
               :disabled="selectedParty.on_expedition"
               @click="removeMember(member.id)"
             >
-              {{ confirmingDisband && selectedParty.members.length <= 1 ? 'Disband party?' : '← Remove' }}
+              {{ confirmingDisband && selectedParty.members.length <= 1 ? '?' : '×' }}
             </button>
           </div>
           <div class="mt-3 flex gap-1">
@@ -253,26 +261,46 @@ async function deleteParty() {
   min-height: 200px;
 }
 
-.formation-row {
+.adv-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 0;
+  gap: 8px;
+  padding: 5px 0;
   border-bottom: 1px solid var(--border-color);
 }
 
-.formation-info {
+.adv-main {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
-.formation-meta {
+.adv-name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adv-stats {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 120px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.stat {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.stat.xp {
+  color: var(--accent-blue, #60a5fa);
 }
 
 .ml-1 {
