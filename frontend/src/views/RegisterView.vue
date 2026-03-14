@@ -19,7 +19,8 @@ async function handleRegister() {
     await auth.register(username.value.trim(), password.value)
     router.push('/keeps')
   } catch (e: any) {
-    error.value = e?.data?.detail || 'Registration failed'
+    const detail = e?.data?.detail ?? e?.message
+    error.value = detail || 'Registration failed'
   } finally {
     submitting.value = false
   }

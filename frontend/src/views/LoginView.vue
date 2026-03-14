@@ -19,7 +19,8 @@ async function handleLogin() {
     await auth.login(username.value.trim(), password.value)
     router.push('/keeps')
   } catch (e: any) {
-    error.value = e?.data?.detail || 'Login failed'
+    const detail = e?.data?.detail ?? e?.message
+    error.value = detail || 'Login failed'
   } finally {
     submitting.value = false
   }
