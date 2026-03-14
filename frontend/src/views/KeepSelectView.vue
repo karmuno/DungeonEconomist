@@ -33,7 +33,7 @@ async function createKeep() {
     auth.selectKeep(keep)
     player.fetchPlayer()
     await gameTime.fetchTime()
-    router.push('/')
+    router.push('/form-party')
   } finally {
     creating.value = false
   }
