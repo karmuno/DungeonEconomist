@@ -225,14 +225,9 @@ def heal_adventurer(adv: Adventurer, days: int = 1) -> list[GameEvent]:
     return events
 
 
-@router.post("/time/advance-day", response_model=AdvanceDayResult)
-def advance_day(db: Session = Depends(get_db)):
-    """Advances the game time by one day and updates expedition statuses."""
+def _advance_one_day(db: Session, game_time: GameTime) -> list[GameEvent]:
+    """Advance game time by one day and return events. Does not commit."""
     events: list[GameEvent] = []
-
-    game_time = db.query(GameTime).first()
-    if not game_time:
-        raise HTTPException(status_code=404, detail="No game exists. Start a new game first.")
 
     game_time.current_day += 1
     game_time.last_updated = datetime.now()
@@ -277,6 +272,22 @@ def advance_day(db: Session = Depends(get_db)):
     upkeep_events = process_upkeep(db, game_time.current_day)
     events.extend(upkeep_events)
 
+    return events
+
+
+# Event types that are considered notable for skip-to-event
+NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "death", "upkeep", "loot"}
+
+
+@router.post("/time/advance-day", response_model=AdvanceDayResult)
+def advance_day(db: Session = Depends(get_db)):
+    """Advances the game time by one day and updates expedition statuses."""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        raise HTTPException(status_code=404, detail="No game exists. Start a new game first.")
+
+    events = _advance_one_day(db, game_time)
+
     db.commit()
     db.refresh(game_time)
 
@@ -285,6 +296,33 @@ def advance_day(db: Session = Depends(get_db)):
         day_started_at=game_time.day_started_at,
         last_updated=game_time.last_updated,
         events=events,
+    )
+
+
+@router.post("/time/skip-to-event", response_model=AdvanceDayResult)
+def skip_to_event(db: Session = Depends(get_db)):
+    """Advance days until a notable event occurs (max 30 days)."""
+    game_time = db.query(GameTime).first()
+    if not game_time:
+        raise HTTPException(status_code=404, detail="No game exists. Start a new game first.")
+
+    MAX_SKIP = 30
+    all_events: list[GameEvent] = []
+
+    for _ in range(MAX_SKIP):
+        day_events = _advance_one_day(db, game_time)
+        all_events.extend(day_events)
+        if any(e.type in NOTABLE_EVENT_TYPES for e in day_events):
+            break
+
+    db.commit()
+    db.refresh(game_time)
+
+    return AdvanceDayResult(
+        current_day=game_time.current_day,
+        day_started_at=game_time.day_started_at,
+        last_updated=game_time.last_updated,
+        events=all_events,
     )
 
 

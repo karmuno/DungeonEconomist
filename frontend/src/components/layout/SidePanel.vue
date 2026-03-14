@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
@@ -20,34 +21,54 @@ function handleAction(notification: (typeof notifications.messages.value)[0]) {
   notifications.remove(notification.id)
 }
 
+const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
+  recruitment: 'info',
+  auto_start: 'info',
+  loot: 'info',
+  healing: 'success',
+  expedition_complete: 'success',
+  death: 'error',
+  upkeep: 'warning',
+}
+
+function processEvents(result: { current_day: number; events: Array<{ type: string; message: string; expedition_id?: number | null }> }) {
+  notifications.onDayAdvanced(result.current_day)
+  for (const event of result.events) {
+    const opts: Parameters<typeof notifications.add>[1] = {
+      type: typeMap[event.type] ?? 'info',
+    }
+    if (event.type === 'expedition_complete' && event.expedition_id) {
+      opts.action = {
+        label: 'View Summary',
+        route: `/expedition/${event.expedition_id}/summary`,
+      }
+    }
+    notifications.add(event.message, opts)
+  }
+}
+
+const skipping = ref(false)
+
 async function advanceDay() {
   try {
     const result = await gameTime.advanceDay()
     await player.fetchPlayer()
-    notifications.onDayAdvanced(result.current_day)
-    for (const event of result.events) {
-      const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
-        recruitment: 'info',
-        auto_start: 'info',
-        loot: 'info',
-        healing: 'success',
-        expedition_complete: 'success',
-        death: 'error',
-        upkeep: 'warning',
-      }
-      const opts: Parameters<typeof notifications.add>[1] = {
-        type: typeMap[event.type] ?? 'info',
-      }
-      if (event.type === 'expedition_complete' && event.expedition_id) {
-        opts.action = {
-          label: 'View Summary',
-          route: `/expedition/${event.expedition_id}/summary`,
-        }
-      }
-      notifications.add(event.message, opts)
-    }
+    processEvents(result)
   } catch {
     notifications.add('Failed to advance time', 'error')
+  }
+}
+
+async function skipToEvent() {
+  skipping.value = true
+  try {
+    const result = await gameTime.skipToEvent()
+    await player.fetchPlayer()
+    processEvents(result)
+  } catch {
+    notifications.add('Failed to skip time', 'error')
+  } finally {
+    skipping.value = false
   }
 }
 </script>
@@ -72,7 +93,12 @@ async function advanceDay() {
 
     <hr class="divider" />
 
-    <button class="advance-btn" @click="advanceDay">Advance Day</button>
+    <div class="time-controls">
+      <button class="advance-btn" @click="advanceDay">Advance Day</button>
+      <button class="skip-btn" :disabled="skipping" @click="skipToEvent">
+        {{ skipping ? 'Skipping...' : 'Skip to Event' }}
+      </button>
+    </div>
 
     <div v-if="notifications.messages.length > 0" class="notification-feed">
       <div
@@ -157,6 +183,12 @@ async function advanceDay() {
   margin: 24px 0;
 }
 
+.time-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .advance-btn {
   width: 100%;
   padding: 10px 16px;
@@ -173,6 +205,30 @@ async function advanceDay() {
 
 .advance-btn:hover {
   background: var(--accent-green);
+}
+
+.skip-btn {
+  width: 100%;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.skip-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.skip-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .notification-feed {

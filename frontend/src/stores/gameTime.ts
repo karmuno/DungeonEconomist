@@ -23,11 +23,20 @@ export const useGameTimeStore = defineStore('gameTime', () => {
     return data
   }
 
+  async function skipToEvent(): Promise<AdvanceDayResult> {
+    const data = await gameApi.skipToEvent()
+    currentDay.value = data.current_day
+    dayStartedAt.value = data.day_started_at
+    lastUpdated.value = data.last_updated
+    return data
+  }
+
   return {
     currentDay,
     dayStartedAt,
     lastUpdated,
     fetchTime,
     advanceDay,
+    skipToEvent,
   }
 })

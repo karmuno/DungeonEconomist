@@ -9,6 +9,10 @@ export function advanceDay(): Promise<AdvanceDayResult> {
   return post<AdvanceDayResult>('/time/advance-day')
 }
 
+export function skipToEvent(): Promise<AdvanceDayResult> {
+  return post<AdvanceDayResult>('/time/skip-to-event')
+}
+
 export function runUpkeep(): Promise<unknown> {
   return put('/upkeep')
 }
