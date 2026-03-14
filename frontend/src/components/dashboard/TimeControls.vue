@@ -58,13 +58,6 @@ async function advance(days: number) {
       notifications.add(event.message, opts)
     }
 
-    if (allEvents.length === 0) {
-      notifications.add(`Advanced ${days} day${days > 1 ? 's' : ''} — nothing happened`, {
-        type: 'info',
-        duration: 3000,
-      })
-    }
-
     emit('day-advanced')
   } catch (err) {
     notifications.add('Failed to advance time', 'error')

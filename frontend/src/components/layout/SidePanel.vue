@@ -24,6 +24,7 @@ async function advanceDay() {
   try {
     const result = await gameTime.advanceDay()
     await player.fetchPlayer()
+    notifications.onDayAdvanced(result.current_day)
     for (const event of result.events) {
       const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
         recruitment: 'info',
@@ -44,9 +45,6 @@ async function advanceDay() {
         }
       }
       notifications.add(event.message, opts)
-    }
-    if (result.events.length === 0) {
-      notifications.add('Day advanced — nothing happened', { type: 'info', duration: 3000 })
     }
   } catch {
     notifications.add('Failed to advance time', 'error')
