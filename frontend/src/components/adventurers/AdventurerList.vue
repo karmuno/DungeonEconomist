@@ -7,6 +7,7 @@ import { formatCurrency } from '../../utils/currency'
 
 defineProps<{
   adventurers: AdventurerOut[]
+  partyNameMap?: Record<number, string>
 }>()
 
 const emit = defineEmits<{
@@ -30,6 +31,7 @@ function displayStatus(adv: AdventurerOut): string {
         <th>Name</th>
         <th>Class</th>
         <th>Level</th>
+        <th>Party</th>
         <th>HP</th>
         <th>XP</th>
         <th>Gold</th>
@@ -46,6 +48,7 @@ function displayStatus(adv: AdventurerOut): string {
         <td>{{ adv.name }}</td>
         <td>{{ adv.adventurer_class }}</td>
         <td>{{ adv.level }}</td>
+        <td>{{ partyNameMap?.[adv.id] ?? '—' }}</td>
         <td><ProgressBar :value="adv.hp_current" :max="adv.hp_max" /></td>
         <td>{{ adv.xp }}</td>
         <td class="text-gold">{{ formatCurrency(adv.gold, adv.silver, adv.copper) }}</td>

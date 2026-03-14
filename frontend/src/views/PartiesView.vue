@@ -1,112 +1,288 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import type { PartyOut } from '../types'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import type { AdventurerOut, PartyOut } from '../types'
+import * as adventurersApi from '../api/adventurers'
 import * as partiesApi from '../api/parties'
 import { useNotificationsStore } from '../stores/notifications'
-import PartyCard from '../components/parties/PartyCard.vue'
-import PartyForm from '../components/parties/PartyForm.vue'
-import PartyMemberManager from '../components/parties/PartyMemberManager.vue'
-import ModalDialog from '../components/shared/ModalDialog.vue'
+import ProgressBar from '../components/shared/ProgressBar.vue'
+import StatusBadge from '../components/shared/StatusBadge.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
-import EmptyState from '../components/shared/EmptyState.vue'
 
+const router = useRouter()
 const notifications = useNotificationsStore()
 
+const allAdventurers = ref<AdventurerOut[]>([])
 const parties = ref<PartyOut[]>([])
-const loading = ref(false)
-const showCreate = ref(false)
-const showEdit = ref(false)
-const showMembers = ref(false)
-const selectedParty = ref<PartyOut | null>(null)
-// Track newly created party so we can open member manager right away
-const newPartyId = ref<number | null>(null)
+const selectedPartyId = ref<number | null>(null)
+const classFilter = ref('')
+const loading = ref(true)
+const confirmingDisband = ref(false)
 
-async function fetchParties() {
-  loading.value = true
-  parties.value = await partiesApi.list()
+const MAX_PARTY_SIZE = 6
+
+const selectedParty = computed(() =>
+  parties.value.find((p) => p.id === selectedPartyId.value) ?? null
+)
+
+// IDs of adventurers in ANY party
+const allPartyMemberIds = computed(() => {
+  const ids = new Set<number>()
+  for (const p of parties.value) {
+    for (const m of p.members) {
+      ids.add(m.id)
+    }
+  }
+  return ids
+})
+
+const availableAdventurers = computed(() => {
+  return allAdventurers.value.filter((a) => {
+    if (allPartyMemberIds.value.has(a.id)) return false
+    if (!a.is_available || a.on_expedition || a.is_dead || a.is_bankrupt) return false
+    if (classFilter.value && a.adventurer_class !== classFilter.value) return false
+    return true
+  })
+})
+
+onMounted(async () => {
+  await fetchAll()
   loading.value = false
-}
+})
 
-onMounted(fetchParties)
-
-function openEdit(party: PartyOut) {
-  selectedParty.value = party
-  showEdit.value = true
-}
-
-function openMembers(party: PartyOut) {
-  selectedParty.value = party
-  showMembers.value = true
-}
-
-async function onSaved(party?: PartyOut) {
-  showCreate.value = false
-  showEdit.value = false
-  await fetchParties()
-  notifications.add('Party saved', 'success')
-
-  // If we just created a new party, open member manager
-  if (party && newPartyId.value === null && !showEdit.value) {
-    newPartyId.value = party.id
-    selectedParty.value = await partiesApi.getById(party.id)
-    showMembers.value = true
+async function fetchAll() {
+  allAdventurers.value = await adventurersApi.list()
+  parties.value = await partiesApi.list()
+  // Auto-select first party if none selected
+  if (selectedPartyId.value === null && parties.value.length > 0) {
+    selectedPartyId.value = parties.value[0].id
   }
 }
 
-async function onMembersUpdated() {
-  await refreshSelectedParty()
-  await fetchParties()
-  notifications.add('Party members updated', 'success')
+// Reset disband confirmation when switching parties
+watch(selectedPartyId, () => {
+  confirmingDisband.value = false
+})
+
+function displayStatus(adv: AdventurerOut): string {
+  if (adv.is_dead) return 'Dead'
+  if (adv.is_bankrupt) return 'Bankrupt'
+  if (adv.on_expedition) return 'On Expedition'
+  if (adv.hp_current < adv.hp_max) return 'Recovering'
+  return 'Available'
 }
 
-async function refreshSelectedParty() {
-  if (selectedParty.value) {
-    selectedParty.value = await partiesApi.getById(selectedParty.value.id)
+async function addMember(adv: AdventurerOut) {
+  if (!selectedParty.value || selectedParty.value.members.length >= MAX_PARTY_SIZE) return
+  if (selectedParty.value.on_expedition) return
+  try {
+    await partiesApi.addMember({ party_id: selectedParty.value.id, adventurer_id: adv.id })
+    await fetchAll()
+  } catch {
+    notifications.add('Failed to add member', 'error')
   }
 }
 
-function onMembersClose() {
-  showMembers.value = false
-  newPartyId.value = null
+async function removeMember(id: number) {
+  if (!selectedParty.value) return
+  if (selectedParty.value.on_expedition) return
+
+  // Last member — confirm disband
+  if (selectedParty.value.members.length <= 1) {
+    if (!confirmingDisband.value) {
+      confirmingDisband.value = true
+      return
+    }
+    try {
+      const name = selectedParty.value.name
+      await partiesApi.deleteParty(selectedParty.value.id)
+      selectedPartyId.value = null
+      confirmingDisband.value = false
+      notifications.add(`Party "${name}" disbanded`, 'info')
+      await fetchAll()
+    } catch {
+      notifications.add('Failed to disband party', 'error')
+      confirmingDisband.value = false
+    }
+    return
+  }
+
+  try {
+    await partiesApi.removeMember({ party_id: selectedParty.value.id, adventurer_id: id })
+    await fetchAll()
+  } catch {
+    notifications.add('Failed to remove member', 'error')
+  }
+}
+
+async function deleteParty() {
+  if (!selectedParty.value) return
+  if (!confirmingDisband.value) {
+    confirmingDisband.value = true
+    return
+  }
+  try {
+    const name = selectedParty.value.name
+    await partiesApi.deleteParty(selectedParty.value.id)
+    selectedPartyId.value = null
+    confirmingDisband.value = false
+    notifications.add(`Party "${name}" disbanded`, 'info')
+    await fetchAll()
+  } catch {
+    notifications.add('Failed to disband party', 'error')
+    confirmingDisband.value = false
+  }
 }
 </script>
 
 <template>
   <div>
     <div class="flex flex-between mb-3">
-      <h1>Parties</h1>
-      <button class="btn btn-primary" @click="showCreate = true">New Party</button>
+      <h1>Manage Parties</h1>
+      <button class="btn btn-primary" @click="router.push('/form-party')">
+        Form New Party
+      </button>
     </div>
 
-    <LoadingSpinner v-if="loading" message="Loading parties..." />
-
-    <div v-else-if="parties.length === 0">
-      <EmptyState message="No parties yet. Create one to get started!" />
+    <LoadingSpinner v-if="loading" />
+    <div v-else-if="parties.length === 0" class="text-muted">
+      No parties yet. <a href="#" @click.prevent="router.push('/form-party')">Form one</a> to get started.
     </div>
+    <div v-else class="formation-layout">
+      <!-- Left: Available Adventurers -->
+      <div class="formation-column card">
+        <h3 class="mb-2">Available Adventurers</h3>
+        <div class="filters-bar mb-2">
+          <select v-model="classFilter" class="form-select">
+            <option value="">All Classes</option>
+            <option v-for="cls in ['Fighter', 'Cleric', 'Magic-User', 'Elf', 'Dwarf', 'Hobbit']" :key="cls" :value="cls">
+              {{ cls }}
+            </option>
+          </select>
+        </div>
+        <div v-if="!selectedParty" class="text-muted">Select a party on the right</div>
+        <div v-else-if="selectedParty.on_expedition" class="text-muted">Party is on expedition</div>
+        <template v-else>
+          <div v-if="availableAdventurers.length === 0" class="text-muted">No available adventurers</div>
+          <div
+            v-for="adv in availableAdventurers"
+            :key="adv.id"
+            class="formation-row"
+          >
+            <div class="formation-info">
+              <strong>{{ adv.name }}</strong>
+              <span class="badge">{{ adv.adventurer_class }}</span>
+              <span class="text-muted">Lv {{ adv.level }}</span>
+            </div>
+            <div class="formation-meta">
+              <ProgressBar :value="adv.hp_current" :max="adv.hp_max" />
+              <StatusBadge :status="displayStatus(adv)" />
+            </div>
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="!selectedParty || selectedParty.members.length >= MAX_PARTY_SIZE"
+              @click="addMember(adv)"
+            >
+              Add &rarr;
+            </button>
+          </div>
+        </template>
+      </div>
 
-    <div v-else class="stats-grid">
-      <PartyCard
-        v-for="party in parties"
-        :key="party.id"
-        :party="party"
-        @select="openEdit(party)"
-        @manage="openMembers(party)"
-        @launch="$router.push({ name: 'expeditions', query: { partyId: party.id } })"
-      />
+      <!-- Right: Party Members -->
+      <div class="formation-column card">
+        <h3 class="mb-2">Party Members
+          <template v-if="selectedParty">({{ selectedParty.members.length }}/{{ MAX_PARTY_SIZE }})</template>
+        </h3>
+        <div class="form-group mb-2">
+          <select v-model="selectedPartyId" class="form-select">
+            <option :value="null" disabled>Select a party...</option>
+            <option
+              v-for="p in parties"
+              :key="p.id"
+              :value="p.id"
+            >
+              {{ p.name }} ({{ p.members.length }}/{{ MAX_PARTY_SIZE }})
+            </option>
+          </select>
+        </div>
+        <template v-if="selectedParty">
+          <div v-if="selectedParty.members.length === 0" class="text-muted">No members</div>
+          <div
+            v-for="member in selectedParty.members"
+            :key="member.id"
+            class="formation-row"
+          >
+            <div class="formation-info">
+              <strong>{{ member.name }}</strong>
+              <span class="badge">{{ member.adventurer_class }}</span>
+              <span class="text-muted">Lv {{ member.level }}</span>
+            </div>
+            <button
+              class="btn btn-danger btn-sm"
+              :disabled="selectedParty.on_expedition"
+              @click="removeMember(member.id)"
+            >
+              {{ confirmingDisband && selectedParty.members.length <= 1 ? 'Disband party?' : '← Remove' }}
+            </button>
+          </div>
+          <div class="mt-3 flex gap-1">
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="selectedParty.on_expedition || selectedParty.members.length === 0"
+              @click="router.push(`/launch-expedition/${selectedParty.id}`)"
+            >
+              Launch Expedition
+            </button>
+            <button
+              class="btn btn-danger btn-sm"
+              :disabled="selectedParty.on_expedition"
+              @click="deleteParty"
+            >
+              {{ confirmingDisband ? 'Are you sure? This will disband the party.' : 'Disband Party' }}
+            </button>
+          </div>
+        </template>
+        <div v-else class="text-muted">Select a party above</div>
+      </div>
     </div>
-
-    <ModalDialog :is-open="showCreate" title="Create Party" @close="showCreate = false">
-      <PartyForm @saved="onSaved" @cancel="showCreate = false" />
-    </ModalDialog>
-
-    <ModalDialog :is-open="showEdit" title="Edit Party" @close="showEdit = false">
-      <PartyForm v-if="selectedParty" :party="selectedParty" @saved="onSaved" @cancel="showEdit = false" />
-    </ModalDialog>
-
-    <ModalDialog :is-open="showMembers" title="Manage Members" @close="onMembersClose">
-      <template v-if="selectedParty">
-        <PartyMemberManager :party="selectedParty" @updated="onMembersUpdated" />
-      </template>
-    </ModalDialog>
   </div>
 </template>
+
+<style scoped>
+.formation-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.formation-column {
+  min-height: 400px;
+}
+
+.formation-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.formation-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.formation-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.ml-1 {
+  margin-left: 8px;
+}
+</style>

@@ -1,13 +1,24 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore } from '../../stores/notifications'
 import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 
+const router = useRouter()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
+
+function handleAction(notification: (typeof notifications.messages.value)[0]) {
+  if (notification.action?.callback) {
+    notification.action.callback()
+  } else if (notification.action?.route) {
+    router.push(notification.action.route)
+  }
+  notifications.remove(notification.id)
+}
 
 async function advanceDay() {
   try {
@@ -64,6 +75,30 @@ async function advanceDay() {
     <hr class="divider" />
 
     <button class="advance-btn" @click="advanceDay">Advance Day</button>
+
+    <div v-if="notifications.messages.length > 0" class="notification-feed">
+      <div
+        v-for="notification in notifications.messages"
+        :key="notification.id"
+        class="notif"
+        :class="notification.type"
+      >
+        <span class="notif-text">{{ notification.text }}</span>
+        <span
+          v-if="notification.action"
+          class="notif-action"
+          @click.stop="handleAction(notification)"
+        >
+          {{ notification.action.label }}
+        </span>
+        <button
+          class="notif-dismiss"
+          @click.stop="notifications.remove(notification.id)"
+        >
+          &times;
+        </button>
+      </div>
+    </div>
   </aside>
 </template>
 
@@ -140,5 +175,84 @@ async function advanceDay() {
 
 .advance-btn:hover {
   background: var(--accent-green);
+}
+
+.notification-feed {
+  margin-top: 16px;
+  max-height: calc(100vh - 380px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notif {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--border-radius);
+  font-size: 11px;
+  line-height: 1.3;
+  border: 1px solid transparent;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.notif.success {
+  background-color: #052e16;
+  border-color: var(--accent-green-dim);
+  color: var(--accent-green);
+}
+
+.notif.error {
+  background-color: #450a0a;
+  border-color: #7f1d1d;
+  color: var(--accent-red);
+}
+
+.notif.info {
+  background-color: #0c1929;
+  border-color: #1e3a5f;
+  color: var(--accent-blue);
+}
+
+.notif.warning {
+  background-color: #422006;
+  border-color: #78350f;
+  color: #fbbf24;
+}
+
+.notif-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.notif-action {
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.notif-action:hover {
+  opacity: 1;
+}
+
+.notif-dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.6;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.notif-dismiss:hover {
+  opacity: 1;
 }
 </style>

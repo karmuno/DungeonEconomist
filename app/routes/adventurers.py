@@ -60,6 +60,20 @@ def list_adventurers(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     return [add_progression_data(adv) for adv in adventurers]
 
 
+@router.get("/adventurers/graveyard", response_model=list[AdventurerOut])
+def get_graveyard(db: Session = Depends(get_db)):
+    """List all dead adventurers"""
+    dead = db.query(Adventurer).filter(Adventurer.is_dead == True).all()
+    return [add_progression_data(a) for a in dead]
+
+
+@router.get("/adventurers/debtors-prison", response_model=list[AdventurerOut])
+def get_debtors_prison(db: Session = Depends(get_db)):
+    """List all bankrupt adventurers"""
+    bankrupt = db.query(Adventurer).filter(Adventurer.is_bankrupt == True).all()
+    return [add_progression_data(a) for a in bankrupt]
+
+
 @router.get("/adventurers/{adventurer_id}", response_model=AdventurerOut)
 def get_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
     """Get a specific adventurer by ID"""

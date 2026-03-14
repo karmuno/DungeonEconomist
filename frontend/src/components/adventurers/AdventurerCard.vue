@@ -6,6 +6,7 @@ import { formatCurrency } from '../../utils/currency'
 
 const props = defineProps<{
   adventurer: AdventurerOut
+  partyName?: string
 }>()
 
 const emit = defineEmits<{
@@ -28,7 +29,10 @@ function displayStatus(adv: AdventurerOut): string {
       <strong>{{ adventurer.name }}</strong>
       <StatusBadge :status="displayStatus(adventurer)" />
     </div>
-    <div class="text-muted mb-1">{{ adventurer.adventurer_class }} &middot; Level {{ adventurer.level }}</div>
+    <div class="text-muted mb-1">
+      {{ adventurer.adventurer_class }} &middot; Level {{ adventurer.level }}
+      <template v-if="partyName"> &middot; <span style="color: var(--accent-green)">{{ partyName }}</span></template>
+    </div>
     <div class="mb-1">
       <ProgressBar :value="adventurer.hp_current" :max="adventurer.hp_max" />
     </div>

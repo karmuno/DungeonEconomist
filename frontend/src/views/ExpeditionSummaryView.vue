@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as expeditionsApi from '../api/expeditions'
 import type { ExpeditionSummaryDetail } from '../api/expeditions'
 import { useNotificationsStore } from '../stores/notifications'
 import { formatCurrency } from '../utils/currency'
-import { formatGameDay } from '../utils/calendar'
+import { formatGameDayShort } from '../utils/calendar'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 
@@ -36,6 +36,29 @@ function lootCopper(total: number): { gold: number; silver: number; copper: numb
     copper: copper_total % 10,
   }
 }
+
+interface TurnLog {
+  turn: number
+  events: Array<{
+    type: string
+    combat?: { outcome: string; monster_type: string; hp_lost: number; xp_earned: number }
+    treasure?: { gold: number; xp_value: number }
+    trap_damage?: number
+  }>
+}
+
+const turnsWithEvents = computed(() => {
+  if (!summary.value) return []
+  return (summary.value.events_log as TurnLog[]).filter(
+    (turn) => turn.events && turn.events.length > 0
+  )
+})
+
+function outcomeClass(outcome: string): string {
+  if (outcome === 'Clear Victory' || outcome === 'Victory') return 'badge-success'
+  if (outcome === 'Tough Fight') return 'badge-warning'
+  return 'badge-danger'
+}
 </script>
 
 <template>
@@ -49,10 +72,15 @@ function lootCopper(total: number): { gold: number; silver: number; copper: numb
           <h2>{{ summary.party_name }}</h2>
           <span class="badge">{{ summary.result }}</span>
         </div>
-        <p class="text-muted">
-          {{ formatGameDay(summary.start_day) }} &mdash; {{ formatGameDay(summary.return_day) }}
+        <p class="text-muted mb-2">
+          {{ formatGameDayShort(summary.start_day) }} &mdash; {{ formatGameDayShort(summary.return_day) }}
           ({{ summary.duration_days }} days)
         </p>
+        <div class="summary-stats">
+          <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
+          <span>XP: {{ summary.total_xp }}</span>
+          <span class="text-muted">Ready by: {{ formatGameDayShort(summary.estimated_readiness_day) }}</span>
+        </div>
       </div>
 
       <!-- Party Member Results -->
@@ -80,8 +108,8 @@ function lootCopper(total: number): { gold: number; silver: number; copper: numb
               <td>{{ member.adventurer_class }}</td>
               <td>{{ member.level }}</td>
               <td>
-                <span v-if="member.alive" class="badge badge-success">Alive</span>
-                <span v-else class="badge badge-danger">Dead</span>
+                <span v-if="member.alive" class="badge badge-alive">Alive</span>
+                <span v-else class="badge badge-dead">Dead</span>
               </td>
               <td>
                 <ProgressBar
@@ -98,21 +126,36 @@ function lootCopper(total: number): { gold: number; silver: number; copper: numb
         </table>
       </div>
 
-      <!-- Rewards -->
-      <div class="stats-grid mb-3">
-        <div class="stat-card">
-          <div class="stat-value text-gold">
-            {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}
+      <!-- Events Log -->
+      <div v-if="turnsWithEvents.length > 0" class="card mb-3">
+        <h3 class="mb-2">Expedition Log</h3>
+        <div class="events-log">
+          <div v-for="turn in turnsWithEvents" :key="turn.turn" class="turn-entry">
+            <div class="turn-header">Turn {{ turn.turn }}</div>
+            <div v-for="(event, idx) in turn.events" :key="idx" class="event-entry">
+              <template v-if="event.type === 'Monster'">
+                <span>Encountered <strong>{{ event.combat?.monster_type }}</strong></span>
+                <span :class="['badge', outcomeClass(event.combat?.outcome ?? '')]">
+                  {{ event.combat?.outcome }}
+                </span>
+                <span class="text-muted">{{ event.combat?.hp_lost }} HP lost, +{{ event.combat?.xp_earned }} XP</span>
+                <span v-if="event.treasure" class="text-gold">
+                  Loot: {{ event.treasure.gold }}gp
+                </span>
+              </template>
+              <template v-else-if="event.type === 'Trap'">
+                <span class="badge badge-warning">Trap</span>
+                <span>{{ event.trap_damage }} damage dealt to party</span>
+              </template>
+              <template v-else-if="event.type === 'Unguarded Treasure'">
+                <span class="badge badge-success">Treasure</span>
+                <span class="text-gold">Found {{ event.treasure?.gold }}gp</span>
+              </template>
+              <template v-else>
+                <span class="badge">{{ event.type }}</span>
+              </template>
+            </div>
           </div>
-          <div class="stat-label">Total Loot</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ summary.total_xp }}</div>
-          <div class="stat-label">Total XP</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ formatGameDay(summary.estimated_readiness_day) }}</div>
-          <div class="stat-label">Est. Ready By</div>
         </div>
       </div>
 
@@ -130,13 +173,62 @@ function lootCopper(total: number): { gold: number; silver: number; copper: numb
 </template>
 
 <style scoped>
+.summary-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+}
+
+.badge-alive {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+.badge-dead {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+}
+
 .badge-success {
-  background: var(--accent-green-dark, #2d5a27);
-  color: var(--accent-green, #4ade80);
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
 }
 
 .badge-danger {
-  background: rgba(231, 76, 60, 0.2);
+  background: rgba(231, 76, 60, 0.15);
   color: #e74c3c;
+}
+
+.badge-warning {
+  background: rgba(241, 196, 15, 0.15);
+  color: #f1c40f;
+}
+
+.events-log {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.turn-entry {
+  margin-bottom: 12px;
+}
+
+.turn-header {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.event-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+  flex-wrap: wrap;
 }
 </style>

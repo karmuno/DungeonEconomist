@@ -12,7 +12,7 @@ export interface NotificationAction {
 
 export interface NotificationOptions {
   type?: NotificationType
-  /** Auto-dismiss after ms. Set to 0 to keep until manually dismissed. Default: 0 (sticky) */
+  /** Auto-dismiss after ms. Set to 0 to keep until manually dismissed. Default: 7000 */
   duration?: number
   /** Action link/button shown in the notification */
   action?: NotificationAction
@@ -35,7 +35,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const options: NotificationOptions = typeof opts === 'string' ? { type: opts } : opts
     const id = nextId++
     const type = options.type ?? 'info'
-    const duration = options.duration ?? 0
+    const duration = options.duration ?? 7000
 
     messages.value.push({ id, text, type, duration, action: options.action })
 

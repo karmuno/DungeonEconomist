@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import type { ExpeditionResult, ExpeditionSummary } from '../types'
+import { useRoute, useRouter } from 'vue-router'
+import type { ExpeditionSummary } from '../types'
 import * as expeditionsApi from '../api/expeditions'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
 import ExpeditionList from '../components/expeditions/ExpeditionList.vue'
-import ExpeditionDetail from '../components/expeditions/ExpeditionDetail.vue'
 import ExpeditionLaunchForm from '../components/expeditions/ExpeditionLaunchForm.vue'
 import ModalDialog from '../components/shared/ModalDialog.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 
 const route = useRoute()
+const router = useRouter()
 const gameTime = useGameTimeStore()
 const notifications = useNotificationsStore()
 
@@ -19,8 +19,6 @@ const expeditions = ref<ExpeditionSummary[]>([])
 const loading = ref(false)
 const activeTab = ref<'active' | 'completed'>('active')
 const showLaunch = ref(false)
-const showDetail = ref(false)
-const selectedExpedition = ref<ExpeditionResult | null>(null)
 
 const preselectedPartyId = computed(() => {
   const id = route.query.partyId
@@ -48,9 +46,8 @@ onMounted(async () => {
   }
 })
 
-async function onSelectExpedition(id: number) {
-  selectedExpedition.value = await expeditionsApi.getById(id)
-  showDetail.value = true
+function onSelectExpedition(id: number) {
+  router.push(`/expedition/${id}/summary`)
 }
 
 async function onLaunched() {
@@ -116,12 +113,5 @@ async function onAdvanceDay() {
       />
     </ModalDialog>
 
-    <ModalDialog :is-open="showDetail" title="Expedition Details" @close="showDetail = false">
-      <ExpeditionDetail
-        v-if="selectedExpedition"
-        :expedition="selectedExpedition"
-        @close="showDetail = false"
-      />
-    </ModalDialog>
   </div>
 </template>

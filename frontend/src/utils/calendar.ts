@@ -11,19 +11,13 @@ export function formatGameDay(day: number): string {
   const month = Math.ceil(dayInYear / 30)
   const dayInMonth = ((dayInYear - 1) % 30) + 1
 
-  return `Month ${month}, Day ${dayInMonth}, Year ${year}`
+  return `Year ${year}, Month ${month}, Day ${dayInMonth}`
 }
 
 /**
- * Short format: "Day 45 (M2, Y1)"
+ * Short format: "Day 45"
  */
 export function formatGameDayShort(day: number): string {
   if (day <= 0) return 'Day 0'
-
-  const year = Math.ceil(day / 360)
-  const dayInYear = ((day - 1) % 360) + 1
-  const month = Math.ceil(dayInYear / 30)
-  const dayInMonth = ((dayInYear - 1) % 30) + 1
-
-  return `M${month} D${dayInMonth}, Y${year}`
+  return `Day ${day}`
 }

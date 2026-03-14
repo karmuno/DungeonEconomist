@@ -185,6 +185,8 @@ def add_adventurer_to_party(
         raise HTTPException(status_code=404, detail="Adventurer not found or not available")
     if adventurer in party.members:
         raise HTTPException(status_code=400, detail="Adventurer is already a member of this party")
+    if len(party.members) >= 6:
+        raise HTTPException(status_code=400, detail="Party is full (max 6 members)")
     party.members.append(adventurer)
     db.commit()
     db.refresh(party)
@@ -214,6 +216,33 @@ def remove_adventurer_from_party(operation: PartyMemberOperation, db: Session = 
     db.commit()
     db.refresh(party)
     return party
+
+
+@router.delete("/parties/{party_id}")
+def delete_party(party_id: int, db: Session = Depends(get_db)):
+    """Delete a party and its associated expeditions. Cannot delete parties on expedition."""
+    party = db.query(Party).filter(Party.id == party_id).first()
+    if party is None:
+        raise HTTPException(status_code=404, detail="Party not found")
+    if party.on_expedition:
+        raise HTTPException(status_code=400, detail="Cannot delete a party currently on expedition")
+    # Clear FK references before deleting
+    from app.models import Expedition, ExpeditionNodeResult, ExpeditionLog
+    party.current_expedition_id = None
+    party.members.clear()
+    db.flush()
+    # Delete associated expedition data
+    expeditions = db.query(Expedition).filter(Expedition.party_id == party_id).all()
+    for exp in expeditions:
+        db.query(ExpeditionNodeResult).filter(ExpeditionNodeResult.expedition_id == exp.id).delete()
+        db.query(ExpeditionLog).filter(ExpeditionLog.expedition_id == exp.id).delete()
+    db.flush()
+    for exp in expeditions:
+        db.delete(exp)
+    db.flush()
+    db.delete(party)
+    db.commit()
+    return {"ok": True}
 
 
 # --- Frontend Routes ---

@@ -184,6 +184,7 @@ export interface DashboardStats {
   recent_expeditions: Array<{
     id: number
     party_id: number
+    party_name: string
     start_day: number
     return_day: number
     duration_days: number

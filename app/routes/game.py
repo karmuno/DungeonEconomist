@@ -338,6 +338,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             {
                 "id": e.id,
                 "party_id": e.party_id,
+                "party_name": e.party.name if e.party else "Unknown",
                 "start_day": e.start_day,
                 "return_day": e.return_day,
                 "duration_days": e.duration_days,
@@ -348,38 +349,6 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             for e in recent_expeditions
         ],
     }
-
-
-@router.get("/adventurers/graveyard")
-def get_graveyard(db: Session = Depends(get_db)):
-    """List all dead adventurers"""
-    dead = db.query(Adventurer).filter(Adventurer.is_dead == True).all()
-    return [
-        {
-            "id": a.id,
-            "name": a.name,
-            "class": a.adventurer_class.value,
-            "level": a.level,
-            "death_day": a.death_day,
-        }
-        for a in dead
-    ]
-
-
-@router.get("/adventurers/debtors-prison")
-def get_debtors_prison(db: Session = Depends(get_db)):
-    """List all bankrupt adventurers"""
-    bankrupt = db.query(Adventurer).filter(Adventurer.is_bankrupt == True).all()
-    return [
-        {
-            "id": a.id,
-            "name": a.name,
-            "class": a.adventurer_class.value,
-            "level": a.level,
-            "bankruptcy_day": a.bankruptcy_day,
-        }
-        for a in bankrupt
-    ]
 
 
 def ensure_game_initialized(db: Session, keep_name: str = "Default Keep") -> GameTime:

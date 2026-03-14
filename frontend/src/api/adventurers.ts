@@ -17,26 +17,10 @@ export function levelUp(id: number): Promise<LevelUpResult> {
   return post<LevelUpResult>(`/adventurers/${id}/level-up`)
 }
 
-export interface GraveyardEntry {
-  id: number
-  name: string
-  class: string
-  level: number
-  death_day: number
+export function getGraveyard(): Promise<AdventurerOut[]> {
+  return get<AdventurerOut[]>('/adventurers/graveyard')
 }
 
-export interface DebtorEntry {
-  id: number
-  name: string
-  class: string
-  level: number
-  bankruptcy_day: number
-}
-
-export function getGraveyard(): Promise<GraveyardEntry[]> {
-  return get<GraveyardEntry[]>('/adventurers/graveyard')
-}
-
-export function getDebtorsPrison(): Promise<DebtorEntry[]> {
-  return get<DebtorEntry[]>('/adventurers/debtors-prison')
+export function getDebtorsPrison(): Promise<AdventurerOut[]> {
+  return get<AdventurerOut[]>('/adventurers/debtors-prison')
 }

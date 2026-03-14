@@ -163,9 +163,9 @@ class ExpeditionResult(BaseModel):
     party_id: int
     dungeon_level: int
     turns: int
-    start_day: int
-    duration_days: int
-    return_day: int
+    start_day: Optional[int] = None
+    duration_days: Optional[int] = None
+    return_day: Optional[int] = None
     start_time: datetime
     end_time: Optional[datetime] = None
     treasure_total: int

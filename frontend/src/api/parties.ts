@@ -1,4 +1,4 @@
-import { get, post, put } from './client'
+import { get, post, put, del } from './client'
 import type {
   PartyOut,
   PartyCreate,
@@ -28,6 +28,10 @@ export function addMember(data: PartyMemberOperation): Promise<PartyOut> {
 
 export function removeMember(data: PartyMemberOperation): Promise<PartyOut> {
   return post<PartyOut>('/parties/remove-member/', data)
+}
+
+export function deleteParty(id: number): Promise<{ ok: boolean }> {
+  return del<{ ok: boolean }>(`/parties/${id}`)
 }
 
 export function getStatus(id: number): Promise<PartyStatus> {

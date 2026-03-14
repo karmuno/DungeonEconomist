@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AdventurerOut, PartyOut } from '../types'
 import * as adventurersApi from '../api/adventurers'
 import * as partiesApi from '../api/parties'
-import type { GraveyardEntry, DebtorEntry } from '../api/adventurers'
 import { useNotificationsStore } from '../stores/notifications'
+import { useGameTimeStore } from '../stores/gameTime'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import EmptyState from '../components/shared/EmptyState.vue'
 import ModalDialog from '../components/shared/ModalDialog.vue'
@@ -13,17 +13,23 @@ import AdventurerFilters from '../components/adventurers/AdventurerFilters.vue'
 import AdventurerCard from '../components/adventurers/AdventurerCard.vue'
 import AdventurerList from '../components/adventurers/AdventurerList.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
-import { formatCurrency } from '../utils/currency'
-import { formatGameDay } from '../utils/calendar'
 
 const router = useRouter()
 const notifications = useNotificationsStore()
+const gameTime = useGameTimeStore()
+
+// Re-fetch when day advances (e.g. from SidePanel)
+watch(() => gameTime.currentDay, () => {
+  fetchAdventurers()
+  if (activeTab.value === 'graveyard') fetchGraveyard()
+  if (activeTab.value === 'debtors') fetchDebtors()
+})
 
 const activeTab = ref<'roster' | 'graveyard' | 'debtors'>('roster')
 const adventurers = ref<AdventurerOut[]>([])
 const parties = ref<PartyOut[]>([])
-const graveyard = ref<GraveyardEntry[]>([])
-const debtors = ref<DebtorEntry[]>([])
+const graveyard = ref<AdventurerOut[]>([])
+const debtors = ref<AdventurerOut[]>([])
 const loading = ref(true)
 const viewMode = ref<'card' | 'list'>('card')
 const selectedAdventurer = ref<AdventurerOut | null>(null)
@@ -87,6 +93,17 @@ function adventurerParty(advId: number): PartyOut | undefined {
   return parties.value.find((p) => p.members.some((m) => m.id === advId))
 }
 
+// Map of adventurer ID -> party name for display
+const partyNameMap = computed(() => {
+  const map: Record<number, string> = {}
+  for (const p of parties.value) {
+    for (const m of p.members) {
+      map[m.id] = p.name
+    }
+  }
+  return map
+})
+
 // Parties that can accept a new member
 const availableParties = computed(() =>
   parties.value.filter((p) => p.members.length < 6 && !p.on_expedition)
@@ -121,6 +138,7 @@ async function onSelect(id: number) {
     selectedAdventurer.value = await adventurersApi.getById(id)
     selectedPartyId.value = null
     managingParty.value = false
+    confirmingDisband.value = false
     showDetail.value = true
   } catch {
     notifications.add('Failed to load adventurer details', 'error')
@@ -142,10 +160,32 @@ async function onLevelUp() {
   }
 }
 
+const confirmingDisband = ref(false)
+
 async function removeFromParty() {
   if (!selectedAdventurer.value) return
   const party = adventurerParty(selectedAdventurer.value.id)
   if (!party) return
+
+  // If this is the last member, ask for confirmation to disband
+  if (party.members.length <= 1) {
+    if (!confirmingDisband.value) {
+      confirmingDisband.value = true
+      return
+    }
+    // Confirmed — delete the party
+    try {
+      await partiesApi.deleteParty(party.id)
+      notifications.add(`Party "${party.name}" disbanded`, 'info')
+      confirmingDisband.value = false
+      await fetchAdventurers()
+    } catch {
+      notifications.add('Failed to disband party', 'error')
+      confirmingDisband.value = false
+    }
+    return
+  }
+
   try {
     await partiesApi.removeMember({ party_id: party.id, adventurer_id: selectedAdventurer.value.id })
     notifications.add(`Removed ${selectedAdventurer.value.name} from ${party.name}`, 'success')
@@ -183,38 +223,33 @@ onMounted(fetchAdventurers)
     <div class="flex flex-between mb-2">
       <div class="view-toggle">
         <button
-          class="btn btn-sm"
-          :class="activeTab === 'roster' ? 'btn-primary' : 'btn-secondary'"
+          :class="{ active: activeTab === 'roster' }"
           @click="onTabChange('roster')"
         >
           Roster
         </button>
         <button
-          class="btn btn-sm"
-          :class="activeTab === 'graveyard' ? 'btn-primary' : 'btn-secondary'"
+          :class="{ active: activeTab === 'graveyard' }"
           @click="onTabChange('graveyard')"
         >
           Graveyard
         </button>
         <button
-          class="btn btn-sm"
-          :class="activeTab === 'debtors' ? 'btn-primary' : 'btn-secondary'"
+          :class="{ active: activeTab === 'debtors' }"
           @click="onTabChange('debtors')"
         >
           Debtor's Prison
         </button>
       </div>
-      <div v-if="activeTab === 'roster'" class="view-toggle">
+      <div class="view-toggle">
         <button
-          class="btn btn-sm"
-          :class="{ 'btn-primary': viewMode === 'card' }"
+          :class="{ active: viewMode === 'card' }"
           @click="viewMode = 'card'"
         >
           Cards
         </button>
         <button
-          class="btn btn-sm"
-          :class="{ 'btn-primary': viewMode === 'list' }"
+          :class="{ active: viewMode === 'list' }"
           @click="viewMode = 'list'"
         >
           List
@@ -234,12 +269,14 @@ onMounted(fetchAdventurers)
               v-for="adv in filteredAdventurers"
               :key="adv.id"
               :adventurer="adv"
+              :party-name="partyNameMap[adv.id]"
               @select="onSelect"
             />
           </div>
           <AdventurerList
             v-else
             :adventurers="filteredAdventurers"
+            :party-name-map="partyNameMap"
             @select="onSelect"
           />
         </template>
@@ -250,47 +287,41 @@ onMounted(fetchAdventurers)
     <!-- Graveyard Tab -->
     <template v-if="activeTab === 'graveyard'">
       <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
-      <table v-else class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Class</th>
-            <th>Level</th>
-            <th>Died On</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="entry in graveyard" :key="entry.id">
-            <td>{{ entry.name }}</td>
-            <td>{{ entry.class }}</td>
-            <td>{{ entry.level }}</td>
-            <td>{{ formatGameDay(entry.death_day) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <template v-else>
+        <div v-if="viewMode === 'card'" class="stats-grid">
+          <AdventurerCard
+            v-for="adv in graveyard"
+            :key="adv.id"
+            :adventurer="adv"
+            @select="onSelect"
+          />
+        </div>
+        <AdventurerList
+          v-else
+          :adventurers="graveyard"
+          @select="onSelect"
+        />
+      </template>
     </template>
 
     <!-- Debtor's Prison Tab -->
     <template v-if="activeTab === 'debtors'">
       <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
-      <table v-else class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Class</th>
-            <th>Level</th>
-            <th>Bankrupt On</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="entry in debtors" :key="entry.id">
-            <td>{{ entry.name }}</td>
-            <td>{{ entry.class }}</td>
-            <td>{{ entry.level }}</td>
-            <td>{{ formatGameDay(entry.bankruptcy_day) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <template v-else>
+        <div v-if="viewMode === 'card'" class="stats-grid">
+          <AdventurerCard
+            v-for="adv in debtors"
+            :key="adv.id"
+            :adventurer="adv"
+            @select="onSelect"
+          />
+        </div>
+        <AdventurerList
+          v-else
+          :adventurers="debtors"
+          @select="onSelect"
+        />
+      </template>
     </template>
 
     <!-- Adventurer Detail Modal with Party Management -->
@@ -318,7 +349,7 @@ onMounted(fetchAdventurers)
               :disabled="selectedAdventurer.on_expedition"
               @click="removeFromParty"
             >
-              Remove from Party
+              {{ confirmingDisband ? 'This will disband the party. Are you sure?' : 'Remove from Party' }}
             </button>
           </template>
           <template v-else-if="selectedAdventurer.is_available && !selectedAdventurer.on_expedition && !selectedAdventurer.is_dead && !selectedAdventurer.is_bankrupt">

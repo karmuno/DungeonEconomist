@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import type { AdventurerOut } from '../types'
+import type { AdventurerOut, PartyOut } from '../types'
 import * as adventurersApi from '../api/adventurers'
 import * as partiesApi from '../api/parties'
 import { useNotificationsStore } from '../stores/notifications'
@@ -14,6 +14,7 @@ const router = useRouter()
 const notifications = useNotificationsStore()
 
 const allAdventurers = ref<AdventurerOut[]>([])
+const existingParties = ref<PartyOut[]>([])
 const selectedMembers = ref<AdventurerOut[]>([])
 const partyName = ref('')
 const classFilter = ref('')
@@ -22,11 +23,23 @@ const submitting = ref(false)
 
 const MAX_PARTY_SIZE = 6
 
-const memberIds = computed(() => new Set(selectedMembers.value.map((m) => m.id)))
+// IDs of adventurers already in any existing party
+const affiliatedIds = computed(() => {
+  const ids = new Set<number>()
+  for (const p of existingParties.value) {
+    for (const m of p.members) {
+      ids.add(m.id)
+    }
+  }
+  return ids
+})
+
+const selectedIds = computed(() => new Set(selectedMembers.value.map((m) => m.id)))
 
 const availableAdventurers = computed(() => {
   return allAdventurers.value.filter((a) => {
-    if (memberIds.value.has(a.id)) return false
+    if (selectedIds.value.has(a.id)) return false
+    if (affiliatedIds.value.has(a.id)) return false
     if (!a.is_available || a.on_expedition || a.is_dead || a.is_bankrupt) return false
     if (classFilter.value && a.adventurer_class !== classFilter.value) return false
     return true
@@ -39,6 +52,7 @@ const canSubmit = computed(() =>
 
 onMounted(async () => {
   allAdventurers.value = await adventurersApi.list()
+  existingParties.value = await partiesApi.list()
   loading.value = false
 })
 
@@ -68,7 +82,7 @@ async function formParty() {
       await partiesApi.addMember({ party_id: party.id, adventurer_id: member.id })
     }
     notifications.add(`Party "${party.name}" formed with ${selectedMembers.value.length} members`, 'success')
-    router.push('/')
+    router.push(`/launch-expedition/${party.id}`)
   } catch {
     notifications.add('Failed to form party', 'error')
   } finally {
