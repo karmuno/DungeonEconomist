@@ -117,7 +117,7 @@ async function formParty() {
           <div class="adv-stats">
             <span class="stat">Lv {{ adv.level }}</span>
             <span class="stat" :style="{ color: hpColor(adv) }">{{ adv.hp_current }}/{{ adv.hp_max }} HP</span>
-            <span class="stat xp">{{ adv.xp }} XP<template v-if="adv.next_level_xp"> / {{ adv.next_level_xp }}</template></span>
+            <span class="stat xp">{{ adv.xp }}<template v-if="adv.next_level_xp"> / {{ adv.next_level_xp }}</template> XP</span>
           </div>
           <button
             class="btn btn-primary btn-sm"
