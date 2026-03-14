@@ -125,6 +125,7 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
                 if day % 30 == 0:
                     missed_cycles += 1
 
+        deferred_upkeep_collected = 0
         if missed_cycles > 0 and player:
             for member in list(living_members):
                 cost_copper = math.floor(member.xp * 1) * missed_cycles
@@ -134,6 +135,7 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
                     member.subtract_currency(cost_copper)
                     player.add_treasury(cost_copper)
                     player.total_score += cost_copper
+                    deferred_upkeep_collected += cost_copper
                 else:
                     # Bankrupt: seize remaining funds, send to debtor's prison
                     remaining = member.total_copper()
@@ -149,6 +151,10 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
                     member.parties = []
                     living_members.remove(member)
                     events.append({"type": "upkeep", "message": f"{member.name} couldn't pay deferred upkeep and was sent to debtor's prison"})
+
+        if deferred_upkeep_collected > 0:
+            g, s, c = copper_to_parts(deferred_upkeep_collected)
+            events.append({"type": "upkeep", "message": f"Collected {format_currency(g, s, c)} in deferred upkeep from returning adventurers"})
 
         # Remove dead members from party
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
