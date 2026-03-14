@@ -11,6 +11,7 @@ from app.models import (
 )
 from app.schemas import GameTimeInfo, AdvanceDayResult, GameEvent
 from app.auth import get_current_keep
+from app.names import generate_adventurer_name
 from app.routes.expeditions import resolve_expedition
 
 router = APIRouter()
@@ -18,29 +19,6 @@ router = APIRouter()
 # Recruitment chance per class per day (~2.3%)
 RECRUITMENT_CHANCE = 0.023
 MAX_TAVERN_SIZE = 20
-
-
-def generate_adventurer_name(adventurer_class: AdventurerClass) -> str:
-    """Generate a random name for a new adventurer"""
-    first_names = {
-        AdventurerClass.FIGHTER: ["Valerius", "Galen", "Rurik", "Thaddeus", "Elira", "Brynn", "Kord", "Sigrid"],
-        AdventurerClass.CLERIC: ["Brother Malric", "Sister Mirabel", "Seraphine", "Father Aldric", "Deacon Theron", "Priestess Yara"],
-        AdventurerClass.MAGIC_USER: ["Kael", "Vespera", "Tamsin", "Mordecai", "Isolde", "Zephyr", "Arcanus"],
-        AdventurerClass.ELF: ["Lirael", "Sylwen", "Eldrin", "Aelindra", "Thalion", "Caelum", "Elowen"],
-        AdventurerClass.DWARF: ["Borin", "Durgan", "Helga", "Thorin", "Gimra", "Brokk", "Dagna"],
-        AdventurerClass.HOBBIT: ["Milo", "Fira", "Pip", "Nimble Nissa", "Rosie", "Tuck", "Bramble"],
-    }
-    surnames = [
-        "Swiftblade", "Stonefist", "Dawnstar", "Underbough", "Moonshadow",
-        "Starfall", "Oakenshield", "Bramble", "Silverleaf", "Stonehammer",
-        "Nightshade", "Axeborn", "Ironbeard", "Quickfoot", "Willow",
-        "Firebrand", "Stormcrow", "Brightwater", "Shadowmend", "Thornwall",
-    ]
-    first = random.choice(first_names.get(adventurer_class, ["Unknown"]))
-    # Some names already have two parts (e.g., "Brother Malric")
-    if " " in first:
-        return first
-    return f"{first} {random.choice(surnames)}"
 
 
 def roll_hp(adventurer_class: AdventurerClass) -> int:

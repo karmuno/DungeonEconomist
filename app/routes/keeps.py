@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Account, Keep, Adventurer, AdventurerClass
 from app.auth import get_current_account
+from app.names import generate_adventurer_name
 
 router = APIRouter(prefix="/keeps", tags=["keeps"])
 
@@ -37,27 +38,6 @@ def roll_hp(adventurer_class: AdventurerClass) -> int:
     if adventurer_class in (AdventurerClass.FIGHTER, AdventurerClass.DWARF):
         return base + 2
     return base
-
-
-def generate_adventurer_name(adventurer_class: AdventurerClass) -> str:
-    first_names = {
-        AdventurerClass.FIGHTER: ["Valerius", "Galen", "Rurik", "Thaddeus", "Elira", "Brynn", "Kord", "Sigrid"],
-        AdventurerClass.CLERIC: ["Brother Malric", "Sister Mirabel", "Seraphine", "Father Aldric", "Deacon Theron", "Priestess Yara"],
-        AdventurerClass.MAGIC_USER: ["Kael", "Vespera", "Tamsin", "Mordecai", "Isolde", "Zephyr", "Arcanus"],
-        AdventurerClass.ELF: ["Lirael", "Sylwen", "Eldrin", "Aelindra", "Thalion", "Caelum", "Elowen"],
-        AdventurerClass.DWARF: ["Borin", "Durgan", "Helga", "Thorin", "Gimra", "Brokk", "Dagna"],
-        AdventurerClass.HOBBIT: ["Milo", "Fira", "Pip", "Nimble Nissa", "Rosie", "Tuck", "Bramble"],
-    }
-    surnames = [
-        "Swiftblade", "Stonefist", "Dawnstar", "Underbough", "Moonshadow",
-        "Starfall", "Oakenshield", "Bramble", "Silverleaf", "Stonehammer",
-        "Nightshade", "Axeborn", "Ironbeard", "Quickfoot", "Willow",
-        "Firebrand", "Stormcrow", "Brightwater", "Shadowmend", "Thornwall",
-    ]
-    first = random.choice(first_names.get(adventurer_class, ["Unknown"]))
-    if " " in first:
-        return first
-    return f"{first} {random.choice(surnames)}"
 
 
 def seed_starting_adventurers(keep: Keep, db: Session) -> list[Adventurer]:
