@@ -1,20 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends, Form, Query
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from starlette.requests import Request
-from typing import List, Optional
 
 from app.database import get_db
-from app.models import Adventurer, Player
+from app.models import Adventurer, Keep
 from app.schemas import AdventurerOut, AdventurerCreate, LevelUpResult
+from app.auth import get_current_keep
 from app.progression import (
     calculate_xp_for_next_level, check_for_level_up,
     calculate_hp_gain, get_class_level_bonuses
 )
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 def add_progression_data(adventurer):
@@ -34,8 +30,13 @@ def add_progression_data(adventurer):
 
 
 @router.post("/adventurers/", response_model=AdventurerOut)
-def create_adventurer(adventurer: AdventurerCreate, db: Session = Depends(get_db)):
+def create_adventurer(
+    adventurer: AdventurerCreate,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
     adv = Adventurer(
+        keep_id=keep.id,
         name=adventurer.name,
         adventurer_class=adventurer.adventurer_class,
         level=adventurer.level,
@@ -52,8 +53,14 @@ def create_adventurer(adventurer: AdventurerCreate, db: Session = Depends(get_db
 
 
 @router.get("/adventurers/", response_model=list[AdventurerOut])
-def list_adventurers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def list_adventurers(
+    skip: int = 0,
+    limit: int = 100,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
     adventurers = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
     ).offset(skip).limit(limit).all()
@@ -61,32 +68,52 @@ def list_adventurers(skip: int = 0, limit: int = 100, db: Session = Depends(get_
 
 
 @router.get("/adventurers/graveyard", response_model=list[AdventurerOut])
-def get_graveyard(db: Session = Depends(get_db)):
+def get_graveyard(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
     """List all dead adventurers"""
-    dead = db.query(Adventurer).filter(Adventurer.is_dead == True).all()
+    dead = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_dead == True,
+    ).all()
     return [add_progression_data(a) for a in dead]
 
 
 @router.get("/adventurers/debtors-prison", response_model=list[AdventurerOut])
-def get_debtors_prison(db: Session = Depends(get_db)):
+def get_debtors_prison(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
     """List all bankrupt adventurers"""
-    bankrupt = db.query(Adventurer).filter(Adventurer.is_bankrupt == True).all()
+    bankrupt = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_bankrupt == True,
+    ).all()
     return [add_progression_data(a) for a in bankrupt]
 
 
 @router.get("/adventurers/{adventurer_id}", response_model=AdventurerOut)
-def get_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
+def get_adventurer(
+    adventurer_id: int,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
     """Get a specific adventurer by ID"""
-    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
+    adventurer = db.query(Adventurer).filter(
+        Adventurer.id == adventurer_id,
+        Adventurer.keep_id == keep.id,
+    ).first()
     if not adventurer:
         raise HTTPException(status_code=404, detail="Adventurer not found")
     return add_progression_data(adventurer)
 
 
 @router.post("/adventurers/{adventurer_id}/level-up", response_model=LevelUpResult)
-def level_up_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
+def level_up_adventurer(
+    adventurer_id: int,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
     """Level up an adventurer if they have enough XP"""
-    adventurer = db.query(Adventurer).filter(Adventurer.id == adventurer_id).first()
+    adventurer = db.query(Adventurer).filter(
+        Adventurer.id == adventurer_id,
+        Adventurer.keep_id == keep.id,
+    ).first()
     if not adventurer:
         raise HTTPException(status_code=404, detail="Adventurer not found")
 
@@ -120,35 +147,3 @@ def level_up_adventurer(adventurer_id: int, db: Session = Depends(get_db)):
         "next_level_xp": next_level_xp,
         "class_bonuses": class_bonuses
     }
-
-
-# --- Frontend Routes ---
-
-@router.get("/adventurers", response_class=HTMLResponse)
-def adventurers_page(request: Request, db: Session = Depends(get_db)):
-    """Render the adventurers page"""
-    adventurers = db.query(Adventurer).all()
-
-    treasury_gold = 0
-    player = db.query(Player).first()
-    if player:
-        treasury_gold = player.treasury
-
-    return templates.TemplateResponse(
-        "adventurers.html",
-        {"request": request, "adventurers": adventurers, "treasury_gold": treasury_gold}
-    )
-
-
-@router.get("/adventurers/create-form", response_class=HTMLResponse)
-def adventurer_create_form(request: Request, db: Session = Depends(get_db)):
-    """Return the adventurer creation form"""
-    treasury_gold = 0
-    player = db.query(Player).first()
-    if player:
-        treasury_gold = player.treasury
-
-    return templates.TemplateResponse(
-        "partials/adventurer_form.html",
-        {"request": request, "treasury_gold": treasury_gold}
-    )

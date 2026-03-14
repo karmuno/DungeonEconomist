@@ -6,7 +6,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.database import create_tables
-from app.routes import adventurers, players, parties, expeditions, game
+from app.routes import adventurers, parties, expeditions, game
+from app.routes import auth as auth_routes
+from app.routes import keeps as keeps_routes
 
 # Create tables on startup
 create_tables()
@@ -15,7 +17,7 @@ create_tables()
 app = FastAPI(
     title="Venturekeep",
     description="D&D Party Management Simulation",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 # CORS (permissive for local dev)
@@ -28,8 +30,9 @@ app.add_middleware(
 )
 
 # Register route modules
+app.include_router(auth_routes.router)
+app.include_router(keeps_routes.router)
 app.include_router(adventurers.router)
-app.include_router(players.router)
 app.include_router(parties.router)
 app.include_router(expeditions.router)
 app.include_router(game.router)

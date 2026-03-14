@@ -8,7 +8,6 @@ import { useNotificationsStore } from '../stores/notifications'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import StatusBadge from '../components/shared/StatusBadge.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
-import { formatCurrency } from '../utils/currency'
 import { displayStatus } from '../utils/adventurer'
 
 const router = useRouter()

@@ -9,6 +9,33 @@ export enum AdventurerClass {
   HOBBIT = 'Hobbit',
 }
 
+// Auth
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+}
+
+export interface AccountOut {
+  id: number
+  username: string
+}
+
+// Keeps
+
+export interface KeepOut {
+  id: number
+  name: string
+  treasury_gold: number
+  treasury_silver: number
+  treasury_copper: number
+  total_score: number
+  current_day: number
+  day_started_at: string
+  last_updated: string
+  created_at: string
+}
+
 // Adventurers
 
 export interface LevelUpResult {
@@ -54,26 +81,10 @@ export interface AdventurerLevelUpInfo {
   next_level: number
 }
 
-// Players
-
-export interface PlayerOut {
-  id: number
-  name: string
-  treasury_gold: number
-  treasury_silver: number
-  treasury_copper: number
-  total_score: number
-}
-
-export interface PlayerCreate {
-  name: string
-}
-
 // Parties
 
 export interface PartyCreate {
   name: string
-  player_id?: number | null
 }
 
 export interface PartyOut {
@@ -82,7 +93,7 @@ export interface PartyOut {
   created_at?: string | null
   on_expedition: boolean
   current_expedition_id?: number | null
-  player_id?: number | null
+  keep_id?: number | null
   members: AdventurerOut[]
 }
 

@@ -6,25 +6,37 @@ from datetime import datetime, timedelta
 
 Base = declarative_base()
 
-class GameTime(Base):
-    __tablename__ = 'game_time'
-    
-    id = Column(Integer, primary_key=True)
-    current_day = Column(Integer, default=1)
-    day_started_at = Column(DateTime, default=datetime.now)
-    last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-class Player(Base):
-    __tablename__ = 'players'
+class Account(Base):
+    __tablename__ = 'accounts'
 
     id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    keeps = relationship('Keep', back_populates='account')
+
+
+class Keep(Base):
+    """Merges the old Player + GameTime into a single per-game entity."""
+    __tablename__ = 'keeps'
+
+    id = Column(Integer, primary_key=True)
+    account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
     name = Column(String, nullable=False)
     treasury_gold = Column(Integer, default=0)
     treasury_silver = Column(Integer, default=0)
     treasury_copper = Column(Integer, default=0)
-    total_score = Column(Integer, default=0)  # Total copper collected over time (for scoring)
+    total_score = Column(Integer, default=0)
+    current_day = Column(Integer, default=1)
+    day_started_at = Column(DateTime, default=datetime.now)
+    last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=datetime.now)
 
-    parties = relationship('Party', back_populates='player')
+    account = relationship('Account', back_populates='keeps')
+    parties = relationship('Party', back_populates='keep')
+    adventurers = relationship('Adventurer', back_populates='keep')
 
     @property
     def treasury(self) -> int:
@@ -41,6 +53,7 @@ class Player(Base):
         self.treasury_gold = total // 100
         self.treasury_silver = (total % 100) // 10
         self.treasury_copper = total % 10
+
 
 # Association table between Party and Adventurer
 party_adventurer = Table(
@@ -62,6 +75,7 @@ class Adventurer(Base):
     __tablename__ = 'adventurers'
 
     id = Column(Integer, primary_key=True)
+    keep_id = Column(Integer, ForeignKey('keeps.id'), nullable=False)
     name = Column(String, nullable=False)
     adventurer_class = Column(Enum(AdventurerClass, values_callable=lambda x: [e.value for e in x]), nullable=False)
     level = Column(Integer, default=1)
@@ -78,6 +92,7 @@ class Adventurer(Base):
     death_day = Column(Integer, nullable=True)
     bankruptcy_day = Column(Integer, nullable=True)
 
+    keep = relationship('Keep', back_populates='adventurers')
     parties = relationship('Party', secondary=party_adventurer, back_populates='members')
     expedition_logs = relationship('ExpeditionLog', back_populates='adventurer')
 
@@ -111,12 +126,12 @@ class Party(Base):
     created_at = Column(DateTime)
     on_expedition = Column(Boolean, default=False)
     current_expedition_id = Column(Integer, ForeignKey('expeditions.id', ondelete='SET NULL'), nullable=True)
-    player_id = Column(Integer, ForeignKey('players.id'), nullable=True)
+    keep_id = Column(Integer, ForeignKey('keeps.id'), nullable=False)
 
     members = relationship('Adventurer', secondary=party_adventurer, back_populates='parties')
     expeditions = relationship('Expedition', foreign_keys='Expedition.party_id', back_populates='party')
     current_expedition = relationship('Expedition', foreign_keys=[current_expedition_id], post_update=True)
-    player = relationship('Player', back_populates='parties')
+    keep = relationship('Keep', back_populates='parties')
 
 class DungeonNode(Base):
     __tablename__ = 'dungeon_nodes'

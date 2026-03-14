@@ -1,39 +1,25 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlayerStore } from '../../stores/player'
-import { post } from '../../api/client'
-import { useGameTimeStore } from '../../stores/gameTime'
+import { useAuthStore } from '../../stores/auth'
 import { useNotificationsStore } from '../../stores/notifications'
 
 const route = useRoute()
 const router = useRouter()
 const player = usePlayerStore()
-const gameTime = useGameTimeStore()
+const auth = useAuthStore()
 const notifications = useNotificationsStore()
 
-const confirmingRestart = ref(false)
-let restartTimeout: ReturnType<typeof setTimeout> | null = null
-
-function handleRestart() {
-  if (confirmingRestart.value) {
-    confirmingRestart.value = false
-    if (restartTimeout) clearTimeout(restartTimeout)
-    doRestart()
-  } else {
-    confirmingRestart.value = true
-    restartTimeout = setTimeout(() => {
-      confirmingRestart.value = false
-    }, 3000)
-  }
+function switchKeep() {
+  auth.clearKeep()
+  notifications.clear()
+  router.push({ name: 'keeps' })
 }
 
-async function doRestart() {
-  await post('/game/reset')
-  gameTime.currentDay = 0
-  player.name = ''
+function logout() {
+  auth.logout()
   notifications.clear()
-  router.push({ name: 'new-game' })
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -46,13 +32,10 @@ async function doRestart() {
       <router-link to="/parties" :class="{ active: route.path.startsWith('/parties') }">Parties</router-link>
       <router-link to="/expeditions" :class="{ active: route.path.startsWith('/expedition') }">Expeditions</router-link>
     </nav>
-    <button
-      class="restart-btn"
-      :class="{ confirming: confirmingRestart }"
-      @click="handleRestart"
-    >
-      {{ confirmingRestart ? 'Are you sure?' : 'Restart' }}
-    </button>
+    <div class="header-actions">
+      <button class="header-btn" @click="switchKeep">Switch Keep</button>
+      <button class="header-btn" @click="logout">Sign Out</button>
+    </div>
   </header>
 </template>
 
@@ -104,8 +87,13 @@ nav a.active {
   text-decoration: none;
 }
 
-.restart-btn {
+.header-actions {
+  display: flex;
+  gap: 8px;
   margin-left: 24px;
+}
+
+.header-btn {
   padding: 4px 12px;
   background: transparent;
   color: var(--text-muted);
@@ -117,13 +105,8 @@ nav a.active {
   transition: all 0.15s;
 }
 
-.restart-btn:hover {
+.header-btn:hover {
   color: var(--text-primary);
   border-color: var(--text-muted);
-}
-
-.restart-btn.confirming {
-  color: var(--accent-red, #e74c3c);
-  border-color: var(--accent-red, #e74c3c);
 }
 </style>

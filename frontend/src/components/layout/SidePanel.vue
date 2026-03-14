@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
-import { useNotificationsStore } from '../../stores/notifications'
+import { useNotificationsStore, type Notification } from '../../stores/notifications'
 import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 
@@ -12,7 +12,7 @@ const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
 
-function handleAction(notification: (typeof notifications.messages.value)[0]) {
+function handleAction(notification: Notification) {
   if (notification.action?.callback) {
     notification.action.callback()
   } else if (notification.action?.route) {

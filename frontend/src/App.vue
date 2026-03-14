@@ -1,29 +1,43 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuthStore } from './stores/auth'
 import { useGameTimeStore } from './stores/gameTime'
 import { usePlayerStore } from './stores/player'
 import AppHeader from './components/layout/AppHeader.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 
 const route = useRoute()
+const auth = useAuthStore()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 
-const isNewGame = computed(() => route.name === 'new-game')
+const isAuthPage = computed(() =>
+  ['login', 'register', 'keeps'].includes(route.name as string)
+)
 
 onMounted(async () => {
-  try {
-    await gameTime.fetchTime()
-    await player.fetchPlayer()
-  } catch {
-    // Game doesn't exist yet — nav guard will redirect to /new-game
+  const restored = await auth.tryRestore()
+  if (restored && auth.currentKeep) {
+    try {
+      player.fetchPlayer()
+      await gameTime.fetchTime()
+    } catch {
+      // Keep may have been deleted
+    }
+  } else if (restored) {
+    // Logged in but no keep — try restoring keepId from localStorage
+    const keepId = localStorage.getItem('keepId')
+    if (keepId) {
+      // We'll load the keep data when navigating to a game page
+      // For now the router guard will handle redirection
+    }
   }
 })
 </script>
 
 <template>
-  <template v-if="isNewGame">
+  <template v-if="isAuthPage">
     <div class="main-content" style="margin-left: 0">
       <router-view />
     </div>
@@ -37,5 +51,4 @@ onMounted(async () => {
       </div>
     </div>
   </template>
-
 </template>

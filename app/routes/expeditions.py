@@ -1,23 +1,18 @@
 import json
-from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from starlette.requests import Request
 from datetime import datetime
-from typing import Optional
 
 from app.database import get_db
 from app.models import (
-    Adventurer, Party, Expedition, ExpeditionNodeResult, ExpeditionLog,
-    Player, GameTime,
+    Adventurer, Party, Expedition, ExpeditionNodeResult, ExpeditionLog, Keep,
 )
 from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator, calculate_loot_split
 from app.progression import check_for_level_up
+from app.auth import get_current_keep
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _make_json_safe(obj):
@@ -34,7 +29,7 @@ def _make_json_safe(obj):
 simulator = DungeonSimulator()
 
 
-def resolve_expedition(expedition: Expedition, db: Session, current_day: int) -> dict:
+def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
     """Apply stored simulation results when an expedition returns.
     Returns a summary dict with events for notifications."""
     sim_result = expedition.simulation_data
@@ -85,7 +80,7 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
             if is_dead:
                 member.hp_current = 0
                 member.is_dead = True
-                member.death_day = current_day
+                member.death_day = keep.current_day
                 member.on_expedition = False
                 member.is_available = False
                 events.append({"type": "death", "message": f"{member.name} died during the expedition"})
@@ -97,7 +92,7 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
                 living_members.append(member)
 
         # All loot goes to living adventurers evenly (loot is in copper)
-        # Player treasury is funded only through monthly upkeep
+        # Keep treasury is funded only through monthly upkeep
         total_loot_copper = sim_result.get("treasure_total", 0) * 100  # convert GP to copper
         living_count = len(living_members)
         if living_count > 0 and total_loot_copper > 0:
@@ -116,37 +111,36 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
         import math
         from app.routes.game import format_currency, copper_to_parts
 
-        player = db.query(Player).first()
         # Count upkeep days that fell during the expedition (exclude current_day;
         # if today is an upkeep day, the normal process_upkeep handles it)
         missed_cycles = 0
-        if expedition.start_day and current_day > expedition.start_day:
-            for day in range(expedition.start_day + 1, current_day):
+        if expedition.start_day and keep.current_day > expedition.start_day:
+            for day in range(expedition.start_day + 1, keep.current_day):
                 if day % 30 == 0:
                     missed_cycles += 1
 
         deferred_upkeep_collected = 0
-        if missed_cycles > 0 and player:
+        if missed_cycles > 0:
             for member in list(living_members):
                 cost_copper = math.floor(member.xp * 1) * missed_cycles
                 if cost_copper <= 0:
                     continue
                 if member.total_copper() >= cost_copper:
                     member.subtract_currency(cost_copper)
-                    player.add_treasury(cost_copper)
-                    player.total_score += cost_copper
+                    keep.add_treasury(cost_copper)
+                    keep.total_score += cost_copper
                     deferred_upkeep_collected += cost_copper
                 else:
                     # Bankrupt: seize remaining funds, send to debtor's prison
                     remaining = member.total_copper()
                     if remaining > 0:
-                        player.add_treasury(remaining)
-                        player.total_score += remaining
+                        keep.add_treasury(remaining)
+                        keep.total_score += remaining
                     member.gold = 0
                     member.silver = 0
                     member.copper = 0
                     member.is_bankrupt = True
-                    member.bankruptcy_day = current_day
+                    member.bankruptcy_day = keep.current_day
                     member.is_available = False
                     member.parties = []
                     living_members.remove(member)
@@ -162,77 +156,18 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
     return {"events": events, "simulation_data": sim_result}
 
 
-@router.get("/expeditions/active", response_class=HTMLResponse)
-def expeditions_active(request: Request, db: Session = Depends(get_db)):
-    """Get active expeditions partial"""
-    active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
-
-    game_time = db.query(GameTime).first()
-    if not game_time:
-        game_time = GameTime(current_day=1)
-        db.add(game_time)
-        db.commit()
-        db.refresh(game_time)
-
-    return templates.TemplateResponse(
-        "partials/active_expeditions.html",
-        {
-            "request": request,
-            "active_expeditions": active_expeditions,
-            "game_time": game_time
-        }
-    )
-
-
-@router.get("/expeditions/completed", response_class=HTMLResponse)
-def expeditions_completed(request: Request, db: Session = Depends(get_db)):
-    """Get completed expeditions partial"""
-    completed_expeditions = db.query(Expedition).filter(
-        Expedition.result == "completed"
-    ).order_by(Expedition.finished_at.desc()).limit(10).all()
-
-    return templates.TemplateResponse(
-        "partials/completed_expeditions.html",
-        {
-            "request": request,
-            "completed_expeditions": completed_expeditions
-        }
-    )
-
-
-@router.get("/expeditions/create-form", response_class=HTMLResponse)
-def expedition_create_form(request: Request, party_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
-    """Return the expedition creation form"""
-    parties = db.query(Party).filter(Party.on_expedition == False).all()
-
-    selected_party = None
-    if party_id:
-        selected_party = db.query(Party).filter(Party.id == party_id).first()
-
-    treasury_gold = 0
-    player = db.query(Player).first()
-    if player:
-        treasury_gold = player.treasury
-
-    return templates.TemplateResponse(
-        "partials/expedition_form.html",
-        {
-            "request": request,
-            "parties": parties,
-            "party": selected_party,
-            "treasury_gold": treasury_gold
-        }
-    )
-
-
 @router.post("/expeditions/")
 def launch_expedition(
     expedition_data: ExpeditionCreate,
-    db: Session = Depends(get_db)
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
 ):
     """Launch a new expedition. The party departs and results are applied on return."""
 
-    party = db.query(Party).filter(Party.id == expedition_data.party_id).first()
+    party = db.query(Party).filter(
+        Party.id == expedition_data.party_id,
+        Party.keep_id == keep.id,
+    ).first()
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
 
@@ -283,14 +218,7 @@ def launch_expedition(
         dungeon_level=expedition_data.dungeon_level
     )
 
-    game_time = db.query(GameTime).first()
-    if not game_time:
-        game_time = GameTime(current_day=0, day_started_at=datetime.now(), last_updated=datetime.now())
-        db.add(game_time)
-        db.commit()
-        db.refresh(game_time)
-
-    start_day = game_time.current_day
+    start_day = keep.current_day
     return_day = start_day + expedition_data.duration_days - 1
 
     # Run simulation now but store results for later
@@ -328,48 +256,17 @@ def launch_expedition(
     }
 
 
-@router.get("/expeditions/{expedition_id}/details", response_class=HTMLResponse)
-def expedition_details_page(request: Request, expedition_id: int, db: Session = Depends(get_db)):
-    """Render the expedition details page"""
-    expedition = db.query(Expedition).filter(Expedition.id == expedition_id).first()
-    if not expedition:
-        raise HTTPException(status_code=404, detail="Expedition not found")
-
-    node_results = db.query(ExpeditionNodeResult).filter(ExpeditionNodeResult.expedition_id == expedition_id).all()
-
-    processed_logs = []
-    total_loot = 0
-    total_xp = 0
-
-    for node in node_results:
-        try:
-            log_data = json.loads(node.log)
-            processed_logs.append({"log_data": log_data})
-        except (json.JSONDecodeError, TypeError):
-            processed_logs.append({"log_data": {"error": "Could not parse log entry."}})
-        total_loot += node.loot or 0
-        total_xp += node.xp_earned or 0
-
-    player = db.query(Player).first()
-    treasury_gold = player.treasury if player else 0
-
-    return templates.TemplateResponse(
-        "expedition_details.html",
-        {
-            "request": request,
-            "expedition": expedition,
-            "expedition_logs": processed_logs,
-            "total_loot": total_loot,
-            "total_xp": total_xp,
-            "treasury_gold": treasury_gold,
-        }
-    )
-
-
 @router.get("/expeditions/{expedition_id}", response_model=ExpeditionResult)
-def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
+def get_expedition_results(
+    expedition_id: int,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
     """Get detailed results of an expedition"""
-    db_expedition = db.query(Expedition).filter(Expedition.id == expedition_id).first()
+    db_expedition = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+        Expedition.id == expedition_id,
+        Party.keep_id == keep.id,
+    ).first()
     if not db_expedition:
         raise HTTPException(status_code=404, detail="Expedition not found")
 
@@ -454,9 +351,9 @@ def get_expedition_results(expedition_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/expeditions/")
-def list_expeditions(db: Session = Depends(get_db)):
-    """List all expeditions in the database"""
-    expeditions = db.query(Expedition).all()
+def list_expeditions(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
+    """List all expeditions for this keep"""
+    expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(Party.keep_id == keep.id).all()
     return [
         {
             "id": e.id,
@@ -473,9 +370,16 @@ def list_expeditions(db: Session = Depends(get_db)):
 
 
 @router.get("/expeditions/{expedition_id}/summary")
-def get_expedition_summary(expedition_id: int, db: Session = Depends(get_db)):
+def get_expedition_summary(
+    expedition_id: int,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
     """Get expedition summary with member results and readiness estimate."""
-    expedition = db.query(Expedition).filter(Expedition.id == expedition_id).first()
+    expedition = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+        Expedition.id == expedition_id,
+        Party.keep_id == keep.id,
+    ).first()
     if not expedition:
         raise HTTPException(status_code=404, detail="Expedition not found")
 
@@ -505,9 +409,7 @@ def get_expedition_summary(expedition_id: int, db: Session = Depends(get_db)):
             "copper": adv.copper,
         })
 
-    game_time = db.query(GameTime).first()
-    current_day = game_time.current_day if game_time else 0
-    estimated_readiness_day = current_day + max_heal_days if max_heal_days > 0 else current_day
+    estimated_readiness_day = keep.current_day + max_heal_days if max_heal_days > 0 else keep.current_day
 
     node_results = db.query(ExpeditionNodeResult).filter(
         ExpeditionNodeResult.expedition_id == expedition_id
@@ -539,9 +441,16 @@ def get_expedition_summary(expedition_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/expeditions/{expedition_id}/advance", response_model=TurnResult)
-def advance_expedition_turn(expedition_id: int, db: Session = Depends(get_db)):
+def advance_expedition_turn(
+    expedition_id: int,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
     """Advance an expedition by one turn"""
-    db_expedition = db.query(Expedition).filter(Expedition.id == expedition_id).first()
+    db_expedition = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+        Expedition.id == expedition_id,
+        Party.keep_id == keep.id,
+    ).first()
     if not db_expedition:
         raise HTTPException(status_code=404, detail="Expedition not found")
 
@@ -580,31 +489,3 @@ def advance_expedition_turn(expedition_id: int, db: Session = Depends(get_db)):
         return result
     except ValueError:
         raise HTTPException(status_code=404, detail="Expedition not found in simulator")
-
-
-# --- Frontend Routes ---
-
-@router.get("/expeditions", response_class=HTMLResponse)
-def expeditions_page(request: Request, db: Session = Depends(get_db)):
-    """Render the expeditions page"""
-    active_expeditions = db.query(Expedition).filter(Expedition.result == "in_progress").all()
-
-    game_time = db.query(GameTime).first()
-    if not game_time:
-        game_time = GameTime(current_day=1)
-        db.add(game_time)
-        db.commit()
-        db.refresh(game_time)
-
-    player = db.query(Player).first()
-    treasury_gold = player.treasury if player else 0
-
-    return templates.TemplateResponse(
-        "expeditions.html",
-        {
-            "request": request,
-            "active_expeditions": active_expeditions,
-            "treasury_gold": treasury_gold,
-            "game_time": game_time
-        }
-    )

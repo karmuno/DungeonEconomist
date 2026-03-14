@@ -60,34 +60,18 @@ class AdventurerCreate(BaseModel):
     level: int = 1
     hp_max: int = 10
 
-class PlayerBase(BaseModel):
-    name: str
-
-class PlayerCreate(PlayerBase):
-    pass
-
-class PlayerOut(PlayerBase):
-    id: int
-    treasury_gold: int = 0
-    treasury_silver: int = 0
-    treasury_copper: int = 0
-    total_score: int = 0
-
-    class Config:
-        from_attributes = True
-
 class PartyBase(BaseModel):
     name: str
 
 class PartyCreate(PartyBase):
-    player_id: Optional[int] = None
+    pass
 
 class PartyOut(PartyBase):
     id: int
     created_at: Optional[datetime] = None
     on_expedition: bool = False
     current_expedition_id: Optional[int] = None
-    player_id: Optional[int] = None
+    keep_id: Optional[int] = None
     members: List[AdventurerOut] = []
 
     class Config:
