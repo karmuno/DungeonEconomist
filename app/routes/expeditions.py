@@ -112,8 +112,46 @@ def resolve_expedition(expedition: Expedition, db: Session, current_day: int) ->
             total_g, total_s, total_c = copper_to_parts(total_loot_copper)
             events.append({"type": "loot", "message": f"Earned {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each to {living_count} adventurer{'s' if living_count != 1 else ''})"})
 
+        # Collect deferred upkeep for any cycles missed while on expedition
+        import math
+        from app.routes.game import format_currency, copper_to_parts
+
+        player = db.query(Player).first()
+        # Count upkeep days that fell during the expedition (exclude current_day;
+        # if today is an upkeep day, the normal process_upkeep handles it)
+        missed_cycles = 0
+        if expedition.start_day and current_day > expedition.start_day:
+            for day in range(expedition.start_day + 1, current_day):
+                if day % 30 == 0:
+                    missed_cycles += 1
+
+        if missed_cycles > 0 and player:
+            for member in list(living_members):
+                cost_copper = math.floor(member.xp * 1) * missed_cycles
+                if cost_copper <= 0:
+                    continue
+                if member.total_copper() >= cost_copper:
+                    member.subtract_currency(cost_copper)
+                    player.add_treasury(cost_copper)
+                    player.total_score += cost_copper
+                else:
+                    # Bankrupt: seize remaining funds, send to debtor's prison
+                    remaining = member.total_copper()
+                    if remaining > 0:
+                        player.add_treasury(remaining)
+                        player.total_score += remaining
+                    member.gold = 0
+                    member.silver = 0
+                    member.copper = 0
+                    member.is_bankrupt = True
+                    member.bankruptcy_day = current_day
+                    member.is_available = False
+                    member.parties = []
+                    living_members.remove(member)
+                    events.append({"type": "upkeep", "message": f"{member.name} couldn't pay deferred upkeep and was sent to debtor's prison"})
+
         # Remove dead members from party
-        party.members = [m for m in party.members if not m.is_dead]
+        party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
     return {"events": events, "simulation_data": sim_result}
 
