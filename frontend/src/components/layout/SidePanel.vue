@@ -135,7 +135,7 @@ async function skipToEvent() {
   position: fixed;
   left: 0;
   top: 56px;
-  width: 300px;
+  width: 260px;
   height: calc(100vh - 56px);
   background: var(--bg-primary);
   border-right: 1px solid var(--border-color);
@@ -188,14 +188,12 @@ async function skipToEvent() {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--accent-green);
-  white-space: nowrap;
 }
 
 .score-value {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
-  white-space: nowrap;
 }
 
 .time-controls {
