@@ -24,7 +24,7 @@ const emit = defineEmits<{
         <th>Class</th>
         <th>Level</th>
         <th>Party</th>
-        <th>HP</th>
+        <th style="width: 160px">HP</th>
         <th>XP</th>
         <th>Gold</th>
         <th>Status</th>

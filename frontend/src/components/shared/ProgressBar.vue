@@ -23,8 +23,7 @@ const percentage = computed(() => {
     <div
       class="progress-fill"
       :style="{ width: percentage + '%', backgroundColor: color }"
-    >
-      {{ value }} / {{ max }}
-    </div>
+    />
+    <span class="progress-label">{{ value }} / {{ max }}</span>
   </div>
 </template>
