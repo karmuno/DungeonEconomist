@@ -1,34 +1,42 @@
 """Adventurer name generation. Single source of truth for all name creation."""
 
+import json
 import random
+from pathlib import Path
+
 from app.models import AdventurerClass
-from app.data.names import (
-    FIGHTER_NAMES, CLERIC_TITLES, CLERIC_GIVEN_NAMES, MAGIC_USER_NAMES,
-    ELF_NAMES, DWARF_NAMES, HOBBIT_NAMES, SURNAMES, HOBBIT_SURNAMES,
-)
+
+_DATA_PATH = Path(__file__).parent / "data" / "names.json"
+
+with open(_DATA_PATH) as f:
+    _NAMES = json.load(f)
 
 _FIRST_NAMES = {
-    AdventurerClass.FIGHTER: FIGHTER_NAMES,
-    AdventurerClass.MAGIC_USER: MAGIC_USER_NAMES,
-    AdventurerClass.ELF: ELF_NAMES,
-    AdventurerClass.DWARF: DWARF_NAMES,
-    AdventurerClass.HOBBIT: HOBBIT_NAMES,
+    AdventurerClass.FIGHTER: _NAMES["fighter"],
+    AdventurerClass.MAGIC_USER: _NAMES["magic_user"],
+    AdventurerClass.ELF: _NAMES["elf"],
+    AdventurerClass.DWARF: _NAMES["dwarf"],
+    AdventurerClass.HOBBIT: _NAMES["hobbit"],
 }
+_SURNAMES = _NAMES["surnames"]
+_HOBBIT_SURNAMES = _NAMES["hobbit_surnames"]
+_CLERIC_TITLES = _NAMES["cleric_titles"]
+_CLERIC_GIVEN = _NAMES["cleric_given"]
 
 
 def generate_adventurer_name(adventurer_class: AdventurerClass) -> str:
     """Generate a random name for a new adventurer."""
     if adventurer_class == AdventurerClass.CLERIC:
-        title = random.choice(CLERIC_TITLES)
-        given = random.choice(CLERIC_GIVEN_NAMES)
-        surname = random.choice(SURNAMES)
+        title = random.choice(_CLERIC_TITLES)
+        given = random.choice(_CLERIC_GIVEN)
+        surname = random.choice(_SURNAMES)
         return f"{title} {given} {surname}"
 
-    first = random.choice(_FIRST_NAMES.get(adventurer_class, FIGHTER_NAMES))
+    first = random.choice(_FIRST_NAMES.get(adventurer_class, _FIRST_NAMES[AdventurerClass.FIGHTER]))
 
     if adventurer_class == AdventurerClass.HOBBIT:
-        surname = random.choice(SURNAMES + HOBBIT_SURNAMES)
+        surname = random.choice(_SURNAMES + _HOBBIT_SURNAMES)
     else:
-        surname = random.choice(SURNAMES)
+        surname = random.choice(_SURNAMES)
 
     return f"{first} {surname}"
