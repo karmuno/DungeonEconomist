@@ -81,6 +81,7 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
                 member.hp_current = 0
                 member.is_dead = True
                 member.death_day = keep.current_day
+                member.death_party_name = party.name if party else None
                 member.on_expedition = False
                 member.is_available = False
                 events.append({"type": "death", "message": f"{member.name} died during the expedition"})

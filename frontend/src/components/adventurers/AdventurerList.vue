@@ -6,14 +6,20 @@ import EmptyState from '../shared/EmptyState.vue'
 import { formatCurrency } from '../../utils/currency'
 import { displayStatus } from '../../utils/adventurer'
 
-defineProps<{
+const props = defineProps<{
   adventurers: AdventurerOut[]
   partyNameMap?: Record<number, string>
+  hideHp?: boolean
 }>()
 
 const emit = defineEmits<{
   select: [id: number]
 }>()
+
+function partyDisplay(adv: AdventurerOut): string {
+  if (adv.is_dead && adv.death_party_name) return adv.death_party_name
+  return props.partyNameMap?.[adv.id] ?? '—'
+}
 </script>
 
 <template>
@@ -24,7 +30,7 @@ const emit = defineEmits<{
         <th>Class</th>
         <th>Level</th>
         <th>Party</th>
-        <th style="width: 160px">HP</th>
+        <th v-if="!hideHp" style="width: 160px">HP</th>
         <th>XP</th>
         <th>Gold</th>
         <th>Status</th>
@@ -40,10 +46,9 @@ const emit = defineEmits<{
         <td>{{ adv.name }}</td>
         <td>{{ adv.adventurer_class }}</td>
         <td>{{ adv.level }}</td>
-        <td>{{ partyNameMap?.[adv.id] ?? '—' }}</td>
-        <td>
-          <ProgressBar v-if="!adv.is_dead" :value="adv.hp_current" :max="adv.hp_max" />
-          <span v-else>&mdash;</span>
+        <td>{{ partyDisplay(adv) }}</td>
+        <td v-if="!hideHp">
+          <ProgressBar :value="adv.hp_current" :max="adv.hp_max" />
         </td>
         <td>{{ adv.xp }}</td>
         <td class="text-gold">{{ formatCurrency(adv.gold, adv.silver, adv.copper) }}</td>

@@ -47,6 +47,7 @@ class AdventurerOut(BaseModel):
     is_bankrupt: bool = False
     is_dead: bool = False
     death_day: Optional[int] = None
+    death_party_name: Optional[str] = None
     bankruptcy_day: Optional[int] = None
     next_level_xp: Optional[int] = None
     xp_progress: Optional[float] = None

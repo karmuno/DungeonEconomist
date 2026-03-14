@@ -90,6 +90,7 @@ class Adventurer(Base):
     is_bankrupt = Column(Boolean, default=False, nullable=False)
     is_dead = Column(Boolean, default=False, nullable=False)
     death_day = Column(Integer, nullable=True)
+    death_party_name = Column(String, nullable=True)
     bankruptcy_day = Column(Integer, nullable=True)
 
     keep = relationship('Keep', back_populates='adventurers')

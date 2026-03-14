@@ -262,6 +262,7 @@ onMounted(fetchAdventurers)
       <AdventurerList
         v-else
         :adventurers="graveyard"
+        :hide-hp="true"
         @select="onSelect"
       />
     </template>

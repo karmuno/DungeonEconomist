@@ -62,6 +62,7 @@ export interface AdventurerOut {
   is_bankrupt: boolean
   is_dead: boolean
   death_day?: number | null
+  death_party_name?: string | null
   bankruptcy_day?: number | null
   next_level_xp?: number | null
   xp_progress?: number | null
