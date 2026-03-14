@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import type { DashboardStats } from '../../types'
 import { formatCurrency } from '../../utils/currency'
+
+const router = useRouter()
 
 defineProps<{
   stats: DashboardStats
@@ -9,15 +12,15 @@ defineProps<{
 
 <template>
   <div class="dashboard-stats">
-    <div class="stat-card">
+    <div class="stat-card clickable" @click="router.push('/adventurers')">
       <div class="stat-value">{{ stats.adventurer_count }}</div>
       <div class="stat-label">Adventurers</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card clickable" @click="router.push('/parties')">
       <div class="stat-value">{{ stats.party_count }}</div>
       <div class="stat-label">Parties</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card clickable" @click="router.push('/expeditions')">
       <div class="stat-value">{{ stats.expedition_count }}</div>
       <div class="stat-label">Expeditions</div>
     </div>
@@ -41,5 +44,14 @@ defineProps<{
 
 .dashboard-stats .stat-card .stat-value {
   white-space: nowrap;
+}
+
+.stat-card.clickable {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.stat-card.clickable:hover {
+  background-color: rgba(74, 222, 128, 0.06);
 }
 </style>
