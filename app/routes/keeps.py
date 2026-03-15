@@ -6,9 +6,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account, Keep, Adventurer, AdventurerClass
+from app.models import Account, Keep, Adventurer, AdventurerClass, Building
 from app.auth import get_current_account
 from app.names import generate_adventurer_name
+from app.dungeons import generate_dungeon_name
+from app.buildings import BUILDING_TYPES
 
 router = APIRouter(prefix="/keeps", tags=["keeps"])
 
@@ -28,6 +30,8 @@ class KeepOut(BaseModel):
     day_started_at: datetime
     last_updated: datetime
     created_at: datetime
+    dungeon_name: str | None = None
+    max_dungeon_level: int = 1
 
     class Config:
         from_attributes = True
@@ -83,6 +87,8 @@ def create_keep(data: KeepCreate, account: Account = Depends(get_current_account
         day_started_at=now,
         last_updated=now,
         created_at=now,
+        dungeon_name=generate_dungeon_name(),
+        max_dungeon_level=1,
     )
     db.add(keep)
     db.commit()
@@ -90,6 +96,12 @@ def create_keep(data: KeepCreate, account: Account = Depends(get_current_account
 
     # Seed 6 starting adventurers
     seed_starting_adventurers(keep, db)
+
+    # Seed starter buildings (level 1, one per type)
+    for btype in BUILDING_TYPES:
+        building = Building(keep_id=keep.id, building_type=btype, level=1)
+        db.add(building)
+
     db.commit()
 
     return keep

@@ -1,0 +1,38 @@
+{
+  "name_prefixes": [
+    "The Sunken", "The Forgotten", "The Cursed", "The Burning", "The Frozen",
+    "The Shadow", "The Iron", "The Crystal", "The Bone", "The Blood",
+    "The Ruined", "The Lost", "The Haunted", "The Shattered", "The Silent",
+    "The Screaming", "The Whispering", "The Rotting", "The Golden", "The Obsidian",
+    "The Crimson", "The Emerald", "The Abyssal", "The Storm", "The Moonlit",
+    "The Dread", "The Ancient", "The Hollow", "The Twisted", "The Blackened",
+    "The Drowned", "The Ashen", "The Gilded", "The Thorned", "The Veiled",
+    "The Wailing", "The Dusk", "The Fell", "The Pale", "The Wyrm's",
+    "The Spider's", "The Titan's", "The Serpent's", "The Lich's", "The Witch's",
+    "The Giant's", "The Demon's", "The Goblin", "The Troll", "The Ogre's"
+  ],
+  "name_suffixes": [
+    "Depths", "Catacombs", "Crypts", "Labyrinth", "Dungeon",
+    "Caverns", "Mines", "Halls", "Tomb", "Vault",
+    "Pit", "Warren", "Lair", "Abyss", "Undercroft",
+    "Sanctum", "Barrow", "Citadel", "Spire", "Keep",
+    "Fortress", "Passage", "Grotto", "Chasm", "Delve",
+    "Stronghold", "Oubliette", "Gauntlet", "Threshold", "Maw",
+    "Nexus", "Crucible", "Sepulchre", "Foundry", "Pits",
+    "Reaches", "Wastes", "Expanse", "Domain", "Prison"
+  ],
+  "name_middle": [
+    "of Despair", "of Doom", "of Shadows", "of the Damned", "of the Lost",
+    "of Sorrows", "of Madness", "of Ruin", "of Bones", "of Fire",
+    "of Ice", "of Stone", "of Iron", "of Gold", "of Blood",
+    "Below", "Beneath", "Beyond", "Within", "Eternal"
+  ],
+  "dungeon_level_names": [
+    "The Upper Halls",
+    "The Twisting Corridors",
+    "The Sunless Galleries",
+    "The Deep Warrens",
+    "The Abyssal Vaults",
+    "The Netherdark"
+  ]
+}

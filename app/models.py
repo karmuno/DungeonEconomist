@@ -33,10 +33,13 @@ class Keep(Base):
     day_started_at = Column(DateTime, default=datetime.now)
     last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     created_at = Column(DateTime, default=datetime.now)
+    dungeon_name = Column(String, nullable=True)
+    max_dungeon_level = Column(Integer, default=1)
 
     account = relationship('Account', back_populates='keeps')
     parties = relationship('Party', back_populates='keep')
     adventurers = relationship('Adventurer', back_populates='keep')
+    buildings = relationship('Building', back_populates='keep')
 
     @property
     def treasury(self) -> int:
@@ -53,6 +56,33 @@ class Keep(Base):
         self.treasury_gold = total // 100
         self.treasury_silver = (total % 100) // 10
         self.treasury_copper = total % 10
+
+
+class Building(Base):
+    """A keep building that adventurers can be assigned to for bonuses."""
+    __tablename__ = 'buildings'
+
+    id = Column(Integer, primary_key=True)
+    keep_id = Column(Integer, ForeignKey('keeps.id'), nullable=False)
+    building_type = Column(String, nullable=False)  # e.g. 'training_yard', 'shrine', etc.
+    level = Column(Integer, default=1)
+    retired_adventurer_id = Column(Integer, ForeignKey('adventurers.id'), nullable=True)
+
+    keep = relationship('Keep', back_populates='buildings')
+    retired_adventurer = relationship('Adventurer', foreign_keys=[retired_adventurer_id])
+    assigned_adventurers = relationship(
+        'Adventurer',
+        secondary='building_assignments',
+        back_populates='assigned_building',
+    )
+
+
+# Association table between Building and assigned Adventurers
+building_assignments = Table(
+    'building_assignments', Base.metadata,
+    Column('building_id', Integer, ForeignKey('buildings.id'), primary_key=True),
+    Column('adventurer_id', Integer, ForeignKey('adventurers.id'), primary_key=True),
+)
 
 
 # Association table between Party and Adventurer
@@ -96,6 +126,7 @@ class Adventurer(Base):
     keep = relationship('Keep', back_populates='adventurers')
     parties = relationship('Party', secondary=party_adventurer, back_populates='members')
     expedition_logs = relationship('ExpeditionLog', back_populates='adventurer')
+    assigned_building = relationship('Building', secondary='building_assignments', back_populates='assigned_adventurers')
 
     def total_copper(self) -> int:
         """Convert all currency to copper pieces."""
@@ -152,7 +183,10 @@ class Expedition(Base):
     return_day = Column(Integer, nullable=False)  # Game day when expedition will return
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
-    result = Column(String)  # e.g., 'in_progress', 'completed', 'success', 'failure'
+    dungeon_level = Column(Integer, default=1)
+    result = Column(String)  # 'in_progress', 'awaiting_choice', 'completed'
+    pending_event = Column(JSON, nullable=True)  # Current interactive event awaiting player choice
+    resolved_phases = Column(Integer, default=0)  # How many phases have been resolved so far
     simulation_data = Column(JSON, nullable=True)  # Stores sim results until expedition returns
 
     # Relationship to owning Party; specify foreign_keys to disambiguate multiple FKs between tables
