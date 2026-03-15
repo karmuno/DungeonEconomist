@@ -12,34 +12,29 @@ import ModalDialog from '../components/shared/ModalDialog.vue'
 import AdventurerFilters from '../components/adventurers/AdventurerFilters.vue'
 import AdventurerList from '../components/adventurers/AdventurerList.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
+import { displayStatus } from '../utils/adventurer'
 
 const router = useRouter()
 const notifications = useNotificationsStore()
 const gameTime = useGameTimeStore()
 
-// Re-fetch when day advances (e.g. from SidePanel)
-watch(() => gameTime.currentDay, () => {
-  fetchAdventurers()
-  if (activeTab.value === 'graveyard') fetchGraveyard()
-  if (activeTab.value === 'debtors') fetchDebtors()
-})
+watch(() => gameTime.currentDay, () => fetchAdventurers())
 
-const activeTab = ref<'roster' | 'graveyard' | 'debtors'>('roster')
 const adventurers = ref<AdventurerOut[]>([])
 const parties = ref<PartyOut[]>([])
-const graveyard = ref<AdventurerOut[]>([])
-const debtors = ref<AdventurerOut[]>([])
 const loading = ref(true)
 const selectedAdventurer = ref<AdventurerOut | null>(null)
 const showDetail = ref(false)
 
-// Party management in adventurer modal
 const selectedPartyId = ref<number | null>(null)
-const managingParty = ref(false)
+const confirmingDisband = ref(false)
+
+// Default: show Available and Recovering (not Dead, Bankrupt, On Expedition)
+const DEFAULT_STATUSES = new Set(['Available', 'Recovering'])
 
 const filters = ref({
   classFilter: '',
-  statusFilter: '',
+  statuses: new Set(DEFAULT_STATUSES),
   nameSearch: '',
   sortBy: 'name',
   sortDir: 'asc' as 'asc' | 'desc',
@@ -48,22 +43,13 @@ const filters = ref({
 const filteredAdventurers = computed(() => {
   let result = [...adventurers.value]
 
-  if (filters.value.classFilter) {
-    result = result.filter((a) => a.adventurer_class === filters.value.classFilter)
+  // Status filter
+  if (filters.value.statuses.size > 0) {
+    result = result.filter((a) => filters.value.statuses.has(displayStatus(a)))
   }
 
-  if (filters.value.statusFilter) {
-    switch (filters.value.statusFilter) {
-      case 'available':
-        result = result.filter((a) => a.is_available && !a.on_expedition)
-        break
-      case 'on_expedition':
-        result = result.filter((a) => a.on_expedition)
-        break
-      case 'injured':
-        result = result.filter((a) => a.hp_current < a.hp_max)
-        break
-    }
+  if (filters.value.classFilter) {
+    result = result.filter((a) => a.adventurer_class === filters.value.classFilter)
   }
 
   if (filters.value.nameSearch) {
@@ -86,12 +72,7 @@ const filteredAdventurers = computed(() => {
   return result
 })
 
-// Find which party an adventurer belongs to
-function adventurerParty(advId: number): PartyOut | undefined {
-  return parties.value.find((p) => p.members.some((m) => m.id === advId))
-}
-
-// Map of adventurer ID -> party name for display
+// Map adventurer ID -> party name
 const partyNameMap = computed(() => {
   const map: Record<number, string> = {}
   for (const p of parties.value) {
@@ -102,40 +83,34 @@ const partyNameMap = computed(() => {
   return map
 })
 
-// Parties that can accept a new member
 const availableParties = computed(() =>
   parties.value.filter((p) => p.members.length < 6 && !p.on_expedition)
 )
 
+function adventurerParty(advId: number): PartyOut | undefined {
+  return parties.value.find((p) => p.members.some((m) => m.id === advId))
+}
+
+// Whether to hide HP column (when only showing dead adventurers)
+const hideHp = computed(() => {
+  const s = filters.value.statuses
+  return s.size === 1 && s.has('Dead')
+})
+
 async function fetchAdventurers() {
   loading.value = true
   try {
-    adventurers.value = await adventurersApi.list()
+    adventurers.value = await adventurersApi.list(true)
     parties.value = await partiesApi.list()
   } finally {
     loading.value = false
   }
 }
 
-async function fetchGraveyard() {
-  graveyard.value = await adventurersApi.getGraveyard()
-}
-
-async function fetchDebtors() {
-  debtors.value = await adventurersApi.getDebtorsPrison()
-}
-
-async function onTabChange(tab: 'roster' | 'graveyard' | 'debtors') {
-  activeTab.value = tab
-  if (tab === 'graveyard') await fetchGraveyard()
-  if (tab === 'debtors') await fetchDebtors()
-}
-
 async function onSelect(id: number) {
   try {
     selectedAdventurer.value = await adventurersApi.getById(id)
     selectedPartyId.value = null
-    managingParty.value = false
     confirmingDisband.value = false
     showDetail.value = true
   } catch {
@@ -158,20 +133,16 @@ async function onLevelUp() {
   }
 }
 
-const confirmingDisband = ref(false)
-
 async function removeFromParty() {
   if (!selectedAdventurer.value) return
   const party = adventurerParty(selectedAdventurer.value.id)
   if (!party) return
 
-  // If this is the last member, ask for confirmation to disband
   if (party.members.length <= 1) {
     if (!confirmingDisband.value) {
       confirmingDisband.value = true
       return
     }
-    // Confirmed — delete the party
     try {
       await partiesApi.deleteParty(party.id)
       notifications.add(`Party "${party.name}" disbanded`, 'info')
@@ -211,73 +182,29 @@ onMounted(fetchAdventurers)
 
 <template>
   <div>
-    <div class="flex flex-between mb-3">
+    <div class="flex flex-between">
       <h1>Tavern</h1>
       <button class="btn btn-primary" @click="router.push('/form-party')">
         Form Party
       </button>
     </div>
 
-    <div class="view-toggle mb-2">
-      <button
-        :class="{ active: activeTab === 'roster' }"
-        @click="onTabChange('roster')"
-      >
-        Roster
-      </button>
-      <button
-        :class="{ active: activeTab === 'graveyard' }"
-        @click="onTabChange('graveyard')"
-      >
-        Graveyard
-      </button>
-      <button
-        :class="{ active: activeTab === 'debtors' }"
-        @click="onTabChange('debtors')"
-      >
-        Debtor's Prison
-      </button>
-    </div>
+    <AdventurerFilters v-model="filters" class="mb-2" />
 
-    <!-- Roster Tab -->
-    <template v-if="activeTab === 'roster'">
-      <AdventurerFilters v-model="filters" class="mb-3" />
-
-      <LoadingSpinner v-if="loading" />
-      <template v-else>
-        <template v-if="filteredAdventurers.length > 0">
-          <AdventurerList
-            :adventurers="filteredAdventurers"
-            :party-name-map="partyNameMap"
-            @select="onSelect"
-          />
-        </template>
-        <EmptyState v-else message="No adventurers match your filters" />
+    <LoadingSpinner v-if="loading" />
+    <template v-else>
+      <template v-if="filteredAdventurers.length > 0">
+        <AdventurerList
+          :adventurers="filteredAdventurers"
+          :party-name-map="partyNameMap"
+          :hide-hp="hideHp"
+          @select="onSelect"
+        />
       </template>
+      <EmptyState v-else message="No adventurers match your filters" />
     </template>
 
-    <!-- Graveyard Tab -->
-    <template v-if="activeTab === 'graveyard'">
-      <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
-      <AdventurerList
-        v-else
-        :adventurers="graveyard"
-        :hide-hp="true"
-        @select="onSelect"
-      />
-    </template>
-
-    <!-- Debtor's Prison Tab -->
-    <template v-if="activeTab === 'debtors'">
-      <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
-      <AdventurerList
-        v-else
-        :adventurers="debtors"
-        @select="onSelect"
-      />
-    </template>
-
-    <!-- Adventurer Detail Modal with Party Management -->
+    <!-- Adventurer Detail Modal -->
     <ModalDialog
       :is-open="showDetail"
       :title="selectedAdventurer?.name ?? 'Adventurer'"
@@ -290,7 +217,6 @@ onMounted(fetchAdventurers)
           @level-up="onLevelUp"
         />
 
-        <!-- Party Management Section -->
         <div class="party-management mt-3" style="border-top: 1px solid var(--border-color); padding-top: 16px">
           <h4 class="mb-2">Party Assignment</h4>
           <template v-if="adventurerParty(selectedAdventurer.id)">

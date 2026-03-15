@@ -56,14 +56,17 @@ def create_adventurer(
 def list_adventurers(
     skip: int = 0,
     limit: int = 100,
+    include_all: bool = False,
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    adventurers = db.query(Adventurer).filter(
-        Adventurer.keep_id == keep.id,
-        Adventurer.is_dead == False,
-        Adventurer.is_bankrupt == False,
-    ).offset(skip).limit(limit).all()
+    query = db.query(Adventurer).filter(Adventurer.keep_id == keep.id)
+    if not include_all:
+        query = query.filter(
+            Adventurer.is_dead == False,
+            Adventurer.is_bankrupt == False,
+        )
+    adventurers = query.offset(skip).limit(limit).all()
     return [add_progression_data(adv) for adv in adventurers]
 
 

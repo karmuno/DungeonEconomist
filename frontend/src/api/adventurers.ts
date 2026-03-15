@@ -1,8 +1,9 @@
 import { get, post } from './client'
 import type { AdventurerOut, AdventurerCreate, LevelUpResult } from '../types'
 
-export function list(): Promise<AdventurerOut[]> {
-  return get<AdventurerOut[]>('/adventurers/')
+export function list(includeAll = false): Promise<AdventurerOut[]> {
+  const params = includeAll ? '?include_all=true' : ''
+  return get<AdventurerOut[]>(`/adventurers/${params}`)
 }
 
 export function getById(id: number): Promise<AdventurerOut> {
