@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { PartyOut } from '../types'
+import type { DungeonInfo, DungeonLevel } from '../api/game'
 import * as partiesApi from '../api/parties'
 import * as expeditionsApi from '../api/expeditions'
+import * as gameApi from '../api/game'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 
@@ -12,19 +14,35 @@ const route = useRoute()
 const notifications = useNotificationsStore()
 
 const party = ref<PartyOut | null>(null)
-const dungeonLevel = ref(1)
+const dungeon = ref<DungeonInfo | null>(null)
+const selectedLevel = ref(1)
 const loading = ref(true)
 const submitting = ref(false)
 
+const selectedLevelInfo = computed<DungeonLevel | null>(() =>
+  dungeon.value?.levels.find(l => l.level === selectedLevel.value) ?? null
+)
+
+function hpColor(current: number, max: number): string {
+  const pct = max > 0 ? current / max : 0
+  if (pct >= 0.6) return 'var(--accent-green)'
+  if (pct >= 0.3) return '#fbbf24'
+  return 'var(--accent-red, #e74c3c)'
+}
+
 onMounted(async () => {
-  const partyId = Number(route.params.partyId)
-  if (partyId) {
-    try {
-      party.value = await partiesApi.getById(partyId)
-    } catch {
-      notifications.add('Party not found', 'error')
-      router.push('/')
-    }
+  try {
+    const [partyData, dungeonData] = await Promise.all([
+      Number(route.params.partyId) ? partiesApi.getById(Number(route.params.partyId)) : null,
+      gameApi.getDungeonInfo(),
+    ])
+    party.value = partyData
+    dungeon.value = dungeonData
+    // Default to deepest unlocked level
+    selectedLevel.value = dungeonData.max_dungeon_level
+  } catch {
+    notifications.add('Failed to load expedition data', 'error')
+    router.push('/')
   }
   loading.value = false
 })
@@ -35,13 +53,14 @@ async function launchExpedition() {
   try {
     await expeditionsApi.launch({
       party_id: party.value.id,
-      dungeon_level: dungeonLevel.value,
+      dungeon_level: selectedLevel.value,
       duration_days: 7,
     })
     notifications.add('Expedition launched!', 'success')
     router.push('/')
-  } catch {
-    notifications.add('Failed to launch expedition', 'error')
+  } catch (e: any) {
+    const detail = e?.data?.detail ?? 'Failed to launch expedition'
+    notifications.add(detail, 'error')
   } finally {
     submitting.value = false
   }
@@ -54,43 +73,178 @@ async function launchExpedition() {
 
     <LoadingSpinner v-if="loading" />
     <div v-else-if="!party" class="text-muted">No party selected</div>
-    <div v-else class="card" style="max-width: 500px">
-      <h3 class="mb-2">{{ party.name }}</h3>
-      <p class="text-muted mb-2">{{ party.members.length }} members</p>
-
-      <div class="mb-2">
-        <div v-for="member in party.members" :key="member.id" class="mb-1">
-          <strong>{{ member.name }}</strong>
-          <span class="badge">{{ member.adventurer_class }}</span>
-          <span class="text-muted">Lv {{ member.level }}</span>
+    <div v-else class="expedition-layout">
+      <!-- Left: Party info -->
+      <div class="card">
+        <h3 class="mb-2">{{ party.name }}</h3>
+        <div class="member-list">
+          <div v-for="member in party.members" :key="member.id" class="member-row">
+            <span class="member-name">{{ member.name }}</span>
+            <span class="badge">{{ member.adventurer_class }}</span>
+            <span class="stat">Lv {{ member.level }}</span>
+            <span class="stat" :style="{ color: hpColor(member.hp_current, member.hp_max) }">
+              {{ member.hp_current }}/{{ member.hp_max }} HP
+            </span>
+          </div>
         </div>
       </div>
 
-      <div class="form-group mb-2">
-        <label class="form-label">Dungeon Level: {{ dungeonLevel }}</label>
-        <input v-model.number="dungeonLevel" type="range" min="1" max="6" class="form-input" />
-      </div>
+      <!-- Right: Dungeon level selector -->
+      <div class="card" v-if="dungeon">
+        <h3 class="dungeon-title mb-1">{{ dungeon.dungeon_name }}</h3>
+        <p class="text-muted mb-2" style="font-size: 12px">Choose a depth to explore</p>
 
-      <div class="form-group mb-3">
-        <label class="form-label">Duration</label>
-        <p class="text-muted">7 days (fixed)</p>
-      </div>
+        <div class="level-list">
+          <button
+            v-for="dl in dungeon.levels"
+            :key="dl.level"
+            class="level-btn"
+            :class="{
+              selected: dl.level === selectedLevel,
+              locked: !dl.unlocked,
+              unlocked: dl.unlocked,
+            }"
+            :disabled="!dl.unlocked"
+            @click="dl.unlocked && (selectedLevel = dl.level)"
+          >
+            <span class="level-num">{{ dl.level }}</span>
+            <span class="level-name">{{ dl.unlocked ? dl.name : '???' }}</span>
+            <span v-if="!dl.unlocked" class="level-lock">&#x1f512;</span>
+          </button>
+        </div>
 
-      <div class="flex gap-1">
-        <button
-          class="btn btn-primary"
-          :disabled="submitting"
-          @click="launchExpedition"
-        >
-          Launch Expedition
-        </button>
-        <button
-          class="btn btn-secondary"
-          @click="router.push('/')"
-        >
-          Not Now
-        </button>
+        <div v-if="selectedLevelInfo" class="selected-info mt-2">
+          <div class="selected-depth">
+            Depth {{ selectedLevelInfo.level }} &mdash; {{ selectedLevelInfo.name }}
+          </div>
+          <div class="text-muted" style="font-size: 12px">Duration: 7 days</div>
+        </div>
+
+        <div class="mt-3 flex gap-1">
+          <button
+            class="btn btn-primary"
+            :disabled="submitting || !selectedLevelInfo?.unlocked"
+            @click="launchExpedition"
+          >
+            {{ submitting ? 'Launching...' : 'Descend' }}
+          </button>
+          <button
+            class="btn btn-secondary"
+            @click="router.push('/')"
+          >
+            Not Now
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.expedition-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 800px;
+}
+
+.dungeon-title {
+  color: var(--accent-green);
+  font-size: 1.2rem;
+}
+
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.member-name {
+  font-weight: 600;
+  font-size: 13px;
+  flex: 1;
+}
+
+.stat {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.level-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.level-btn.unlocked:hover {
+  border-color: var(--accent-green);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.level-btn.selected {
+  border-color: var(--accent-green);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.level-btn.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.level-num {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--accent-green);
+  width: 24px;
+  text-align: center;
+}
+
+.level-btn.locked .level-num {
+  color: var(--text-muted);
+}
+
+.level-name {
+  flex: 1;
+}
+
+.level-lock {
+  font-size: 14px;
+}
+
+.selected-info {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+.selected-depth {
+  font-weight: 700;
+  color: var(--accent-green);
+}
+</style>

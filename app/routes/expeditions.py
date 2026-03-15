@@ -1,4 +1,5 @@
 import json
+import random
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -11,6 +12,9 @@ from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator, calculate_loot_split
 from app.progression import check_for_level_up
 from app.auth import get_current_keep
+from app.dungeons import DUNGEON_LEVEL_NAMES
+
+BASE_STAIRS_CHANCE = 0.05  # 5% base chance to find stairs
 
 router = APIRouter()
 
@@ -154,6 +158,20 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
         # Remove dead members from party
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
+    # Stair discovery — only if there are living members and a deeper level exists
+    expedition_level = expedition.dungeon_level or 1
+    total_levels = len(DUNGEON_LEVEL_NAMES)
+    if living_members and expedition_level >= keep.max_dungeon_level and expedition_level < total_levels:
+        # TODO: add building bonuses to stairs_chance
+        stairs_chance = BASE_STAIRS_CHANCE
+        if random.random() < stairs_chance:
+            keep.max_dungeon_level = expedition_level + 1
+            new_level_name = DUNGEON_LEVEL_NAMES[expedition_level] if expedition_level < total_levels else "unknown depths"
+            events.append({
+                "type": "stairs",
+                "message": f"Your party discovered stairs leading down to {new_level_name}! (Level {expedition_level + 1} unlocked)",
+            })
+
     return {"events": events, "simulation_data": sim_result}
 
 
@@ -177,6 +195,16 @@ def launch_expedition(
 
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Party is already on an expedition")
+
+    # Validate dungeon level is unlocked
+    requested_level = expedition_data.dungeon_level
+    if requested_level > keep.max_dungeon_level:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Dungeon level {requested_level} is not yet unlocked. Max unlocked: {keep.max_dungeon_level}",
+        )
+    if requested_level > len(DUNGEON_LEVEL_NAMES):
+        raise HTTPException(status_code=400, detail="Invalid dungeon level")
 
     for member in party.members:
         if member.is_bankrupt:
@@ -227,6 +255,7 @@ def launch_expedition(
 
     db_expedition = Expedition(
         party_id=expedition_data.party_id,
+        dungeon_level=requested_level,
         start_day=start_day,
         duration_days=expedition_data.duration_days,
         return_day=return_day,

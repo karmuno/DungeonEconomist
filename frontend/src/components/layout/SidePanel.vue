@@ -29,6 +29,7 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   expedition_complete: 'success',
   death: 'error',
   upkeep: 'warning',
+  stairs: 'success',
 }
 
 function processEvents(result: { current_day: number; events: Array<{ type: string; message: string; expedition_id?: number | null }> }) {

@@ -16,3 +16,20 @@ export function skipToEvent(): Promise<AdvanceDayResult> {
 export function getDashboardStats(): Promise<DashboardStats> {
   return get<DashboardStats>('/dashboard/stats')
 }
+
+export interface DungeonLevel {
+  level: number
+  name: string
+  unlocked: boolean
+}
+
+export interface DungeonInfo {
+  dungeon_name: string
+  max_dungeon_level: number
+  total_levels: number
+  levels: DungeonLevel[]
+}
+
+export function getDungeonInfo(): Promise<DungeonInfo> {
+  return get<DungeonInfo>('/dungeon/')
+}

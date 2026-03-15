@@ -48,6 +48,12 @@ def get_building_bonuses(building_type: str, building_level: int) -> dict:
     return bonuses.get(str(building_level), {})
 
 
+def get_max_building_level(building_type: str) -> int:
+    """Max level this building can reach (driven by length of names array)."""
+    config = BUILDING_CONFIG.get(building_type, {})
+    return len(config.get("names", ["Unknown"]))
+
+
 def get_building_class(building_type: str) -> str:
     """Get the adventurer class associated with this building."""
     config = BUILDING_CONFIG.get(building_type, {})
