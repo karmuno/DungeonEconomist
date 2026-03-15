@@ -188,7 +188,7 @@ def test_bankrupt_adventurer_cannot_launch_expedition(client: TestClient, db_ses
     expedition_data = {
         "party_id": party.id,
         "dungeon_level": 1,
-        "duration_days": 5
+        "dungeon_level": 1
     }
     response = client.post("/expeditions/", json=expedition_data, headers=auth_headers(token, keep.id))
 
@@ -210,7 +210,7 @@ def test_non_bankrupt_party_launches_expedition(client: TestClient, db_session: 
     expedition_data = {
         "party_id": party.id,
         "dungeon_level": 1,
-        "duration_days": 5
+        "dungeon_level": 1
     }
     response = client.post("/expeditions/", json=expedition_data, headers=auth_headers(token, keep.id))
 

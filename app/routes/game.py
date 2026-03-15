@@ -12,7 +12,7 @@ from app.models import (
 from app.schemas import GameTimeInfo, AdvanceDayResult, GameEvent
 from app.auth import get_current_keep
 from app.names import generate_adventurer_name
-from app.dungeons import DUNGEON_LEVEL_NAMES
+from app.dungeons import DUNGEON_LEVEL_NAMES, DUNGEON_LEVELS
 from app.routes.expeditions import resolve_expedition
 
 router = APIRouter()
@@ -358,13 +358,15 @@ def get_game_time(keep: Keep = Depends(get_current_keep)):
 @router.get("/dungeon/")
 def get_dungeon_info(keep: Keep = Depends(get_current_keep)):
     """Get the keep's megadungeon info: name, unlocked levels, level names."""
-    total_levels = len(DUNGEON_LEVEL_NAMES)
+    total_levels = len(DUNGEON_LEVELS)
     levels = []
     for i in range(total_levels):
         level_num = i + 1
+        lvl = DUNGEON_LEVELS[i]
         levels.append({
             "level": level_num,
-            "name": DUNGEON_LEVEL_NAMES[i],
+            "name": lvl["name"],
+            "duration_days": lvl["duration_days"],
             "unlocked": level_num <= keep.max_dungeon_level,
         })
     return {

@@ -12,11 +12,8 @@ with open(_DATA_PATH) as f:
 _PREFIXES = _DUNGEON_DATA["name_prefixes"]
 _SUFFIXES = _DUNGEON_DATA["name_suffixes"]
 _MIDDLES = _DUNGEON_DATA["name_middle"]
-DUNGEON_LEVEL_NAMES = _DUNGEON_DATA["dungeon_level_names"]
-
-# 50 prefixes × 40 suffixes = 2,000 two-part names
-# 50 prefixes × 40 suffixes × 20 middles = 40,000 three-part names
-# Combined: well over 10,000
+DUNGEON_LEVELS = _DUNGEON_DATA["dungeon_levels"]
+DUNGEON_LEVEL_NAMES = [lvl["name"] for lvl in DUNGEON_LEVELS]
 
 
 def generate_dungeon_name() -> str:
@@ -29,3 +26,11 @@ def generate_dungeon_name() -> str:
         middle = random.choice(_MIDDLES)
         return f"{prefix} {suffix} {middle}"
     return f"{prefix} {suffix}"
+
+
+def get_level_duration(level: int) -> int:
+    """Get the expedition duration in days for a given dungeon level (1-indexed)."""
+    idx = level - 1
+    if 0 <= idx < len(DUNGEON_LEVELS):
+        return DUNGEON_LEVELS[idx]["duration_days"]
+    return 7  # fallback

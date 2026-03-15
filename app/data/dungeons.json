@@ -27,12 +27,12 @@
     "of Ice", "of Stone", "of Iron", "of Gold", "of Blood",
     "Below", "Beneath", "Beyond", "Within", "Eternal"
   ],
-  "dungeon_level_names": [
-    "The Upper Halls",
-    "The Twisting Corridors",
-    "The Sunless Galleries",
-    "The Deep Warrens",
-    "The Abyssal Vaults",
-    "The Netherdark"
+  "dungeon_levels": [
+    {"name": "The Upper Halls",        "duration_days": 3},
+    {"name": "The Twisting Corridors", "duration_days": 5},
+    {"name": "The Sunless Galleries",  "duration_days": 7},
+    {"name": "The Deep Warrens",       "duration_days": 7},
+    {"name": "The Abyssal Vaults",     "duration_days": 10},
+    {"name": "The Netherdark",         "duration_days": 14}
   ]
 }

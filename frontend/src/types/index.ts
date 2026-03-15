@@ -149,7 +149,6 @@ export interface ExpeditionSummary {
 export interface ExpeditionCreate {
   party_id: number
   dungeon_level?: number
-  duration_days?: number
 }
 
 export interface ExpeditionResult {

@@ -90,7 +90,6 @@ class PartyMemberOperation(BaseModel):
 class ExpeditionCreate(BaseModel):
     party_id: int
     dungeon_level: int = 1
-    duration_days: int = 7
 
 class TreasureItem(BaseModel):
     gold: int

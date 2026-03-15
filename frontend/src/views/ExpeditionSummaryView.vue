@@ -73,7 +73,7 @@ function outcomeClass(outcome: string): string {
 
 <template>
   <div>
-    <h1 class="mb-3">Expedition Summary</h1>
+    <h1>Expedition Summary</h1>
 
     <LoadingSpinner v-if="loading" />
     <template v-else-if="summary">

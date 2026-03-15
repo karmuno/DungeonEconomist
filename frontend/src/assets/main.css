@@ -147,10 +147,8 @@ img {
 .main-content {
   grid-column: 2;
   grid-row: 2;
-  padding: 0.5rem 1.5rem 3rem;
-  margin-top: 56px;
+  padding: 0.25rem 1.5rem 3rem;
   overflow-y: auto;
-  height: calc(100vh - 56px);
 }
 
 /* ---------- Buttons ---------- */

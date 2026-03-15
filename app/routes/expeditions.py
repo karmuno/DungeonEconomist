@@ -12,7 +12,7 @@ from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator, calculate_loot_split
 from app.progression import check_for_level_up
 from app.auth import get_current_keep
-from app.dungeons import DUNGEON_LEVEL_NAMES
+from app.dungeons import DUNGEON_LEVEL_NAMES, get_level_duration
 
 BASE_STAIRS_CHANCE = 0.05  # 5% base chance to find stairs
 
@@ -248,7 +248,8 @@ def launch_expedition(
     )
 
     start_day = keep.current_day
-    return_day = start_day + expedition_data.duration_days - 1
+    duration = get_level_duration(requested_level)
+    return_day = start_day + duration - 1
 
     # Run simulation now but store results for later
     sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
@@ -257,7 +258,7 @@ def launch_expedition(
         party_id=expedition_data.party_id,
         dungeon_level=requested_level,
         start_day=start_day,
-        duration_days=expedition_data.duration_days,
+        duration_days=duration,
         return_day=return_day,
         started_at=datetime.now(),
         result="in_progress",
@@ -281,7 +282,7 @@ def launch_expedition(
         "party_id": party.id,
         "start_day": start_day,
         "return_day": return_day,
-        "duration_days": expedition_data.duration_days,
+        "duration_days": duration,
         "result": "in_progress",
     }
 

@@ -20,6 +20,7 @@ export function getDashboardStats(): Promise<DashboardStats> {
 export interface DungeonLevel {
   level: number
   name: string
+  duration_days: number
   unlocked: boolean
 }
 

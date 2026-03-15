@@ -89,7 +89,7 @@ async function formParty() {
 
 <template>
   <div>
-    <h1 class="mb-3">Form a Party</h1>
+    <h1>Form a Party</h1>
 
     <LoadingSpinner v-if="loading" />
     <div v-else class="formation-layout">

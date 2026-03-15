@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { PartyOut } from '../types'
 import type { DungeonInfo, DungeonLevel } from '../api/game'
@@ -13,14 +13,24 @@ const router = useRouter()
 const route = useRoute()
 const notifications = useNotificationsStore()
 
-const party = ref<PartyOut | null>(null)
+const parties = ref<PartyOut[]>([])
+const selectedPartyId = ref<number | null>(null)
 const dungeon = ref<DungeonInfo | null>(null)
 const selectedLevel = ref(1)
 const loading = ref(true)
 const submitting = ref(false)
 
+const selectedParty = computed<PartyOut | null>(() =>
+  parties.value.find(p => p.id === selectedPartyId.value) ?? null
+)
+
 const selectedLevelInfo = computed<DungeonLevel | null>(() =>
   dungeon.value?.levels.find(l => l.level === selectedLevel.value) ?? null
+)
+
+// Only show parties that aren't on expedition and have members
+const availableParties = computed(() =>
+  parties.value.filter(p => !p.on_expedition && p.members.length > 0)
 )
 
 function hpColor(current: number, max: number): string {
@@ -32,14 +42,21 @@ function hpColor(current: number, max: number): string {
 
 onMounted(async () => {
   try {
-    const [partyData, dungeonData] = await Promise.all([
-      Number(route.params.partyId) ? partiesApi.getById(Number(route.params.partyId)) : null,
+    const [partiesData, dungeonData] = await Promise.all([
+      partiesApi.list(),
       gameApi.getDungeonInfo(),
     ])
-    party.value = partyData
+    parties.value = partiesData
     dungeon.value = dungeonData
-    // Default to deepest unlocked level
     selectedLevel.value = dungeonData.max_dungeon_level
+
+    // Pre-select party from route param if provided
+    const partyIdParam = Number(route.params.partyId)
+    if (partyIdParam && partiesData.some(p => p.id === partyIdParam)) {
+      selectedPartyId.value = partyIdParam
+    } else if (availableParties.value.length > 0) {
+      selectedPartyId.value = availableParties.value[0].id
+    }
   } catch {
     notifications.add('Failed to load expedition data', 'error')
     router.push('/')
@@ -48,13 +65,12 @@ onMounted(async () => {
 })
 
 async function launchExpedition() {
-  if (!party.value) return
+  if (!selectedParty.value) return
   submitting.value = true
   try {
     await expeditionsApi.launch({
-      party_id: party.value.id,
+      party_id: selectedParty.value.id,
       dungeon_level: selectedLevel.value,
-      duration_days: 7,
     })
     notifications.add('Expedition launched!', 'success')
     router.push('/')
@@ -69,29 +85,44 @@ async function launchExpedition() {
 
 <template>
   <div>
-    <h1 class="mb-3">Launch Expedition</h1>
+    <h1>Launch Expedition</h1>
 
     <LoadingSpinner v-if="loading" />
-    <div v-else-if="!party" class="text-muted">No party selected</div>
     <div v-else class="expedition-layout">
-      <!-- Left: Party info -->
+      <!-- Left: Party selection -->
       <div class="card">
-        <h3 class="mb-2">{{ party.name }}</h3>
-        <div class="member-list">
-          <div v-for="member in party.members" :key="member.id" class="member-row">
-            <span class="member-name">{{ member.name }}</span>
-            <span class="badge">{{ member.adventurer_class }}</span>
-            <span class="stat">Lv {{ member.level }}</span>
-            <span class="stat" :style="{ color: hpColor(member.hp_current, member.hp_max) }">
-              {{ member.hp_current }}/{{ member.hp_max }} HP
-            </span>
-          </div>
+        <div class="form-group mb-2">
+          <label class="form-label">Party</label>
+          <select v-model="selectedPartyId" class="form-select">
+            <option :value="null" disabled>Select a party...</option>
+            <option
+              v-for="p in availableParties"
+              :key="p.id"
+              :value="p.id"
+            >
+              {{ p.name }} ({{ p.members.length }} members)
+            </option>
+          </select>
         </div>
+
+        <template v-if="selectedParty">
+          <div class="member-list">
+            <div v-for="member in selectedParty.members" :key="member.id" class="member-row">
+              <span class="member-name">{{ member.name }}</span>
+              <span class="badge">{{ member.adventurer_class }}</span>
+              <span class="stat">Lv {{ member.level }}</span>
+              <span class="stat" :style="{ color: hpColor(member.hp_current, member.hp_max) }">
+                {{ member.hp_current }}/{{ member.hp_max }} HP
+              </span>
+            </div>
+          </div>
+        </template>
+        <div v-else class="text-muted">Select a party to see its members</div>
       </div>
 
       <!-- Right: Dungeon level selector -->
       <div class="card" v-if="dungeon">
-        <h3 class="dungeon-title mb-1">{{ dungeon.dungeon_name }}</h3>
+        <h3 class="dungeon-title">{{ dungeon.dungeon_name }}</h3>
         <p class="text-muted mb-2" style="font-size: 12px">Choose a depth to explore</p>
 
         <div class="level-list">
@@ -109,7 +140,8 @@ async function launchExpedition() {
           >
             <span class="level-num">{{ dl.level }}</span>
             <span class="level-name">{{ dl.unlocked ? dl.name : '???' }}</span>
-            <span v-if="!dl.unlocked" class="level-lock">&#x1f512;</span>
+            <span v-if="dl.unlocked" class="level-days">{{ dl.duration_days }}d</span>
+            <span v-else class="level-lock">&#x1f512;</span>
           </button>
         </div>
 
@@ -117,13 +149,15 @@ async function launchExpedition() {
           <div class="selected-depth">
             Depth {{ selectedLevelInfo.level }} &mdash; {{ selectedLevelInfo.name }}
           </div>
-          <div class="text-muted" style="font-size: 12px">Duration: 7 days</div>
+          <div class="text-muted" style="font-size: 12px">
+            Duration: {{ selectedLevelInfo.duration_days }} day{{ selectedLevelInfo.duration_days !== 1 ? 's' : '' }}
+          </div>
         </div>
 
-        <div class="mt-3 flex gap-1">
+        <div class="mt-2 flex gap-1">
           <button
             class="btn btn-primary"
-            :disabled="submitting || !selectedLevelInfo?.unlocked"
+            :disabled="submitting || !selectedParty || !selectedLevelInfo?.unlocked"
             @click="launchExpedition"
           >
             {{ submitting ? 'Launching...' : 'Descend' }}
@@ -231,6 +265,11 @@ async function launchExpedition() {
 
 .level-name {
   flex: 1;
+}
+
+.level-days {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .level-lock {

@@ -31,7 +31,7 @@
     "Ravenna", "Silas", "Thessaly", "Umbra", "Vivienne", "Wystan",
     "Xanthus", "Ysolde", "Zenobia", "Alduin", "Bellatrix", "Corvus",
     "Desdemona", "Endymion", "Faelan", "Grimoire", "Hypatia", "Icarus",
-    "Jadis", "Kairos", "Lucasta", "Melisande", "Nephele", "Orryn"
+    "Jadis", "Kairos", "Lucasta", "Melisande", "Nephele", "Orryn", "Xobar"
   ],
   "elf": [
     "Lirael", "Sylwen", "Eldrin", "Aelindra", "Thalion", "Caelum", "Elowen",
@@ -52,7 +52,8 @@
     "Vondal", "Whurbin", "Yurga", "Zarek", "Audild", "Bruenora",
     "Cattibrie", "Duergar", "Eitri", "Flintara", "Glorin", "Hergrim",
     "Ingra", "Jothra", "Kelda", "Lothbrok", "Magni", "Njala",
-    "Okri", "Pyrite", "Quartzin", "Rogni", "Stonilda", "Torunn"
+    "Okri", "Pyrite", "Quartzin", "Rogni", "Stonilda", "Torunn", "Zamnil", 
+    "Goki"
   ],
   "hobbit": [
     "Milo", "Fira", "Pip", "Rosie", "Tuck", "Bramble",
@@ -63,7 +64,7 @@
     "Adelard", "Bungo", "Camellia", "Dodinas", "Esmeralda", "Ferumbras",
     "Gorbadoc", "Hilda", "Isembold", "Jago", "Lalia", "Merimas",
     "Nymphadora", "Otto", "Primula", "Rosamunda", "Sancho", "Tolman",
-    "Wilibald", "Pansy"
+    "Wilibald", "Pansy", "Odo"
   ],
   "surnames": [
     "Swiftblade", "Stonefist", "Dawnstar", "Underbough", "Moonshadow",
