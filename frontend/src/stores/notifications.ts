@@ -36,6 +36,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const id = nextId++
     const type = options.type ?? 'info'
 
+    // Deduplicate: don't add if an identical message already exists for this day
+    if (messages.value.some((m) => m.text === text && m.createdDay === currentDay)) return
     messages.value.unshift({ id, text, type, createdDay: currentDay, action: options.action })
   }
 

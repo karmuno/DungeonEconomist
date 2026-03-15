@@ -193,14 +193,12 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
         Adventurer.is_bankrupt == False,
         Adventurer.hp_current < Adventurer.hp_max,
     ).all()
-    recovered = []
     for adv in healing_adventurers:
         if heal_adventurer(adv):
-            recovered.append(adv.name)
-    if len(recovered) == 1:
-        events.append(GameEvent(type="healing", message=f"{recovered[0]} fully recovered and is available"))
-    elif len(recovered) > 1:
-        events.append(GameEvent(type="healing", message=f"{len(recovered)} adventurers fully recovered: {', '.join(recovered)}"))
+            events.append(GameEvent(
+                type="healing",
+                message=f"{adv.name} fully recovered and is available",
+            ))
 
     # Daily recruitment
     new_recruits = run_daily_recruitment(keep, db)
