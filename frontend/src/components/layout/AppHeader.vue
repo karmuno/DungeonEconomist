@@ -28,6 +28,7 @@ function logout() {
     <router-link to="/" class="logo">{{ player.name || 'VentureKeep' }}</router-link>
     <nav>
       <router-link to="/" :class="{ active: route.path === '/' }">Dashboard</router-link>
+      <router-link to="/village" :class="{ active: route.path === '/village' }">Village</router-link>
       <router-link to="/adventurers" :class="{ active: route.path.startsWith('/adventurers') || route.path.startsWith('/form-party') }">Tavern</router-link>
       <router-link to="/parties" :class="{ active: route.path.startsWith('/parties') }">Parties</router-link>
       <router-link to="/expeditions" :class="{ active: route.path.startsWith('/expedition') }">Expeditions</router-link>

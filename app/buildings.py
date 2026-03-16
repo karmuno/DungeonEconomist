@@ -19,6 +19,14 @@ def get_building_name(building_type: str, level: int) -> str:
     return names[idx]
 
 
+def get_upgrade_cost(building_type: str, target_level: int) -> int:
+    """Get the cost in gold to upgrade/buy to a given level (1-indexed)."""
+    config = BUILDING_CONFIG.get(building_type, {})
+    costs = config.get("costs", [500, 2500, 12500])
+    idx = min(target_level - 1, len(costs) - 1)
+    return costs[idx]
+
+
 def get_min_level_for_assignment(building_type: str, building_level: int) -> int:
     """Minimum adventurer level to be assigned at this building level."""
     config = BUILDING_CONFIG.get(building_type, {})
@@ -30,7 +38,7 @@ def get_min_level_for_assignment(building_type: str, building_level: int) -> int
 def get_max_assigned(building_type: str, building_level: int) -> int:
     """Max adventurers assignable at this building level."""
     config = BUILDING_CONFIG.get(building_type, {})
-    caps = config.get("max_assigned", [1, 2, 3])
+    caps = config.get("max_assigned", [3, 6, 9])
     idx = min(building_level - 1, len(caps) - 1)
     return caps[idx]
 
@@ -39,13 +47,6 @@ def get_retire_level(building_type: str) -> int:
     """Minimum level for an adventurer to retire into this building."""
     config = BUILDING_CONFIG.get(building_type, {})
     return config.get("retire_level", 9)
-
-
-def get_building_bonuses(building_type: str, building_level: int) -> dict:
-    """Get the passive bonuses for a building at a given level."""
-    config = BUILDING_CONFIG.get(building_type, {})
-    bonuses = config.get("bonuses", {})
-    return bonuses.get(str(building_level), {})
 
 
 def get_max_building_level(building_type: str) -> int:
@@ -58,3 +59,16 @@ def get_building_class(building_type: str) -> str:
     """Get the adventurer class associated with this building."""
     config = BUILDING_CONFIG.get(building_type, {})
     return config.get("class", "Fighter")
+
+
+def get_building_bonuses(building_type: str, building_level: int) -> dict:
+    """Get the passive bonuses for a building at a given level."""
+    config = BUILDING_CONFIG.get(building_type, {})
+    bonuses = config.get("level_bonuses", {})
+    return bonuses.get(str(building_level), {})
+
+
+def has_recruitment_bonus(building_type: str) -> bool:
+    """Whether this building doubles recruitment chance for its class."""
+    config = BUILDING_CONFIG.get(building_type, {})
+    return config.get("recruitment_bonus", False)

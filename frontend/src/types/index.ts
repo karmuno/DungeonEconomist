@@ -59,6 +59,7 @@ export interface AdventurerOut {
   copper: number
   is_available: boolean
   on_expedition: boolean
+  is_assigned: boolean
   is_bankrupt: boolean
   is_dead: boolean
   death_day?: number | null

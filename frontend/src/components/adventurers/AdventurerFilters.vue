@@ -10,7 +10,7 @@ export interface FilterState {
   sortDir: 'asc' | 'desc'
 }
 
-const ALL_STATUSES = ['Available', 'Recovering', 'On Expedition', 'Dead', 'Bankrupt'] as const
+const ALL_STATUSES = ['Available', 'Recovering', 'On Expedition', 'Assigned', 'Dead', 'Bankrupt'] as const
 
 const props = defineProps<{
   modelValue: FilterState

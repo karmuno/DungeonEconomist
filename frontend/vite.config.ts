@@ -16,6 +16,7 @@ export default defineConfig({
       '/time/': 'http://localhost:8000',
       '/dashboard/': 'http://localhost:8000',
       '/dungeon/': 'http://localhost:8000',
+      '/buildings/': 'http://localhost:8000',
     },
   },
 })

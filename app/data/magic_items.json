@@ -1,0 +1,22 @@
+{
+  "prefixes": [
+    "Gleaming", "Ancient", "Enchanted", "Cursed", "Blessed",
+    "Shimmering", "Runed", "Eldritch", "Frostbound", "Flameforged",
+    "Shadow", "Moonlit", "Thunderstruck", "Venomous", "Radiant",
+    "Spectral", "Ironbound", "Crystalline", "Whispering", "Bloodforged"
+  ],
+  "weapons": [
+    "Sword", "Axe", "Mace", "Dagger", "Spear",
+    "Warhammer", "Bow", "Staff", "Flail", "Halberd"
+  ],
+  "armor": [
+    "Shield", "Helm", "Chainmail", "Plate Armor", "Bracers",
+    "Gauntlets", "Boots", "Cloak", "Amulet", "Ring"
+  ],
+  "suffixes": [
+    "of Power", "of Protection", "of Swiftness", "of the Bear", "of the Eagle",
+    "of Flame", "of Frost", "of Lightning", "of Shadows", "of Light",
+    "of the Ancients", "of Valor", "of Cunning", "of Fortitude", "of the Deep",
+    "+1", "+2", "+3"
+  ]
+}

@@ -50,19 +50,35 @@ def create_random_adventurer(adventurer_class: AdventurerClass, keep: Keep, db: 
 
 def run_daily_recruitment(keep: Keep, db: Session) -> list:
     """Run daily recruitment rolls. Returns list of new adventurers created."""
-    # Count current active adventurers (not dead, not bankrupt)
+    from app.models import Building
+    from app.buildings import BUILDING_CONFIG, has_recruitment_bonus
+
+    # Tavern count: available + on_expedition only (not dead, bankrupt, or assigned)
     active_count = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
+        Adventurer.is_assigned == False,
     ).count()
+
+    # Build a set of classes that get doubled recruitment from buildings
+    boosted_classes = set()
+    buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
+    for b in buildings:
+        if has_recruitment_bonus(b.building_type):
+            class_name = BUILDING_CONFIG.get(b.building_type, {}).get("class", "")
+            boosted_classes.add(class_name)
 
     new_adventurers = []
     for adv_class in AdventurerClass:
         if active_count >= MAX_TAVERN_SIZE:
             break
+        # Double chance if building exists for this class
+        chance = RECRUITMENT_CHANCE
+        if adv_class.value in boosted_classes:
+            chance = chance * 2
         # Geometric re-rolls: keep rolling while successful
-        while random.random() < RECRUITMENT_CHANCE:
+        while random.random() < chance:
             if active_count >= MAX_TAVERN_SIZE:
                 break
             adv = create_random_adventurer(adv_class, keep, db)
@@ -166,17 +182,26 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
     return events
 
 
-def heal_adventurer(adv: Adventurer, days: int = 1) -> bool:
-    """Heal an adventurer by 1 HP per day. Returns True if fully healed this tick."""
+def heal_adventurer(adv: Adventurer, hp_per_day: int = 1) -> bool:
+    """Heal an adventurer. Returns True if fully healed this tick."""
     was_injured = adv.hp_current < adv.hp_max
-    for _ in range(days):
-        if adv.hp_current >= adv.hp_max:
-            break
-        adv.hp_current = min(adv.hp_current + 1, adv.hp_max)
+    adv.hp_current = min(adv.hp_current + hp_per_day, adv.hp_max)
     if was_injured and adv.hp_current == adv.hp_max:
         adv.is_available = True
         return True
     return False
+
+
+def _get_temple_healing_bonus(keep: Keep, db: Session) -> int:
+    """Get bonus HP/day from temple (1 per assigned Cleric)."""
+    from app.models import Building
+    temple = db.query(Building).filter(
+        Building.keep_id == keep.id,
+        Building.building_type == "temple",
+    ).first()
+    if not temple:
+        return 0
+    return len(temple.assigned_adventurers)
 
 
 def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
@@ -185,6 +210,10 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
 
     keep.current_day += 1
     keep.last_updated = datetime.now()
+
+    # Calculate healing rate (base 1 + temple bonus)
+    temple_bonus = _get_temple_healing_bonus(keep, db)
+    hp_per_day = 1 + temple_bonus
 
     # Daily healing
     healing_adventurers = db.query(Adventurer).filter(
@@ -195,7 +224,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
         Adventurer.hp_current < Adventurer.hp_max,
     ).all()
     for adv in healing_adventurers:
-        if heal_adventurer(adv):
+        if heal_adventurer(adv, hp_per_day):
             events.append(GameEvent(
                 type="healing",
                 message=f"{adv.name} fully recovered and is available",

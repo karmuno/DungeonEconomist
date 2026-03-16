@@ -29,8 +29,34 @@ def _make_json_safe(obj):
         return [_make_json_safe(v) for v in obj]
     return obj
 
+import random as _random
+
 # Shared simulator instance
 simulator = DungeonSimulator()
+
+
+def _get_combat_bonus(keep: Keep, db: Session) -> int:
+    """Get party strength bonus from Training Grounds (1 per assigned Fighter)."""
+    from app.models import Building
+    tg = db.query(Building).filter(
+        Building.keep_id == keep.id,
+        Building.building_type == "training_grounds",
+    ).first()
+    if not tg:
+        return 0
+    return len(tg.assigned_adventurers)
+
+
+def _get_magic_item_chance(keep: Keep, db: Session) -> float:
+    """Get magic item discovery chance from Library (1% per assigned Magic-User)."""
+    from app.models import Building
+    lib = db.query(Building).filter(
+        Building.keep_id == keep.id,
+        Building.building_type == "library",
+    ).first()
+    if not lib:
+        return 0.0
+    return len(lib.assigned_adventurers) * 0.01
 
 
 def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
@@ -190,6 +216,27 @@ def _finalize_expedition(
             events.append({"type": "upkeep", "message": f"Collected {format_currency(g, s, c)} in deferred upkeep from returning adventurers"})
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
+
+    # Magic item discovery (Library bonus)
+    if living_members:
+        magic_chance = _get_magic_item_chance(keep, db)
+        if magic_chance > 0 and _random.random() < magic_chance:
+            from app.magic_items import generate_magic_item
+            from app.models import MagicItem
+            item = generate_magic_item()
+            recipient = _random.choice(living_members)
+            magic_item = MagicItem(
+                adventurer_id=recipient.id,
+                name=item["name"],
+                item_type=item["item_type"],
+                found_day=keep.current_day,
+                found_expedition_id=expedition.id,
+            )
+            db.add(magic_item)
+            events.append({
+                "type": "loot",
+                "message": f"{recipient.name} found a magic item: {item['name']}!",
+            })
 
     # Apply stairs discovery from decision points (if player pressed on through them)
     for dp in sim_result.get("decision_points", []):

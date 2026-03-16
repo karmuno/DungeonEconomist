@@ -44,6 +44,7 @@ class AdventurerOut(BaseModel):
     copper: int = 0
     is_available: bool
     on_expedition: bool = False
+    is_assigned: bool = False
     is_bankrupt: bool = False
     is_dead: bool = False
     death_day: Optional[int] = None

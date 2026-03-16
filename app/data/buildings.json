@@ -1,92 +1,53 @@
 {
-  "training_yard": {
-    "class": "Fighter",
-    "names": ["Training Yard", "Barracks", "War Academy"],
-    "description": "Fighters train here, improving combat readiness.",
-    "max_assigned": [1, 2, 3],
-    "min_adventurer_level": [2, 5, 8],
-    "retire_level": 9,
-    "bonuses": {
-      "1": {"expedition_hp_bonus": 1},
-      "2": {"expedition_hp_bonus": 2},
-      "3": {"expedition_hp_bonus": 3}
-    },
-    "assigned_bonus": "Each assigned Fighter adds +1 to party attack strength on expeditions.",
-    "retire_bonus": "All parties gain +2 attack strength permanently."
-  },
-  "shrine": {
+  "temple": {
     "class": "Cleric",
     "names": ["Shrine", "Church", "Cathedral"],
-    "description": "Clerics tend the wounded, speeding recovery.",
-    "max_assigned": [1, 2, 3],
+    "description": "Clerics tend the wounded, speeding recovery for all.",
+    "costs": [500, 2500, 12500],
+    "max_assigned": [3, 6, 9],
     "min_adventurer_level": [2, 5, 8],
     "retire_level": 9,
-    "bonuses": {
-      "1": {"healing_bonus": 1},
-      "2": {"healing_bonus": 1},
-      "3": {"healing_bonus": 2}
-    },
-    "assigned_bonus": "Each assigned Cleric adds +1 HP/day healing for all adventurers.",
-    "retire_bonus": "One resurrection per expedition — a fallen adventurer may be saved."
+    "recruitment_bonus": true,
+    "assigned_bonus_desc": "Each assigned Cleric grants +1 HP/day healing to all recovering adventurers.",
+    "retire_bonus_desc": "One resurrection per expedition — a fallen adventurer may be saved.",
+    "level_bonuses": {
+      "1": {"healing_per_assigned": 1},
+      "2": {},
+      "3": {}
+    }
   },
-  "arcane_tower": {
+  "training_grounds": {
+    "class": "Fighter",
+    "names": ["Training Grounds", "Military Camp", "Castle"],
+    "description": "Fighters drill here, improving combat readiness for all parties.",
+    "costs": [500, 2500, 12500],
+    "max_assigned": [3, 6, 9],
+    "min_adventurer_level": [2, 5, 8],
+    "retire_level": 9,
+    "recruitment_bonus": true,
+    "assigned_bonus_desc": "Each assigned Fighter grants +1 party strength in dungeon combat.",
+    "retire_bonus_desc": "All parties gain +3 attack strength permanently.",
+    "level_bonuses": {
+      "1": {"combat_bonus_per_assigned": 1},
+      "2": {},
+      "3": {}
+    }
+  },
+  "library": {
     "class": "Magic-User",
-    "names": ["Arcane Study", "Wizard's Tower", "Grand Observatory"],
-    "description": "Magic-Users research here, unlocking arcane knowledge.",
-    "max_assigned": [1, 2, 3],
+    "names": ["Library", "University", "Wizard's Tower"],
+    "description": "Magic-Users research arcane lore, occasionally identifying magical treasures.",
+    "costs": [500, 2500, 12500],
+    "max_assigned": [3, 6, 9],
     "min_adventurer_level": [2, 5, 8],
     "retire_level": 9,
-    "bonuses": {
-      "1": {"xp_bonus_pct": 5},
-      "2": {"xp_bonus_pct": 10},
-      "3": {"xp_bonus_pct": 15}
-    },
-    "assigned_bonus": "Each assigned Magic-User adds +5% XP earned on expeditions.",
-    "retire_bonus": "Parties can cast Identify on treasure — doubles special item chance."
-  },
-  "rangers_lodge": {
-    "class": "Elf",
-    "names": ["Ranger's Lodge", "Sylvan Outpost", "Warden's Sanctum"],
-    "description": "Elves scout ahead, increasing the chance of finding stairs.",
-    "max_assigned": [1, 2, 3],
-    "min_adventurer_level": [2, 5, 8],
-    "retire_level": 9,
-    "bonuses": {
-      "1": {"stairs_chance_bonus": 2},
-      "2": {"stairs_chance_bonus": 3},
-      "3": {"stairs_chance_bonus": 5}
-    },
-    "assigned_bonus": "Each assigned Elf adds +2% stairs discovery chance on expeditions.",
-    "retire_bonus": "Parties always find stairs if they exist — guaranteed discovery."
-  },
-  "workshop": {
-    "class": "Dwarf",
-    "names": ["Workshop", "Forge", "Grand Foundry"],
-    "description": "Dwarves forge equipment, boosting loot and durability.",
-    "max_assigned": [1, 2, 3],
-    "min_adventurer_level": [2, 5, 8],
-    "retire_level": 9,
-    "bonuses": {
-      "1": {"loot_bonus_pct": 10},
-      "2": {"loot_bonus_pct": 15},
-      "3": {"loot_bonus_pct": 25}
-    },
-    "assigned_bonus": "Each assigned Dwarf adds +10% loot found on expeditions.",
-    "retire_bonus": "All adventurers gain +2 max HP from masterwork equipment."
-  },
-  "tavern": {
-    "class": "Hobbit",
-    "names": ["Tavern", "Inn", "Grand Hall"],
-    "description": "Hobbits run the tavern, attracting more recruits.",
-    "max_assigned": [1, 2, 3],
-    "min_adventurer_level": [2, 5, 8],
-    "retire_level": 9,
-    "bonuses": {
-      "1": {"recruitment_bonus": 1},
-      "2": {"recruitment_bonus": 2},
-      "3": {"recruitment_bonus": 3}
-    },
-    "assigned_bonus": "Each assigned Hobbit adds +1% daily recruitment chance per class.",
-    "retire_bonus": "Max tavern size increases to 30. Recruits may arrive at level 2."
+    "recruitment_bonus": true,
+    "assigned_bonus_desc": "Each assigned Magic-User grants a 1% chance per expedition to find a Magic Item.",
+    "retire_bonus_desc": "Parties can cast Identify freely — doubles magic item discovery chance.",
+    "level_bonuses": {
+      "1": {"magic_item_chance_per_assigned": 1},
+      "2": {},
+      "3": {}
+    }
   }
 }

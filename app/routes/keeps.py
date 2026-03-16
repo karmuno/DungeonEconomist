@@ -96,12 +96,6 @@ def create_keep(data: KeepCreate, account: Account = Depends(get_current_account
 
     # Seed 6 starting adventurers
     seed_starting_adventurers(keep, db)
-
-    # Seed starter buildings (level 1, one per type)
-    for btype in BUILDING_TYPES:
-        building = Building(keep_id=keep.id, building_type=btype, level=1)
-        db.add(building)
-
     db.commit()
 
     return keep

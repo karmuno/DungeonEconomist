@@ -117,6 +117,7 @@ class Adventurer(Base):
     copper = Column(Integer, default=0)
     is_available = Column(Boolean, default=True)
     on_expedition = Column(Boolean, default=False)
+    is_assigned = Column(Boolean, default=False, nullable=False)
     is_bankrupt = Column(Boolean, default=False, nullable=False)
     is_dead = Column(Boolean, default=False, nullable=False)
     death_day = Column(Integer, nullable=True)
@@ -127,6 +128,7 @@ class Adventurer(Base):
     parties = relationship('Party', secondary=party_adventurer, back_populates='members')
     expedition_logs = relationship('ExpeditionLog', back_populates='adventurer')
     assigned_building = relationship('Building', secondary='building_assignments', back_populates='assigned_adventurers')
+    magic_items = relationship('MagicItem', back_populates='adventurer')
 
     def total_copper(self) -> int:
         """Convert all currency to copper pieces."""
@@ -224,3 +226,17 @@ class ExpeditionLog(Base):
     status = Column(String)  # e.g., 'alive', 'wounded', 'dead'
 
     adventurer = relationship('Adventurer', back_populates='expedition_logs')
+
+
+class MagicItem(Base):
+    """A magic item owned by an adventurer."""
+    __tablename__ = 'magic_items'
+
+    id = Column(Integer, primary_key=True)
+    adventurer_id = Column(Integer, ForeignKey('adventurers.id'), nullable=False)
+    name = Column(String, nullable=False)
+    item_type = Column(String, nullable=False)  # 'weapon' or 'armor'
+    found_day = Column(Integer, nullable=True)
+    found_expedition_id = Column(Integer, nullable=True)
+
+    adventurer = relationship('Adventurer', back_populates='magic_items')

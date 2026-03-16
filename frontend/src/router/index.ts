@@ -27,6 +27,11 @@ const router = createRouter({
       component: () => import('../views/DashboardView.vue'),
     },
     {
+      path: '/village',
+      name: 'village',
+      component: () => import('../views/VillageView.vue'),
+    },
+    {
       path: '/adventurers',
       name: 'adventurers',
       component: () => import('../views/AdventurersView.vue'),
