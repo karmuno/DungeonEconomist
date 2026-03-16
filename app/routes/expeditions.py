@@ -538,7 +538,7 @@ def get_expedition_summary(
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    """Get expedition summary with member results and readiness estimate."""
+    """Get expedition summary. Works for in-progress, awaiting_choice, and completed."""
     expedition = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
         Expedition.id == expedition_id,
         Party.keep_id == keep.id,
@@ -547,8 +547,93 @@ def get_expedition_summary(
         raise HTTPException(status_code=404, detail="Expedition not found")
 
     party = db.query(Party).filter(Party.id == expedition.party_id).first()
+    is_active = expedition.result in ("in_progress", "awaiting_choice")
+
+    if is_active:
+        # Pull data from simulation_data for in-progress expeditions
+        return _build_active_summary(expedition, party, keep)
+    else:
+        # Pull from finalized DB records for completed expeditions
+        return _build_completed_summary(expedition, party, keep, db)
+
+
+def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
+    """Build summary from simulation_data for an in-progress expedition."""
+    sim = expedition.simulation_data or {}
+    log = sim.get("log", [])
+    phases = sim.get("phases", [])
+    decision_points = sim.get("decision_points", [])
+    resolved = expedition.resolved_phases or 0
+
+    # Calculate totals from phases resolved so far + current phase
+    # Current phase index = resolved (phases[0..resolved] are before/between decisions)
+    total_loot = 0
+    total_xp = 0
+    all_deaths = []
+    for i, phase in enumerate(phases):
+        if i > resolved:
+            break  # Don't show future phases
+        total_loot += phase.get("loot", 0)
+        total_xp += phase.get("xp", 0)
+        all_deaths.extend(phase.get("deaths", []))
+
+    # Events log: show turns up to the current decision point
+    cutoff_turn = None
+    if resolved < len(decision_points):
+        cutoff_turn = decision_points[resolved].get("after_turn")
+
+    events_log = []
+    for turn in log:
+        turn_num = turn.get("turn", 0)
+        if cutoff_turn and turn_num > cutoff_turn:
+            break
+        events_log.append(turn)
+
+    # Member status: current state from the party (they're still on expedition)
+    member_results = []
+    if party:
+        for member in party.members:
+            is_dead = member.name in all_deaths
+            member_results.append({
+                "name": member.name,
+                "adventurer_class": member.adventurer_class.value,
+                "level": member.level,
+                "alive": not is_dead,
+                "hp_current": 0 if is_dead else member.hp_current,
+                "hp_max": member.hp_max,
+                "xp_gained": 0,  # Not distributed yet
+                "gold": member.gold,
+                "silver": member.silver,
+                "copper": member.copper,
+            })
+
+    # Include pending event if awaiting choice
+    pending_event = None
+    if expedition.result == "awaiting_choice" and expedition.pending_event:
+        pending_event = expedition.pending_event
+
+    return {
+        "expedition_id": expedition.id,
+        "party_id": expedition.party_id,
+        "party_name": party.name if party else "Unknown",
+        "start_day": expedition.start_day,
+        "return_day": expedition.return_day,
+        "duration_days": expedition.duration_days,
+        "result": expedition.result,
+        "dungeon_level": expedition.dungeon_level,
+        "member_results": member_results,
+        "total_loot": total_loot,
+        "total_xp": total_xp,
+        "events_log": events_log,
+        "estimated_readiness_day": None,
+        "pending_event": pending_event,
+    }
+
+
+def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> dict:
+    """Build summary from finalized DB records for a completed expedition."""
     logs = db.query(ExpeditionLog).filter(
-        ExpeditionLog.expedition_id == expedition_id
+        ExpeditionLog.expedition_id == expedition.id
     ).all()
 
     member_results = []
@@ -575,7 +660,7 @@ def get_expedition_summary(
     estimated_readiness_day = keep.current_day + max_heal_days if max_heal_days > 0 else keep.current_day
 
     node_results = db.query(ExpeditionNodeResult).filter(
-        ExpeditionNodeResult.expedition_id == expedition_id
+        ExpeditionNodeResult.expedition_id == expedition.id
     ).all()
     total_loot = sum(n.loot for n in node_results)
     total_xp = sum(n.xp_earned for n in node_results)
@@ -588,18 +673,20 @@ def get_expedition_summary(
             pass
 
     return {
-        "expedition_id": expedition_id,
+        "expedition_id": expedition.id,
         "party_id": expedition.party_id,
         "party_name": party.name if party else "Unknown",
         "start_day": expedition.start_day,
         "return_day": expedition.return_day,
         "duration_days": expedition.duration_days,
         "result": expedition.result,
+        "dungeon_level": expedition.dungeon_level,
         "member_results": member_results,
         "total_loot": total_loot,
         "total_xp": total_xp,
         "events_log": events_log,
         "estimated_readiness_day": estimated_readiness_day,
+        "pending_event": None,
     }
 
 

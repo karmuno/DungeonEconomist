@@ -34,11 +34,13 @@ export interface ExpeditionSummaryDetail {
   return_day: number
   duration_days: number
   result: string
+  dungeon_level?: number
   member_results: ExpeditionMemberResult[]
   total_loot: number
   total_xp: number
   events_log: unknown[]
-  estimated_readiness_day: number
+  estimated_readiness_day: number | null
+  pending_event?: PendingEvent | null
 }
 
 export function getSummary(id: number): Promise<ExpeditionSummaryDetail> {
