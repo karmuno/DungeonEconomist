@@ -693,20 +693,43 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         ExpeditionLog.expedition_id == expedition.id
     ).all()
 
+    # Replay simulation to get HP at expedition end (not current live HP)
+    sim = expedition.simulation_data or {}
+    sim_log = sim.get("log", [])
+    cutoff = sim.get("retreat_cutoff_turn")
+    if cutoff is not None:
+        replay_log = [t for t in sim_log if t.get("turn", 0) <= cutoff]
+    else:
+        replay_log = sim_log
+
+    dead_names = set(sim.get("dead_members", []))
+    # For retreats, deaths come from the partial result
+    if sim.get("retreated"):
+        dead_names = set(sim.get("dead_members", []))
+
+    sim_hp = {}
+    if party:
+        sim_hp = _replay_member_hp(party.members, replay_log, dead_names)
+
     member_results = []
     max_heal_days = 0
     for log in logs:
         adv = log.adventurer
         is_alive = log.status != "dead"
-        if is_alive and adv.hp_current < adv.hp_max:
-            heal_days = adv.hp_max - adv.hp_current
+        # Use replayed HP for the "at expedition end" snapshot
+        end_hp = sim_hp.get(adv.name)
+        if end_hp is None:
+            # Fallback: approximate from hp_change
+            end_hp = max(0, adv.hp_max + log.hp_change) if is_alive else 0
+        if is_alive and end_hp < adv.hp_max:
+            heal_days = adv.hp_max - end_hp
             max_heal_days = max(max_heal_days, heal_days)
         member_results.append({
             "name": adv.name,
             "adventurer_class": adv.adventurer_class.value,
             "level": adv.level,
             "alive": is_alive,
-            "hp_current": adv.hp_current,
+            "hp_current": 0 if not is_alive else end_hp,
             "hp_max": adv.hp_max,
             "xp_gained": log.xp_share,
             "gold": adv.gold,
