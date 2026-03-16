@@ -25,13 +25,6 @@ onMounted(async () => {
     } catch {
       // Keep may have been deleted
     }
-  } else if (restored) {
-    // Logged in but no keep — try restoring keepId from localStorage
-    const keepId = localStorage.getItem('keepId')
-    if (keepId) {
-      // We'll load the keep data when navigating to a game page
-      // For now the router guard will handle redirection
-    }
   }
 })
 </script>

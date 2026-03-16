@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '../api/auth'
+import * as keepsApi from '../api/keeps'
 import type { AccountOut, KeepOut } from '../types'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -56,6 +57,17 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return false
     try {
       await fetchAccount()
+      // Restore keep from localStorage if not already set
+      const keepId = localStorage.getItem('keepId')
+      if (keepId && !currentKeep.value) {
+        const keeps = await keepsApi.list()
+        const match = keeps.find(k => k.id === Number(keepId))
+        if (match) {
+          currentKeep.value = match
+        } else {
+          localStorage.removeItem('keepId')
+        }
+      }
       return true
     } catch {
       logout()
