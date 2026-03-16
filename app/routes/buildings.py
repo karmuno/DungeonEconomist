@@ -51,6 +51,8 @@ def list_buildings(keep: Keep = Depends(get_current_keep), db: Session = Depends
 
     result = []
     for b in built:
+        if b.building_type not in BUILDING_TYPES:
+            continue  # Skip legacy buildings from old config
         result.append(_building_response(b))
 
     # Show unbuilt buildings as purchasable
