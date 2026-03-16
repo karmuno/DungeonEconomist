@@ -20,7 +20,7 @@ onMounted(async () => {
   const restored = await auth.tryRestore()
   if (restored && auth.currentKeep) {
     try {
-      player.fetchPlayer()
+      await player.fetchPlayer()
       await gameTime.fetchTime()
     } catch {
       // Keep may have been deleted
