@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { AdventurerClass } from '../../types'
 
 export interface FilterState {
@@ -20,7 +20,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: FilterState]
 }>()
 
-const showStatusModal = ref(false)
+const showStatusDropdown = ref(false)
+const dropdownRef = ref<HTMLElement | null>(null)
 
 function update(field: string, value: unknown) {
   emit('update:modelValue', { ...props.modelValue, [field]: value })
@@ -41,11 +42,24 @@ function toggleSortDir() {
   emit('update:modelValue', { ...props.modelValue, sortDir: newDir })
 }
 
-const classOptions = Object.values(AdventurerClass)
+function statusLabel(): string {
+  const s = props.modelValue.statuses
+  if (s.size === 0) return 'None'
+  if (s.size === ALL_STATUSES.length) return 'All'
+  return [...s].join(', ')
+}
 
-const activeCount = (() => {
-  return props.modelValue.statuses.size
-})
+// Close dropdown on outside click
+function onClickOutside(e: MouseEvent) {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) {
+    showStatusDropdown.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', onClickOutside))
+onUnmounted(() => document.removeEventListener('click', onClickOutside))
+
+const classOptions = Object.values(AdventurerClass)
 </script>
 
 <template>
@@ -71,22 +85,25 @@ const activeCount = (() => {
         <option v-for="cls in classOptions" :key="cls" :value="cls">{{ cls }}</option>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" ref="dropdownRef">
       <label class="form-label">Status</label>
-      <button class="btn btn-sm status-filter-btn" @click="showStatusModal = !showStatusModal">
-        {{ modelValue.statuses.size }} of {{ ALL_STATUSES.length }}
+      <button
+        class="form-select status-trigger"
+        @click.stop="showStatusDropdown = !showStatusDropdown"
+      >
+        {{ statusLabel() }}
       </button>
-      <div v-if="showStatusModal" class="status-dropdown">
-        <label
+      <div v-if="showStatusDropdown" class="status-dropdown">
+        <div
           v-for="status in ALL_STATUSES"
           :key="status"
           class="status-option"
           :class="{ active: modelValue.statuses.has(status) }"
-          @click.prevent="toggleStatus(status)"
+          @click.stop="toggleStatus(status)"
         >
-          <span class="status-check">{{ modelValue.statuses.has(status) ? '✓' : '' }}</span>
+          <span class="status-check">{{ modelValue.statuses.has(status) ? '&#10003;' : '' }}</span>
           <span>{{ status }}</span>
-        </label>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -113,19 +130,31 @@ const activeCount = (() => {
 </template>
 
 <style scoped>
-.status-filter-btn {
-  min-width: 80px;
+.form-group {
+  position: relative;
+}
+
+.status-trigger {
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 150px;
 }
 
 .status-dropdown {
   position: absolute;
+  top: 100%;
+  left: 0;
   z-index: 50;
-  margin-top: 4px;
-  background: var(--bg-primary);
+  margin-top: 2px;
+  background: var(--bg-input, var(--bg-primary));
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
+  min-width: 180px;
   padding: 4px 0;
-  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .status-option {
@@ -134,7 +163,8 @@ const activeCount = (() => {
   gap: 8px;
   padding: 6px 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 0.825rem;
   color: var(--text-muted);
   transition: background 0.1s;
 }
@@ -152,9 +182,6 @@ const activeCount = (() => {
   text-align: center;
   color: var(--accent-green);
   font-weight: 700;
-}
-
-.form-group {
-  position: relative;
+  font-size: 12px;
 }
 </style>

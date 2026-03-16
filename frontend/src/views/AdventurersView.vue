@@ -18,10 +18,15 @@ const router = useRouter()
 const notifications = useNotificationsStore()
 const gameTime = useGameTimeStore()
 
-watch(() => gameTime.currentDay, () => fetchAdventurers())
+watch(() => gameTime.currentDay, () => {
+  fetchAll()
+})
 
+const activeTab = ref<'roster' | 'graveyard' | 'debtors'>('roster')
 const adventurers = ref<AdventurerOut[]>([])
 const parties = ref<PartyOut[]>([])
+const graveyard = ref<AdventurerOut[]>([])
+const debtors = ref<AdventurerOut[]>([])
 const loading = ref(true)
 const selectedAdventurer = ref<AdventurerOut | null>(null)
 const showDetail = ref(false)
@@ -29,7 +34,7 @@ const showDetail = ref(false)
 const selectedPartyId = ref<number | null>(null)
 const confirmingDisband = ref(false)
 
-// Default: show Available and Recovering (not Dead, Bankrupt, On Expedition)
+// Default roster: show Available + Recovering (not On Expedition)
 const DEFAULT_STATUSES = new Set(['Available', 'Recovering'])
 
 const filters = ref({
@@ -43,7 +48,7 @@ const filters = ref({
 const filteredAdventurers = computed(() => {
   let result = [...adventurers.value]
 
-  // Status filter
+  // Status filter via multi-select
   if (filters.value.statuses.size > 0) {
     result = result.filter((a) => filters.value.statuses.has(displayStatus(a)))
   }
@@ -72,7 +77,6 @@ const filteredAdventurers = computed(() => {
   return result
 })
 
-// Map adventurer ID -> party name
 const partyNameMap = computed(() => {
   const map: Record<number, string> = {}
   for (const p of parties.value) {
@@ -91,20 +95,30 @@ function adventurerParty(advId: number): PartyOut | undefined {
   return parties.value.find((p) => p.members.some((m) => m.id === advId))
 }
 
-// Whether to hide HP column (when only showing dead adventurers)
-const hideHp = computed(() => {
-  const s = filters.value.statuses
-  return s.size === 1 && s.has('Dead')
-})
-
-async function fetchAdventurers() {
+async function fetchAll() {
   loading.value = true
   try {
     adventurers.value = await adventurersApi.list(true)
     parties.value = await partiesApi.list()
+    if (activeTab.value === 'graveyard') fetchGraveyard()
+    if (activeTab.value === 'debtors') fetchDebtors()
   } finally {
     loading.value = false
   }
+}
+
+async function fetchGraveyard() {
+  graveyard.value = await adventurersApi.getGraveyard()
+}
+
+async function fetchDebtors() {
+  debtors.value = await adventurersApi.getDebtorsPrison()
+}
+
+async function onTabChange(tab: 'roster' | 'graveyard' | 'debtors') {
+  activeTab.value = tab
+  if (tab === 'graveyard') await fetchGraveyard()
+  if (tab === 'debtors') await fetchDebtors()
 }
 
 async function onSelect(id: number) {
@@ -127,7 +141,7 @@ async function onLevelUp() {
       'success'
     )
     selectedAdventurer.value = await adventurersApi.getById(selectedAdventurer.value.id)
-    await fetchAdventurers()
+    await fetchAll()
   } catch {
     notifications.add('Level up failed', 'error')
   }
@@ -147,7 +161,7 @@ async function removeFromParty() {
       await partiesApi.deleteParty(party.id)
       notifications.add(`Party "${party.name}" disbanded`, 'info')
       confirmingDisband.value = false
-      await fetchAdventurers()
+      await fetchAll()
     } catch {
       notifications.add('Failed to disband party', 'error')
       confirmingDisband.value = false
@@ -158,7 +172,7 @@ async function removeFromParty() {
   try {
     await partiesApi.removeMember({ party_id: party.id, adventurer_id: selectedAdventurer.value.id })
     notifications.add(`Removed ${selectedAdventurer.value.name} from ${party.name}`, 'success')
-    await fetchAdventurers()
+    await fetchAll()
   } catch {
     notifications.add('Failed to remove from party', 'error')
   }
@@ -171,13 +185,13 @@ async function addToParty() {
     const partyName = parties.value.find((p) => p.id === selectedPartyId.value)?.name ?? 'party'
     notifications.add(`Added ${selectedAdventurer.value.name} to ${partyName}`, 'success')
     selectedPartyId.value = null
-    await fetchAdventurers()
+    await fetchAll()
   } catch {
     notifications.add('Failed to add to party', 'error')
   }
 }
 
-onMounted(fetchAdventurers)
+onMounted(fetchAll)
 </script>
 
 <template>
@@ -189,19 +203,63 @@ onMounted(fetchAdventurers)
       </button>
     </div>
 
-    <AdventurerFilters v-model="filters" class="mb-2" />
+    <div class="view-toggle mb-2">
+      <button
+        :class="{ active: activeTab === 'roster' }"
+        @click="onTabChange('roster')"
+      >
+        Roster
+      </button>
+      <button
+        :class="{ active: activeTab === 'graveyard' }"
+        @click="onTabChange('graveyard')"
+      >
+        Graveyard
+      </button>
+      <button
+        :class="{ active: activeTab === 'debtors' }"
+        @click="onTabChange('debtors')"
+      >
+        Debtor's Prison
+      </button>
+    </div>
 
-    <LoadingSpinner v-if="loading" />
-    <template v-else>
-      <template v-if="filteredAdventurers.length > 0">
-        <AdventurerList
-          :adventurers="filteredAdventurers"
-          :party-name-map="partyNameMap"
-          :hide-hp="hideHp"
-          @select="onSelect"
-        />
+    <!-- Roster Tab -->
+    <template v-if="activeTab === 'roster'">
+      <AdventurerFilters v-model="filters" class="mb-2" />
+
+      <LoadingSpinner v-if="loading" />
+      <template v-else>
+        <template v-if="filteredAdventurers.length > 0">
+          <AdventurerList
+            :adventurers="filteredAdventurers"
+            :party-name-map="partyNameMap"
+            @select="onSelect"
+          />
+        </template>
+        <EmptyState v-else message="No adventurers match your filters" />
       </template>
-      <EmptyState v-else message="No adventurers match your filters" />
+    </template>
+
+    <!-- Graveyard Tab -->
+    <template v-if="activeTab === 'graveyard'">
+      <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
+      <AdventurerList
+        v-else
+        :adventurers="graveyard"
+        :hide-hp="true"
+        @select="onSelect"
+      />
+    </template>
+
+    <!-- Debtor's Prison Tab -->
+    <template v-if="activeTab === 'debtors'">
+      <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
+      <AdventurerList
+        v-else
+        :adventurers="debtors"
+        @select="onSelect"
+      />
     </template>
 
     <!-- Adventurer Detail Modal -->
