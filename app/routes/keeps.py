@@ -2,7 +2,7 @@ import random
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -32,6 +32,11 @@ class KeepOut(BaseModel):
     created_at: datetime
     dungeon_name: str | None = None
     max_dungeon_level: int = 1
+
+    @field_validator('max_dungeon_level', mode='before')
+    @classmethod
+    def default_dungeon_level(cls, v):
+        return v if v is not None else 1
 
     class Config:
         from_attributes = True
