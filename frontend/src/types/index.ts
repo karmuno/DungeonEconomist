@@ -138,10 +138,14 @@ export interface AdvanceDayResult {
 export interface ExpeditionSummary {
   id: number
   party_id: number
+  party_name: string
+  dungeon_level: number
   start_day: number
   duration_days: number
   return_day: number
   result: string
+  treasure_total: number
+  xp_earned: number
   started_at: string | null
   finished_at: string | null
 }
@@ -194,13 +198,13 @@ export interface DashboardStats {
   }>
   recent_expeditions: Array<{
     id: number
-    party_id: number
     party_name: string
+    dungeon_level: number
     start_day: number
     return_day: number
     duration_days: number
     result: string
-    started_at: string | null
-    finished_at: string | null
+    treasure_total: number
+    xp_earned: number
   }>
 }

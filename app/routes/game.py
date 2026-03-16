@@ -435,14 +435,14 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "recent_expeditions": [
             {
                 "id": e.id,
-                "party_id": e.party_id,
                 "party_name": e.party.name if e.party else "Unknown",
+                "dungeon_level": e.dungeon_level or 1,
                 "start_day": e.start_day,
                 "return_day": e.return_day,
                 "duration_days": e.duration_days,
                 "result": e.result,
-                "started_at": e.started_at.isoformat() if e.started_at else None,
-                "finished_at": e.finished_at.isoformat() if e.finished_at else None,
+                "treasure_total": (e.simulation_data or {}).get("treasure_total", 0),
+                "xp_earned": (e.simulation_data or {}).get("xp_earned", 0),
             }
             for e in recent_expeditions
         ],

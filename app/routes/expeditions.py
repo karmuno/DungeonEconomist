@@ -525,19 +525,24 @@ def get_expedition_results(
 def list_expeditions(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
     """List all expeditions for this keep"""
     expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(Party.keep_id == keep.id).all()
-    return [
-        {
+    results = []
+    for e in expeditions:
+        sim = e.simulation_data or {}
+        results.append({
             "id": e.id,
             "party_id": e.party_id,
+            "party_name": e.party.name if e.party else "Unknown",
+            "dungeon_level": e.dungeon_level or 1,
             "start_day": e.start_day,
             "duration_days": e.duration_days,
             "return_day": e.return_day,
             "result": e.result,
+            "treasure_total": sim.get("treasure_total", 0),
+            "xp_earned": sim.get("xp_earned", 0),
             "started_at": e.started_at.isoformat() if e.started_at else None,
             "finished_at": e.finished_at.isoformat() if e.finished_at else None,
-        }
-        for e in expeditions
-    ]
+        })
+    return results
 
 
 @router.get("/expeditions/{expedition_id}/summary")

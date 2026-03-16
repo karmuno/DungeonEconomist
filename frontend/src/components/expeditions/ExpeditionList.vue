@@ -11,6 +11,12 @@ defineProps<{
 const emit = defineEmits<{
   select: [id: number]
 }>()
+
+function statusLabel(result: string): string {
+  if (result === 'in_progress') return 'In Progress'
+  if (result === 'awaiting_choice') return 'Awaiting Decision'
+  return 'Completed'
+}
 </script>
 
 <template>
@@ -19,11 +25,13 @@ const emit = defineEmits<{
     <table v-else class="table">
       <thead>
         <tr>
-          <th>ID</th>
           <th>Party</th>
+          <th>Depth</th>
           <th>Days</th>
           <th>Departs</th>
           <th>Returns</th>
+          <th>Loot</th>
+          <th>XP</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -34,13 +42,15 @@ const emit = defineEmits<{
           style="cursor: pointer"
           @click="emit('select', exp.id)"
         >
-          <td>{{ exp.id }}</td>
-          <td>{{ exp.party_id }}</td>
+          <td>{{ exp.party_name }}</td>
+          <td>{{ exp.dungeon_level }}</td>
           <td>{{ exp.duration_days }}</td>
           <td>{{ formatGameDayShort(exp.start_day) }}</td>
           <td>{{ formatGameDayShort(exp.return_day) }}</td>
+          <td class="text-gold">{{ exp.treasure_total }}gp</td>
+          <td>{{ exp.xp_earned }}</td>
           <td>
-            <StatusBadge :status="exp.result === 'in_progress' ? 'On Expedition' : 'Completed'" />
+            <StatusBadge :status="statusLabel(exp.result)" />
           </td>
         </tr>
       </tbody>

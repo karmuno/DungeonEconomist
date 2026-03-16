@@ -14,6 +14,12 @@ defineProps<{
 function viewSummary(id: number) {
   router.push(`/expedition/${id}/summary`)
 }
+
+function statusLabel(result: string): string {
+  if (result === 'in_progress') return 'In Progress'
+  if (result === 'awaiting_choice') return 'Awaiting Decision'
+  return 'Completed'
+}
 </script>
 
 <template>
@@ -23,19 +29,19 @@ function viewSummary(id: number) {
       <thead>
         <tr>
           <th>Party</th>
-          <th>Duration</th>
+          <th>Depth</th>
+          <th>Loot</th>
+          <th>XP</th>
           <th>Status</th>
-          <th>Departs</th>
-          <th>Returns</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="exp in expeditions" :key="exp.id" class="clickable-row" @click="viewSummary(exp.id)">
           <td>{{ exp.party_name }}</td>
-          <td>{{ exp.duration_days }} days</td>
-          <td><StatusBadge :status="exp.result" /></td>
-          <td>{{ formatGameDayShort(exp.start_day) }}</td>
-          <td>{{ formatGameDayShort(exp.return_day) }}</td>
+          <td>{{ exp.dungeon_level }}</td>
+          <td class="text-gold">{{ exp.treasure_total }}gp</td>
+          <td>{{ exp.xp_earned }}</td>
+          <td><StatusBadge :status="statusLabel(exp.result)" /></td>
         </tr>
       </tbody>
     </table>
