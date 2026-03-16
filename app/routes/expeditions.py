@@ -565,6 +565,51 @@ def get_expedition_summary(
         return _build_completed_summary(expedition, party, keep, db)
 
 
+def _replay_member_hp(party_members, events_log: list, deaths: set) -> dict:
+    """Replay simulation turns to reconstruct per-member HP.
+
+    Returns {name: current_hp} for each member.
+    """
+    # Start with pre-expedition HP
+    hp = {}
+    alive = {}
+    for m in party_members:
+        hp[m.name] = m.hp_current
+        alive[m.name] = True
+
+    for turn in events_log:
+        for event in turn.get("events", []):
+            # Combat damage distributed evenly among alive members
+            combat = event.get("combat")
+            if combat:
+                hp_lost = combat.get("hp_lost", 0)
+                alive_names = [n for n, a in alive.items() if a]
+                if alive_names and hp_lost > 0:
+                    per_member = hp_lost // len(alive_names)
+                    remainder = hp_lost % len(alive_names)
+                    for i, name in enumerate(alive_names):
+                        loss = per_member + (1 if i < remainder else 0)
+                        hp[name] = max(0, hp[name] - loss)
+
+            # Trap damage distributed evenly
+            trap_dmg = event.get("trap_damage")
+            if trap_dmg:
+                alive_names = [n for n, a in alive.items() if a]
+                if alive_names:
+                    per_member = trap_dmg // len(alive_names)
+                    remainder = trap_dmg % len(alive_names)
+                    for i, name in enumerate(alive_names):
+                        loss = per_member + (1 if i < remainder else 0)
+                        hp[name] = max(0, hp[name] - loss)
+
+        # Mark deaths from this turn
+        for dead_name in turn.get("deaths", []):
+            alive[dead_name] = False
+            hp[dead_name] = 0
+
+    return hp
+
+
 def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     """Build summary from simulation_data for an in-progress expedition."""
     sim = expedition.simulation_data or {}
@@ -574,13 +619,12 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     resolved = expedition.resolved_phases or 0
 
     # Calculate totals from phases resolved so far + current phase
-    # Current phase index = resolved (phases[0..resolved] are before/between decisions)
     total_loot = 0
     total_xp = 0
     all_deaths = []
     for i, phase in enumerate(phases):
         if i > resolved:
-            break  # Don't show future phases
+            break
         total_loot += phase.get("loot", 0)
         total_xp += phase.get("xp", 0)
         all_deaths.extend(phase.get("deaths", []))
@@ -597,19 +641,24 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
             break
         events_log.append(turn)
 
-    # Member status: current state from the party (they're still on expedition)
+    # Reconstruct per-member HP from simulation replay
+    member_hp = {}
+    if party:
+        member_hp = _replay_member_hp(party.members, events_log, set(all_deaths))
+
     member_results = []
     if party:
         for member in party.members:
             is_dead = member.name in all_deaths
+            current_hp = member_hp.get(member.name, member.hp_current)
             member_results.append({
                 "name": member.name,
                 "adventurer_class": member.adventurer_class.value,
                 "level": member.level,
                 "alive": not is_dead,
-                "hp_current": 0 if is_dead else member.hp_current,
+                "hp_current": 0 if is_dead else current_hp,
                 "hp_max": member.hp_max,
-                "xp_gained": 0,  # Not distributed yet
+                "xp_gained": 0,
                 "gold": member.gold,
                 "silver": member.silver,
                 "copper": member.copper,
