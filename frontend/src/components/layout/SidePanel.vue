@@ -6,11 +6,17 @@ import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore, type Notification } from '../../stores/notifications'
 import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
+import ModalDialog from '../shared/ModalDialog.vue'
 
 const router = useRouter()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
+
+// Expedition choice popup
+const showChoicePopup = ref(false)
+const choiceMessage = ref('')
+const choiceExpeditionId = ref<number | null>(null)
 
 function handleAction(notification: Notification) {
   if (notification.action?.callback) {
@@ -36,6 +42,14 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
 function processEvents(result: { current_day: number; events: Array<{ type: string; message: string; expedition_id?: number | null }> }) {
   notifications.onDayAdvanced(result.current_day)
   for (const event of result.events) {
+    // Expedition choice — show popup instead of just a notification
+    if (event.type === 'expedition_choice' && event.expedition_id) {
+      choiceMessage.value = event.message
+      choiceExpeditionId.value = event.expedition_id
+      showChoicePopup.value = true
+      continue
+    }
+
     const opts: Parameters<typeof notifications.add>[1] = {
       type: typeMap[event.type] ?? 'info',
     }
@@ -45,13 +59,14 @@ function processEvents(result: { current_day: number; events: Array<{ type: stri
         route: `/expedition/${event.expedition_id}/summary`,
       }
     }
-    if (event.type === 'expedition_choice' && event.expedition_id) {
-      opts.action = {
-        label: 'Decide',
-        route: `/expedition/${event.expedition_id}/choice`,
-      }
-    }
     notifications.add(event.message, opts)
+  }
+}
+
+function goToChoice() {
+  showChoicePopup.value = false
+  if (choiceExpeditionId.value) {
+    router.push(`/expedition/${choiceExpeditionId.value}/choice`)
   }
 }
 
@@ -136,6 +151,20 @@ async function skipToEvent() {
       </div>
     </div>
   </aside>
+
+  <!-- Expedition Choice Popup -->
+  <ModalDialog
+    :is-open="showChoicePopup"
+    title="Expedition Event"
+    @close="goToChoice"
+  >
+    <div class="choice-popup">
+      <p class="choice-popup-msg">{{ choiceMessage }}</p>
+      <button class="btn btn-primary" style="width: 100%" @click="goToChoice">
+        View Expedition
+      </button>
+    </div>
+  </ModalDialog>
 </template>
 
 <style scoped>
@@ -348,5 +377,18 @@ async function skipToEvent() {
 
 .notif-dismiss:hover {
   opacity: 1;
+}
+
+/* Choice popup */
+.choice-popup {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.choice-popup-msg {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 1rem;
 }
 </style>
