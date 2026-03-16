@@ -22,6 +22,7 @@ export const useGameTimeStore = defineStore('gameTime', () => {
     currentDay.value = data.current_day
     dayStartedAt.value = data.day_started_at
     lastUpdated.value = data.last_updated
+    expeditionVersion.value++
     return data
   }
 
@@ -30,6 +31,7 @@ export const useGameTimeStore = defineStore('gameTime', () => {
     currentDay.value = data.current_day
     dayStartedAt.value = data.day_started_at
     lastUpdated.value = data.last_updated
+    expeditionVersion.value++
     return data
   }
 
