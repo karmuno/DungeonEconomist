@@ -186,7 +186,8 @@ class Expedition(Base):
     dungeon_level = Column(Integer, default=1)
     result = Column(String)  # 'in_progress', 'awaiting_choice', 'completed'
     pending_event = Column(JSON, nullable=True)  # Current interactive event awaiting player choice
-    resolved_phases = Column(Integer, default=0)  # How many phases have been resolved so far
+    resolved_phases = Column(Integer, default=0)  # How many decision points resolved so far
+    decision_day = Column(Integer, nullable=True)  # Game day when next decision fires
     simulation_data = Column(JSON, nullable=True)  # Stores sim results until expedition returns
 
     # Relationship to owning Party; specify foreign_keys to disambiguate multiple FKs between tables

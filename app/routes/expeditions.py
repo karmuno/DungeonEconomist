@@ -34,9 +34,8 @@ simulator = DungeonSimulator()
 
 
 def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
-    """Resolve an expedition phase-by-phase. If a decision point is next,
-    pauses with result='awaiting_choice'. Otherwise completes fully.
-    Returns a summary dict with events for notifications."""
+    """Resolve an expedition on return. If unresolved decision points remain,
+    pauses with awaiting_choice. Otherwise completes fully."""
     sim_result = expedition.simulation_data
     if not sim_result:
         return {"events": []}
@@ -44,14 +43,15 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
     decision_points = sim_result.get("decision_points", [])
     resolved = expedition.resolved_phases or 0
 
-    # Check if there's a pending decision point before the next phase
+    # If there are still unresolved decision points, pause
     if resolved < len(decision_points):
         dp = decision_points[resolved]
         expedition.result = "awaiting_choice"
         expedition.pending_event = dp
+        expedition.decision_day = expedition.return_day
         return {"events": [], "awaiting_choice": True, "pending_event": dp}
 
-    # No more decision points — complete the expedition
+    # All decisions resolved (or none existed) — finalize
     return _finalize_expedition(expedition, sim_result, db, keep)
 
 
@@ -283,6 +283,16 @@ def launch_expedition(
     sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
     build_phases(sim_result, requested_level, keep.max_dungeon_level)
 
+    # If there are decision points, schedule the first one on a random day
+    decision_points = sim_result.get("decision_points", [])
+    first_decision_day = None
+    if decision_points:
+        import random as _rand
+        # Random day between start+1 and return-1 (at least 1 day in)
+        earliest = start_day + 1
+        latest = max(earliest, return_day - 1)
+        first_decision_day = _rand.randint(earliest, latest)
+
     db_expedition = Expedition(
         party_id=expedition_data.party_id,
         dungeon_level=requested_level,
@@ -292,6 +302,7 @@ def launch_expedition(
         started_at=datetime.now(),
         result="in_progress",
         resolved_phases=0,
+        decision_day=first_decision_day,
         simulation_data=_make_json_safe(sim_result),
     )
     db.add(db_expedition)
@@ -362,23 +373,24 @@ def make_expedition_choice(
 
     # Check if there's another decision point
     if expedition.resolved_phases < len(decision_points):
-        next_dp = decision_points[expedition.resolved_phases]
-        expedition.result = "awaiting_choice"
-        expedition.pending_event = next_dp
+        # Schedule next decision for the last day of the expedition
+        expedition.decision_day = expedition.return_day
+        expedition.result = "in_progress"
         db.commit()
         return {
-            "status": "awaiting_choice",
-            "pending_event": next_dp,
+            "status": "in_progress",
+            "message": "The expedition continues...",
             "events": [],
         }
 
-    # No more decision points — complete the expedition
-    result = _finalize_expedition(expedition, sim_result, db, keep)
+    # No more decision points — resume normal expedition (resolves on return_day)
+    expedition.decision_day = None
+    expedition.result = "in_progress"
     db.commit()
     return {
-        "status": "completed",
-        "retreated": False,
-        "events": result.get("events", []),
+        "status": "in_progress",
+        "message": "The expedition continues...",
+        "events": [],
     }
 
 

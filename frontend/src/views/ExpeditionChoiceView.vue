@@ -49,12 +49,11 @@ async function makeChoice(choice: string) {
       notifications.add(evt.message, { type: (typeMap[evt.type] ?? 'info') as any })
     }
 
-    if (result.status === 'awaiting_choice' && result.pending_event) {
-      // Another decision point — update the view
-      pendingEvent.value = result.pending_event
-      submitting.value = false
-    } else {
-      // Expedition complete
+    if (result.status === 'in_progress') {
+      // Expedition continues — back to dashboard
+      notifications.add(`${partyName.value} presses on...`, 'info')
+      router.push('/')
+    } else if (result.status === 'completed') {
       await player.fetchPlayer()
       if (result.retreated) {
         notifications.add(`${partyName.value} retreated safely`, 'info')
@@ -62,6 +61,8 @@ async function makeChoice(choice: string) {
         notifications.add(`${partyName.value} completed the expedition!`, 'success')
       }
       router.push('/')
+    } else {
+      submitting.value = false
     }
   } catch {
     notifications.add('Failed to submit choice', 'error')

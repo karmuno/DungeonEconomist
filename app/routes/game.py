@@ -209,24 +209,41 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern"
         ))
 
-    # Process expedition completions (scoped via Party.keep_id)
-    active_expeditions_to_check = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+    # Process expedition events (scoped via Party.keep_id)
+    active_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
         Party.keep_id == keep.id,
         Expedition.result == "in_progress",
     ).all()
-    for expedition in active_expeditions_to_check:
-        if expedition.return_day <= keep.current_day:
-            party_name = expedition.party.name if expedition.party else "Unknown"
+    for expedition in active_expeditions:
+        party_name = expedition.party.name if expedition.party else "Unknown"
 
-            # Apply simulation results (XP, loot, deaths, etc.)
+        # Check if a mid-expedition decision is due
+        if (expedition.decision_day
+                and expedition.decision_day <= keep.current_day
+                and expedition.result == "in_progress"):
+            sim_result = expedition.simulation_data or {}
+            decision_points = sim_result.get("decision_points", [])
+            resolved = expedition.resolved_phases or 0
+            if resolved < len(decision_points):
+                dp = decision_points[resolved]
+                expedition.result = "awaiting_choice"
+                expedition.pending_event = dp
+                events.append(GameEvent(
+                    type="expedition_choice",
+                    message=f"Party '{party_name}': {dp.get('message', 'A decision awaits')}",
+                    expedition_id=expedition.id,
+                ))
+                continue
+
+        # Check if expedition has returned (and no pending decisions)
+        if expedition.return_day <= keep.current_day:
             resolution = resolve_expedition(expedition, db, keep)
 
             if resolution.get("awaiting_choice"):
-                # Expedition has a decision point — notify player
                 pending = resolution.get("pending_event", {})
                 events.append(GameEvent(
                     type="expedition_choice",
-                    message=f"Party '{party_name}' needs your decision: {pending.get('message', 'Choose wisely')}",
+                    message=f"Party '{party_name}': {pending.get('message', 'A decision awaits')}",
                     expedition_id=expedition.id,
                 ))
             else:

@@ -90,25 +90,28 @@ class DungeonSimulator:
         turn_number = expedition_data["turns_completed"]
         
         # Check for encounter and resolve it
-        turn_log = {"turn": turn_number, "events": []}
-        
+        turn_log = {"turn": turn_number, "events": [], "deaths": []}
+
+        # Track who was alive before the turn
+        alive_before = {m["name"] for m in expedition.party if m["current_hp"] > 0}
+
         if expedition.check_for_encounter():
             encounter_type = expedition.determine_encounter_type()
             encounter_log = {"type": encounter_type.value}
-            
+
             if encounter_type == EncounterType.MONSTER:
                 monster_type = expedition._get_random_monster()
                 combat_result = expedition.resolve_combat(monster_type)
                 encounter_log["combat"] = combat_result
                 expedition.xp_earned += combat_result["xp_earned"]
-                
+
                 # Generate treasure if monster defeated
                 if combat_result["outcome"] in [CombatOutcome.CLEAR_VICTORY, CombatOutcome.VICTORY]:
                     treasure = expedition.generate_treasure(monster_type)
                     encounter_log["treasure"] = treasure
                     expedition.treasure.append(treasure)
                     expedition.xp_earned += treasure["xp_value"]
-            
+
             elif encounter_type == EncounterType.TRAP:
                 trap_damage = random.randint(1, 6) * expedition.dungeon_level
                 expedition.resources_used["hp_lost"] += trap_damage
@@ -125,14 +128,19 @@ class DungeonSimulator:
                             if member not in expedition.dead:
                                 expedition.dead.append(member)
                 encounter_log["trap_damage"] = trap_damage
-            
+
             elif encounter_type == EncounterType.TREASURE:
                 treasure = expedition.generate_treasure()
                 encounter_log["treasure"] = treasure
                 expedition.treasure.append(treasure)
                 expedition.xp_earned += treasure["xp_value"]
-            
+
             turn_log["events"].append(encounter_log)
+
+        # Record who died THIS turn
+        alive_after = {m["name"] for m in expedition.party if m["current_hp"] > 0}
+        newly_dead = alive_before - alive_after
+        turn_log["deaths"] = list(newly_dead)
         
         # Update the expedition log
         self.expedition_logs[expedition_id].append(turn_log)
