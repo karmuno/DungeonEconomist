@@ -116,6 +116,7 @@ const classOptions = Object.values(AdventurerClass)
         <option value="name">Name</option>
         <option value="level">Level</option>
         <option value="adventurer_class">Class</option>
+        <option value="party">Party</option>
         <option value="hp_current">HP</option>
         <option value="xp">XP</option>
       </select>

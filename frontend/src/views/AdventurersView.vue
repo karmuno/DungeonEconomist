@@ -63,11 +63,16 @@ const filteredAdventurers = computed(() => {
   }
 
   const dir = filters.value.sortDir === 'asc' ? 1 : -1
-  const sortKey = filters.value.sortBy as keyof AdventurerOut
+  const sortKey = filters.value.sortBy
 
   result.sort((a, b) => {
-    const aVal = a[sortKey]
-    const bVal = b[sortKey]
+    if (sortKey === 'party') {
+      const aParty = partyNameMap.value[a.id] ?? ''
+      const bParty = partyNameMap.value[b.id] ?? ''
+      return dir * aParty.localeCompare(bParty)
+    }
+    const aVal = a[sortKey as keyof AdventurerOut]
+    const bVal = b[sortKey as keyof AdventurerOut]
     if (typeof aVal === 'string' && typeof bVal === 'string') {
       return dir * aVal.localeCompare(bVal)
     }

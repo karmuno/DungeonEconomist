@@ -289,6 +289,13 @@ def launch_expedition(
 
     # Run simulation now, then build interactive phases
     sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
+
+    # Store starting HP snapshot for accurate replay later
+    sim_result["starting_hp"] = {
+        m["name"]: m.get("current_hp", m.get("hit_points", 10))
+        for m in party_members
+    }
+
     build_phases(sim_result, requested_level, keep.max_dungeon_level)
 
     # If there are decision points, schedule the first one on a random day
@@ -570,16 +577,22 @@ def get_expedition_summary(
         return _build_completed_summary(expedition, party, keep, db)
 
 
-def _replay_member_hp(party_members, events_log: list, deaths: set) -> dict:
+def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp: dict = None) -> dict:
     """Replay simulation turns to reconstruct per-member HP.
+
+    Args:
+        starting_hp: {name: hp} snapshot from expedition launch. Falls back
+                     to live DB hp_current if not available (old expeditions).
 
     Returns {name: current_hp} for each member.
     """
-    # Start with pre-expedition HP
     hp = {}
     alive = {}
     for m in party_members:
-        hp[m.name] = m.hp_current
+        if starting_hp and m.name in starting_hp:
+            hp[m.name] = starting_hp[m.name]
+        else:
+            hp[m.name] = m.hp_current
         alive[m.name] = True
 
     for turn in events_log:
@@ -649,7 +662,7 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     # Reconstruct per-member HP from simulation replay
     member_hp = {}
     if party:
-        member_hp = _replay_member_hp(party.members, events_log, set(all_deaths))
+        member_hp = _replay_member_hp(party.members, events_log, set(all_deaths), sim.get("starting_hp"))
 
     member_results = []
     if party:
@@ -714,7 +727,7 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
 
     sim_hp = {}
     if party:
-        sim_hp = _replay_member_hp(party.members, replay_log, dead_names)
+        sim_hp = _replay_member_hp(party.members, replay_log, dead_names, sim.get("starting_hp"))
 
     member_results = []
     max_heal_days = 0
