@@ -44,3 +44,35 @@ export interface ExpeditionSummaryDetail {
 export function getSummary(id: number): Promise<ExpeditionSummaryDetail> {
   return get<ExpeditionSummaryDetail>(`/expeditions/${id}/summary`)
 }
+
+export interface PendingEvent {
+  type: string
+  message: string
+  options: string[]
+  dead_member?: string
+  loot_so_far?: number
+  new_level?: number
+  new_level_name?: string
+}
+
+export interface PendingEventResponse {
+  pending: boolean
+  expedition_id?: number
+  party_name?: string
+  pending_event?: PendingEvent
+}
+
+export interface ChoiceResponse {
+  status: string
+  retreated?: boolean
+  pending_event?: PendingEvent
+  events?: Array<{ type: string; message: string }>
+}
+
+export function getPending(id: number): Promise<PendingEventResponse> {
+  return get<PendingEventResponse>(`/expeditions/${id}/pending`)
+}
+
+export function choose(id: number, choice: string): Promise<ChoiceResponse> {
+  return post<ChoiceResponse>(`/expeditions/${id}/choose`, { choice })
+}

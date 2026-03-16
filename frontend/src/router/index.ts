@@ -56,6 +56,11 @@ const router = createRouter({
       name: 'expedition-summary',
       component: () => import('../views/ExpeditionSummaryView.vue'),
     },
+    {
+      path: '/expedition/:id/choice',
+      name: 'expedition-choice',
+      component: () => import('../views/ExpeditionChoiceView.vue'),
+    },
   ],
 })
 
