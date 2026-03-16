@@ -6,6 +6,7 @@ import { useGameTimeStore } from './stores/gameTime'
 import { usePlayerStore } from './stores/player'
 import AppHeader from './components/layout/AppHeader.vue'
 import SidePanel from './components/layout/SidePanel.vue'
+import AdminConsole from './components/layout/AdminConsole.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -47,5 +48,6 @@ onMounted(async () => {
         <router-view />
       </div>
     </div>
+    <AdminConsole />
   </template>
 </template>

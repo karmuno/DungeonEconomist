@@ -13,6 +13,7 @@ class Account(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
 
     keeps = relationship('Keep', back_populates='account')

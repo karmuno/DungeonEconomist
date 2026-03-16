@@ -10,6 +10,7 @@ from app.routes import adventurers, parties, expeditions, game
 from app.routes import auth as auth_routes
 from app.routes import keeps as keeps_routes
 from app.routes import buildings as buildings_routes
+from app.routes import admin as admin_routes
 
 # Create tables on startup
 create_tables()
@@ -34,6 +35,7 @@ app.add_middleware(
 app.include_router(auth_routes.router)
 app.include_router(keeps_routes.router)
 app.include_router(buildings_routes.router)
+app.include_router(admin_routes.router)
 app.include_router(adventurers.router)
 app.include_router(parties.router)
 app.include_router(expeditions.router)

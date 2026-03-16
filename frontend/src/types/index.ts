@@ -19,6 +19,7 @@ export interface TokenResponse {
 export interface AccountOut {
   id: number
   username: string
+  is_admin: boolean
 }
 
 // Keeps

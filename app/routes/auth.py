@@ -27,6 +27,7 @@ class TokenResponse(BaseModel):
 class AccountOut(BaseModel):
     id: int
     username: str
+    is_admin: bool = False
 
     class Config:
         from_attributes = True
