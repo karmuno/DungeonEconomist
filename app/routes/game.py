@@ -305,9 +305,38 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
 NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "loot"}
 
 
+def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
+    """Check for awaiting_choice expeditions. If any exist, return their events
+    without advancing time. Returns empty list if no decisions pending."""
+    awaiting = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+        Party.keep_id == keep.id,
+        Expedition.result == "awaiting_choice",
+    ).all()
+    events = []
+    for expedition in awaiting:
+        party_name = expedition.party.name if expedition.party else "Unknown"
+        dp = expedition.pending_event or {}
+        events.append(GameEvent(
+            type="expedition_choice",
+            message=f"Party '{party_name}': {dp.get('message', 'A decision awaits')}",
+            expedition_id=expedition.id,
+        ))
+    return events
+
+
 @router.post("/time/advance-day", response_model=AdvanceDayResult)
 def advance_day(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
-    """Advances the game time by one day and updates expedition statuses."""
+    """Advances the game time by one day. Blocks if a decision is pending."""
+    # Block if there's a pending decision
+    pending = _check_pending_decisions(keep, db)
+    if pending:
+        return AdvanceDayResult(
+            current_day=keep.current_day,
+            day_started_at=keep.day_started_at,
+            last_updated=keep.last_updated,
+            events=pending,
+        )
+
     events = _advance_one_day(keep, db)
 
     db.commit()
@@ -323,7 +352,17 @@ def advance_day(keep: Keep = Depends(get_current_keep), db: Session = Depends(ge
 
 @router.post("/time/skip-to-event", response_model=AdvanceDayResult)
 def skip_to_event(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
-    """Advance days until a notable event occurs (max 30 days)."""
+    """Advance days until a notable event occurs (max 30 days). Blocks if decision pending."""
+    # Block if there's a pending decision
+    pending = _check_pending_decisions(keep, db)
+    if pending:
+        return AdvanceDayResult(
+            current_day=keep.current_day,
+            day_started_at=keep.day_started_at,
+            last_updated=keep.last_updated,
+            events=pending,
+        )
+
     MAX_SKIP = 30
     all_events: list[GameEvent] = []
 

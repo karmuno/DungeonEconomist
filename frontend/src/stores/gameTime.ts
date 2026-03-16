@@ -7,6 +7,8 @@ export const useGameTimeStore = defineStore('gameTime', () => {
   const currentDay = ref(0)
   const dayStartedAt = ref<string | null>(null)
   const lastUpdated = ref<string | null>(null)
+  // Increments when expedition state changes (choice made, etc.)
+  const expeditionVersion = ref(0)
 
   async function fetchTime() {
     const data = await gameApi.getTime()
@@ -35,6 +37,7 @@ export const useGameTimeStore = defineStore('gameTime', () => {
     currentDay,
     dayStartedAt,
     lastUpdated,
+    expeditionVersion,
     fetchTime,
     advanceDay,
     skipToEvent,

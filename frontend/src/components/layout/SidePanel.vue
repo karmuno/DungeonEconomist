@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore, type Notification } from '../../stores/notifications'
@@ -10,6 +10,7 @@ import ModalDialog from '../shared/ModalDialog.vue'
 import * as expeditionsApi from '../../api/expeditions'
 
 const router = useRouter()
+const route = useRoute()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
@@ -20,6 +21,7 @@ const choiceMessage = ref('')
 const choiceEventType = ref('')
 const choiceExpeditionId = ref<number | null>(null)
 const choosingInPopup = ref(false)
+
 
 function handleAction(notification: Notification) {
   if (notification.action?.callback) {
@@ -45,13 +47,17 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
 function processEvents(result: { current_day: number; events: Array<{ type: string; message: string; expedition_id?: number | null }> }) {
   notifications.onDayAdvanced(result.current_day)
   for (const event of result.events) {
-    // Expedition choice — show popup immediately
+    // Expedition choice — show popup (unless user is already on that summary)
     if (event.type === 'expedition_choice' && event.expedition_id) {
-      // Extract the event type from the pending_event (passed in message prefix)
-      choiceMessage.value = event.message
-      choiceExpeditionId.value = event.expedition_id
-      choiceEventType.value = ''  // Will be determined by the pending endpoint
-      showChoicePopup.value = true
+      const onSummaryPage = route.path === `/expedition/${event.expedition_id}/summary`
+      if (!onSummaryPage) {
+        choiceMessage.value = event.message
+        choiceExpeditionId.value = event.expedition_id
+        choiceEventType.value = ''
+        showChoicePopup.value = true
+      }
+      // Either way, the summary page will refetch via expeditionVersion
+      gameTime.expeditionVersion++
       continue
     }
 
@@ -92,6 +98,7 @@ async function popupChoice(choice: string) {
         result.retreated ? 'info' : 'success',
       )
     }
+    gameTime.expeditionVersion++
   } catch {
     notifications.add('Failed to submit choice', 'error')
   } finally {

@@ -63,6 +63,7 @@ async function fetchSummary() {
 }
 
 watch(() => gameTime.currentDay, () => fetchSummary())
+watch(() => gameTime.expeditionVersion, () => fetchSummary())
 
 onMounted(async () => {
   try {
@@ -99,7 +100,8 @@ async function makeChoice(choice: string) {
       )
     }
 
-    // Refresh summary to show updated state
+    // Signal other components and refresh
+    gameTime.expeditionVersion++
     await fetchSummary()
   } catch {
     notifications.add('Failed to submit choice', 'error')
