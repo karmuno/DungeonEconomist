@@ -80,9 +80,17 @@ def _finalize_expedition(
     else:
         effective_result = sim_result
 
+    # Determine which log entries to store
+    full_log = effective_result.get("log", [])
+    cutoff_turn = effective_result.get("retreat_cutoff_turn")
+    if cutoff_turn is not None:
+        stored_log = [t for t in full_log if t.get("turn", 0) <= cutoff_turn]
+    else:
+        stored_log = full_log
+
     # Store node result logs
-    for node_result in effective_result.get("log", []):
-        log_entries = effective_result.get("log", [])
+    for node_result in stored_log:
+        log_entries = stored_log
         exp_node = ExpeditionNodeResult(
             expedition_id=expedition.id,
             node_id=1,

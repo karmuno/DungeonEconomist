@@ -137,19 +137,56 @@ def _make_phase_from_log(start_turn: int, end_turn: int, log: list) -> dict:
     }
 
 
-def calculate_retreat_results(sim_result: dict, phases_completed: int) -> dict:
-    """Calculate partial results when player retreats after N phases.
+def calculate_retreat_results(sim_result: dict, current_decision_index: int) -> dict:
+    """Calculate partial results when player retreats at decision point N.
 
-    Returns a modified result dict with reduced totals.
+    Includes everything up through the phase containing the trigger event,
+    plus one retreat turn (the turn right after the decision point).
     """
     phases = sim_result.get("phases", [])
-    completed = phases[:phases_completed]
+    log = sim_result.get("log", [])
+    decision_points = sim_result.get("decision_points", [])
 
-    partial_loot = sum(p["loot"] for p in completed)
-    partial_xp = sum(p["xp"] for p in completed)
+    # Include phase 0 through current_decision_index (the phase that ends
+    # at the decision point, i.e. includes the trigger event itself)
+    included_phases = phases[:current_decision_index + 1]
+
+    partial_loot = sum(p["loot"] for p in included_phases)
+    partial_xp = sum(p["xp"] for p in included_phases)
     partial_deaths = []
-    for p in completed:
+    for p in included_phases:
         partial_deaths.extend(p.get("deaths", []))
+
+    # Retreat turn: one turn after the decision point
+    retreat_turn_idx = None
+    if current_decision_index < len(decision_points):
+        dp_turn = decision_points[current_decision_index].get("after_turn", 0)
+        # The retreat turn is the next turn in the log after dp_turn
+        for i, turn in enumerate(log):
+            if turn.get("turn", 0) > dp_turn:
+                retreat_turn_idx = i
+                break
+
+    # Add retreat turn results (may encounter something on the way out)
+    retreat_log = None
+    if retreat_turn_idx is not None and retreat_turn_idx < len(log):
+        retreat_log = log[retreat_turn_idx]
+        for event in retreat_log.get("events", []):
+            treasure = event.get("treasure")
+            if treasure:
+                partial_loot += treasure.get("gold", 0)
+                partial_xp += treasure.get("xp_value", 0)
+            combat = event.get("combat")
+            if combat:
+                partial_xp += combat.get("xp_earned", 0)
+        partial_deaths.extend(retreat_log.get("deaths", []))
+
+    # Calculate the cutoff turn for the log (everything up to retreat turn)
+    cutoff_turn = None
+    if retreat_log:
+        cutoff_turn = retreat_log.get("turn", 0)
+    elif current_decision_index < len(decision_points):
+        cutoff_turn = decision_points[current_decision_index].get("after_turn", 0)
 
     member_count = sim_result.get("party_status", {}).get("members_total", 1)
 
@@ -159,5 +196,6 @@ def calculate_retreat_results(sim_result: dict, phases_completed: int) -> dict:
         "xp_per_party_member": partial_xp // max(1, member_count),
         "dead_members": partial_deaths,
         "retreated": True,
-        "phases_completed": phases_completed,
+        "retreat_cutoff_turn": cutoff_turn,
+        "phases_completed": current_decision_index + 1,
     }
