@@ -17,11 +17,11 @@ const loading = ref(false)
 const activeTab = ref<'active' | 'completed'>('active')
 
 const activeExpeditions = computed(() =>
-  expeditions.value.filter((e) => e.result === 'in_progress')
+  expeditions.value.filter((e) => e.result === 'in_progress' || e.result === 'awaiting_choice')
 )
 
 const completedExpeditions = computed(() =>
-  expeditions.value.filter((e) => e.result !== 'in_progress')
+  expeditions.value.filter((e) => e.result === 'completed')
 )
 
 async function fetchExpeditions() {

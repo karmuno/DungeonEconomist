@@ -13,7 +13,7 @@ from app.schemas import GameTimeInfo, AdvanceDayResult, GameEvent
 from app.auth import get_current_keep
 from app.names import generate_adventurer_name
 from app.dungeons import DUNGEON_LEVEL_NAMES, DUNGEON_LEVELS
-from app.routes.expeditions import resolve_expedition
+from app.routes.expeditions import resolve_expedition, _finalize_expedition
 
 router = APIRouter()
 
@@ -209,7 +209,47 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern"
         ))
 
-    # Process expedition events (scoped via Party.keep_id)
+    # Auto-resolve any awaiting_choice expeditions (player skipped the decision)
+    from app.expedition_events import auto_decide
+    awaiting = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+        Party.keep_id == keep.id,
+        Expedition.result == "awaiting_choice",
+    ).all()
+    for expedition in awaiting:
+        party_name = expedition.party.name if expedition.party else "Unknown"
+        dp = expedition.pending_event or {}
+        choice = auto_decide(dp.get("type", ""), expedition.party.members if expedition.party else [])
+
+        # Apply the auto-decision
+        sim_result = expedition.simulation_data or {}
+        decision_points = sim_result.get("decision_points", [])
+        resolved = expedition.resolved_phases or 0
+
+        if choice == "retreat":
+            result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
+            events.append(GameEvent(
+                type="expedition_complete",
+                message=f"Party '{party_name}' decided to retreat: {dp.get('message', '')}",
+                expedition_id=expedition.id,
+            ))
+            for evt in result.get("events", []):
+                events.append(GameEvent(type=evt["type"], message=evt["message"]))
+        else:
+            # Press on
+            expedition.resolved_phases = resolved + 1
+            expedition.pending_event = None
+            if expedition.resolved_phases < len(decision_points):
+                expedition.decision_day = expedition.return_day
+            else:
+                expedition.decision_day = None
+            expedition.result = "in_progress"
+            events.append(GameEvent(
+                type="expedition_choice",
+                message=f"Party '{party_name}' pressed on: {dp.get('message', '')}",
+                expedition_id=expedition.id,
+            ))
+
+    # Process in-progress expedition events (scoped via Party.keep_id)
     active_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
         Party.keep_id == keep.id,
         Expedition.result == "in_progress",
@@ -219,8 +259,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
 
         # Check if a mid-expedition decision is due
         if (expedition.decision_day
-                and expedition.decision_day <= keep.current_day
-                and expedition.result == "in_progress"):
+                and expedition.decision_day <= keep.current_day):
             sim_result = expedition.simulation_data or {}
             decision_points = sim_result.get("decision_points", [])
             resolved = expedition.resolved_phases or 0
@@ -235,7 +274,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                 ))
                 continue
 
-        # Check if expedition has returned (and no pending decisions)
+        # Check if expedition has returned
         if expedition.return_day <= keep.current_day:
             resolution = resolve_expedition(expedition, db, keep)
 

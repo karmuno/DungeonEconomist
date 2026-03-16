@@ -1,11 +1,13 @@
-"""Post-process simulation results to insert interactive decision points.
+"""Post-process simulation results to detect noteworthy events and auto-resolve
+party decisions about them.
 
-Only creates decision points from REAL events in the simulation log:
+Detects real events from the simulation log:
 - A party member actually died in a specific turn
 - A specific turn produced treasure above the big haul threshold
 - Stairs were discovered (random roll, once per expedition)
 
-If nothing noteworthy happened, no decisions fire.
+Parties auto-decide whether to press on or retreat. For now decisions are
+random; eventually this will depend on party composition and morale.
 """
 
 import random
@@ -15,6 +17,16 @@ from app.dungeons import DUNGEON_LEVEL_NAMES
 BIG_HAUL_THRESHOLD = 8
 
 BASE_STAIRS_CHANCE = 0.05
+
+
+def auto_decide(event_type: str, party: list = None) -> str:
+    """Have the party automatically decide what to do at a decision point.
+
+    Returns 'press_on' or 'retreat'. Eventually this will factor in party
+    composition, morale, HP levels, etc.
+    """
+    # TODO: weight by party composition, current HP %, class abilities
+    return random.choice(["press_on", "retreat"])
 
 
 def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -> dict:

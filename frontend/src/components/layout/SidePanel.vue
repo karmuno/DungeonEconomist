@@ -7,6 +7,7 @@ import { useNotificationsStore, type Notification } from '../../stores/notificat
 import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 import ModalDialog from '../shared/ModalDialog.vue'
+import * as expeditionsApi from '../../api/expeditions'
 
 const router = useRouter()
 const gameTime = useGameTimeStore()
@@ -16,7 +17,9 @@ const notifications = useNotificationsStore()
 // Expedition choice popup
 const showChoicePopup = ref(false)
 const choiceMessage = ref('')
+const choiceEventType = ref('')
 const choiceExpeditionId = ref<number | null>(null)
+const choosingInPopup = ref(false)
 
 function handleAction(notification: Notification) {
   if (notification.action?.callback) {
@@ -42,10 +45,12 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
 function processEvents(result: { current_day: number; events: Array<{ type: string; message: string; expedition_id?: number | null }> }) {
   notifications.onDayAdvanced(result.current_day)
   for (const event of result.events) {
-    // Expedition choice — show popup instead of just a notification
+    // Expedition choice — show popup immediately
     if (event.type === 'expedition_choice' && event.expedition_id) {
+      // Extract the event type from the pending_event (passed in message prefix)
       choiceMessage.value = event.message
       choiceExpeditionId.value = event.expedition_id
+      choiceEventType.value = ''  // Will be determined by the pending endpoint
       showChoicePopup.value = true
       continue
     }
@@ -63,10 +68,41 @@ function processEvents(result: { current_day: number; events: Array<{ type: stri
   }
 }
 
-function goToChoice() {
+async function popupChoice(choice: string) {
+  if (!choiceExpeditionId.value) return
+  choosingInPopup.value = true
+  try {
+    const result = await expeditionsApi.choose(choiceExpeditionId.value, choice)
+    showChoicePopup.value = false
+
+    for (const evt of result.events ?? []) {
+      const evtTypeMap: Record<string, string> = {
+        death: 'error', loot: 'info', stairs: 'success',
+        upkeep: 'warning', expedition_complete: 'success',
+      }
+      notifications.add(evt.message, { type: (evtTypeMap[evt.type] ?? 'info') as any })
+    }
+
+    if (result.status === 'in_progress') {
+      notifications.add('The expedition presses on...', 'info')
+    } else if (result.status === 'completed') {
+      await player.fetchPlayer()
+      notifications.add(
+        result.retreated ? 'The party retreated safely' : 'The expedition is complete!',
+        result.retreated ? 'info' : 'success',
+      )
+    }
+  } catch {
+    notifications.add('Failed to submit choice', 'error')
+  } finally {
+    choosingInPopup.value = false
+  }
+}
+
+function viewExpedition() {
   showChoicePopup.value = false
   if (choiceExpeditionId.value) {
-    router.push(`/expedition/${choiceExpeditionId.value}/choice`)
+    router.push(`/expedition/${choiceExpeditionId.value}/summary`)
   }
 }
 
@@ -156,12 +192,31 @@ async function skipToEvent() {
   <ModalDialog
     :is-open="showChoicePopup"
     title="Expedition Event"
-    @close="goToChoice"
+    @close="viewExpedition"
   >
     <div class="choice-popup">
       <p class="choice-popup-msg">{{ choiceMessage }}</p>
-      <button class="btn btn-primary" style="width: 100%" @click="goToChoice">
-        View Expedition
+      <div class="choice-popup-buttons">
+        <button
+          class="btn btn-primary"
+          :disabled="choosingInPopup"
+          @click="popupChoice('press_on')"
+        >
+          Press On
+        </button>
+        <button
+          class="btn btn-secondary"
+          :disabled="choosingInPopup"
+          @click="popupChoice('retreat')"
+        >
+          Retreat
+        </button>
+      </div>
+      <button
+        class="btn btn-sm choice-popup-view"
+        @click="viewExpedition"
+      >
+        View Expedition Details
       </button>
     </div>
   </ModalDialog>
@@ -390,5 +445,17 @@ async function skipToEvent() {
   color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 1rem;
+}
+
+.choice-popup-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.choice-popup-view {
+  color: var(--text-muted);
+  text-decoration: underline;
 }
 </style>
