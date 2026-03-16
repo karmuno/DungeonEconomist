@@ -57,9 +57,14 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return false
     try {
       await fetchAccount()
-      // Restore keep from localStorage if not already set
-      const keepId = localStorage.getItem('keepId')
-      if (keepId && !currentKeep.value) {
+    } catch {
+      logout()
+      return false
+    }
+    // Restore keep separately — don't logout if this fails
+    const keepId = localStorage.getItem('keepId')
+    if (keepId && !currentKeep.value) {
+      try {
         const keeps = await keepsApi.list()
         const match = keeps.find(k => k.id === Number(keepId))
         if (match) {
@@ -67,12 +72,11 @@ export const useAuthStore = defineStore('auth', () => {
         } else {
           localStorage.removeItem('keepId')
         }
+      } catch {
+        // Keep restore failed but account is fine — user can re-select
       }
-      return true
-    } catch {
-      logout()
-      return false
     }
+    return true
   }
 
   return {

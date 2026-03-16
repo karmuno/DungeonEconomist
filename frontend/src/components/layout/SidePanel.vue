@@ -99,8 +99,10 @@ async function popupChoice(choice: string) {
       )
     }
     gameTime.expeditionVersion++
-  } catch {
-    notifications.add('Failed to submit choice', 'error')
+  } catch (e: any) {
+    const detail = (e as any)?.data?.detail ?? 'Failed to submit choice'
+    notifications.add(detail, 'error')
+    showChoicePopup.value = false
   } finally {
     choosingInPopup.value = false
   }

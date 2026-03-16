@@ -209,12 +209,14 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern"
         ))
 
-    # Auto-resolve any awaiting_choice expeditions (player skipped the decision)
+    # Auto-resolve any awaiting_choice expeditions from PREVIOUS days
+    # (player skipped the decision — the party decides on its own)
     from app.expedition_events import auto_decide
     awaiting = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
         Party.keep_id == keep.id,
         Expedition.result == "awaiting_choice",
     ).all()
+    newly_awaiting_ids: set[int] = set()
     for expedition in awaiting:
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}

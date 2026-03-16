@@ -103,8 +103,11 @@ async function makeChoice(choice: string) {
     // Signal other components and refresh
     gameTime.expeditionVersion++
     await fetchSummary()
-  } catch {
-    notifications.add('Failed to submit choice', 'error')
+  } catch (e: any) {
+    const detail = e?.data?.detail ?? e?.message ?? 'Failed to submit choice'
+    notifications.add(detail, 'error')
+    // Refetch in case state changed (e.g. auto-resolved)
+    await fetchSummary()
   } finally {
     choosing.value = false
   }
