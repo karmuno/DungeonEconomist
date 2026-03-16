@@ -95,7 +95,13 @@ async function popupChoice(choice: string) {
       await player.fetchPlayer()
       notifications.add(
         result.retreated ? 'The party retreated safely' : 'The expedition is complete!',
-        result.retreated ? 'info' : 'success',
+        {
+          type: result.retreated ? 'info' : 'success',
+          action: {
+            label: 'View Summary',
+            route: `/expedition/${choiceExpeditionId.value}/summary`,
+          },
+        },
       )
     }
     gameTime.expeditionVersion++

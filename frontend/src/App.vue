@@ -19,11 +19,15 @@ const isAuthPage = computed(() =>
 onMounted(async () => {
   const restored = await auth.tryRestore()
   if (restored && auth.currentKeep) {
+    // Load from cached keep data immediately (no API call)
+    player.loadFromKeep()
+    gameTime.currentDay = auth.currentKeep.current_day
+    // Then refresh from server
     try {
-      await player.fetchPlayer()
       await gameTime.fetchTime()
+      await player.fetchPlayer()
     } catch {
-      // Keep may have been deleted
+      // API failed — cached data from keep is still showing
     }
   }
 })

@@ -96,7 +96,13 @@ async function makeChoice(choice: string) {
       await player.fetchPlayer()
       notifications.add(
         result.retreated ? 'The party retreated safely' : 'The expedition is complete!',
-        result.retreated ? 'info' : 'success',
+        {
+          type: result.retreated ? 'info' : 'success',
+          action: {
+            label: 'View Summary',
+            route: `/expedition/${summary.value!.expedition_id}/summary`,
+          },
+        },
       )
     }
 
