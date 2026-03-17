@@ -16,7 +16,7 @@ from app.dungeons import DUNGEON_LEVEL_NAMES
 # Treasure threshold for "big haul" event (gold pieces in a single turn)
 BIG_HAUL_THRESHOLD = 8
 
-BASE_STAIRS_CHANCE = 0.05
+BASE_STAIRS_CHANCE = 0.01
 
 
 def auto_decide(event_type: str, party: list = None) -> str:
