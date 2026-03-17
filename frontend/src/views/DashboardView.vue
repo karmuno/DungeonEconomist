@@ -179,8 +179,11 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
       </div>
 
       <!-- Parties (expandable, drop target) -->
-      <div v-if="stats.parties.length > 0" class="card dash-card mb-2">
-        <h3 class="mb-1">Parties</h3>
+      <div class="card dash-card mb-2">
+        <div class="flex flex-between mb-1">
+          <h3>Parties</h3>
+          <button class="btn btn-sm btn-primary" @click="router.push('/form-party')">+ New Party</button>
+        </div>
         <div class="party-list">
           <div
             v-for="p in stats.parties"
