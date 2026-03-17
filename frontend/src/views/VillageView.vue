@@ -73,13 +73,15 @@ async function upgradeBuilding(buildingId: number) {
 
 async function assignAdventurer(buildingId: number) {
   if (!selectedAdventurerId.value) return
+  const adv = adventurers.value.find(a => a.id === selectedAdventurerId.value)
+  const bld = buildings.value.find(b => b.id === buildingId)
   acting.value = true
   try {
     await buildingsApi.assign(buildingId, selectedAdventurerId.value)
     selectedAdventurerId.value = null
     assigningBuildingId.value = null
     await fetchAll()
-    notifications.add('Adventurer assigned', 'success')
+    notifications.add(`${adv?.name ?? 'Adventurer'} assigned to ${bld?.name ?? 'building'}`, 'success')
   } catch (e: any) {
     notifications.add(e?.data?.detail ?? 'Failed to assign', 'error')
   } finally {
@@ -123,6 +125,11 @@ async function unassignAdventurer(buildingId: number, advId: number) {
         </div>
 
         <p class="building-desc">{{ b.description }}</p>
+
+        <!-- Current effects -->
+        <div v-if="b.effects && b.effects.length > 0" class="building-effects">
+          <span v-for="(effect, i) in b.effects" :key="i" class="effect-tag">{{ effect }}</span>
+        </div>
 
         <!-- Not built yet -->
         <template v-if="b.level === 0">
@@ -298,5 +305,21 @@ async function unassignAdventurer(buildingId: number, advId: number) {
 
 .building-action {
   margin-top: 4px;
+}
+
+.building-effects {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.effect-tag {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--accent-green);
+  background: rgba(74, 222, 128, 0.08);
+  padding: 2px 8px;
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(74, 222, 128, 0.15);
 }
 </style>

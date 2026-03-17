@@ -200,6 +200,22 @@ export interface DashboardStats {
     level: number
     adventurer_class: string
     assigned_count: number
+    effects: string[]
+  }>
+  parties: Array<{
+    id: number
+    name: string
+    member_count: number
+    status: string
+    expedition_id: number | null
+    members: Array<{
+      id: number
+      name: string
+      adventurer_class: string
+      level: number
+      hp_current: number
+      hp_max: number
+    }>
   }>
   hint: string | null
   active_expeditions: Array<{

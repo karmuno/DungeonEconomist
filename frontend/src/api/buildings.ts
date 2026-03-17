@@ -16,6 +16,7 @@ export interface BuildingData {
   adventurer_class: string
   description: string
   assigned_bonus_desc: string
+  effects: string[]
   max_assigned: number
   min_adventurer_level: number
   assigned_adventurers: BuildingAssignedAdventurer[]

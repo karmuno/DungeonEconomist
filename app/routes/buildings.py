@@ -8,7 +8,7 @@ from app.auth import get_current_keep
 from app.buildings import (
     BUILDING_TYPES, BUILDING_CONFIG, get_building_name, get_upgrade_cost,
     get_max_assigned, get_min_level_for_assignment, get_max_building_level,
-    get_building_class,
+    get_building_class, has_recruitment_bonus,
 )
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
@@ -18,15 +18,32 @@ def _building_response(building: Building) -> dict:
     """Format a building for API response."""
     btype = building.building_type
     config = BUILDING_CONFIG.get(btype, {})
+    assigned_count = len(building.assigned_adventurers)
+    cls = get_building_class(btype)
+
+    # Compute current effects
+    effects = []
+    if has_recruitment_bonus(btype):
+        effects.append(f"2x {cls} recruitment")
+    if assigned_count > 0:
+        bonuses = config.get("level_bonuses", {}).get(str(building.level), {})
+        if "healing_per_assigned" in bonuses:
+            effects.append(f"+{assigned_count * bonuses['healing_per_assigned']} HP/day healing")
+        if "combat_bonus_per_assigned" in bonuses:
+            effects.append(f"+{assigned_count * bonuses['combat_bonus_per_assigned']} combat strength")
+        if "magic_item_chance_per_assigned" in bonuses:
+            effects.append(f"+{assigned_count * bonuses['magic_item_chance_per_assigned']}% magic item chance")
+
     return {
         "id": building.id,
         "building_type": btype,
         "name": get_building_name(btype, building.level),
         "level": building.level,
         "max_level": get_max_building_level(btype),
-        "adventurer_class": get_building_class(btype),
+        "adventurer_class": cls,
         "description": config.get("description", ""),
         "assigned_bonus_desc": config.get("assigned_bonus_desc", ""),
+        "effects": effects,
         "max_assigned": get_max_assigned(btype, building.level),
         "min_adventurer_level": get_min_level_for_assignment(btype, building.level),
         "assigned_adventurers": [

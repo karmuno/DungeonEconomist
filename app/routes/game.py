@@ -460,7 +460,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
 
     # Buildings summary
     from app.models import Building
-    from app.buildings import get_building_name, get_building_class, BUILDING_TYPES
+    from app.buildings import get_building_name, get_building_class, BUILDING_TYPES, BUILDING_CONFIG, has_recruitment_bonus
     buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
     buildings_summary = []
     built_types = set()
@@ -468,12 +468,65 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         if b.building_type not in BUILDING_TYPES:
             continue
         built_types.add(b.building_type)
+        assigned_count = len(b.assigned_adventurers)
+        cls = get_building_class(b.building_type)
+        # Compute current effects
+        effects = []
+        if has_recruitment_bonus(b.building_type):
+            effects.append(f"2x {cls} recruitment")
+        config = BUILDING_CONFIG.get(b.building_type, {})
+        if assigned_count > 0:
+            bonuses = config.get("level_bonuses", {}).get(str(b.level), {})
+            if "healing_per_assigned" in bonuses:
+                effects.append(f"+{assigned_count * bonuses['healing_per_assigned']} HP/day healing")
+            if "combat_bonus_per_assigned" in bonuses:
+                effects.append(f"+{assigned_count * bonuses['combat_bonus_per_assigned']} combat strength")
+            if "magic_item_chance_per_assigned" in bonuses:
+                effects.append(f"+{assigned_count * bonuses['magic_item_chance_per_assigned']}% magic item chance")
         buildings_summary.append({
             "building_type": b.building_type,
             "name": get_building_name(b.building_type, b.level),
             "level": b.level,
-            "adventurer_class": get_building_class(b.building_type),
-            "assigned_count": len(b.assigned_adventurers),
+            "adventurer_class": cls,
+            "assigned_count": assigned_count,
+            "effects": effects,
+        })
+
+    # Parties with status
+    all_parties = db.query(Party).filter(Party.keep_id == keep.id).all()
+    parties_summary = []
+    for p in all_parties:
+        if p.on_expedition:
+            status = "On Expedition"
+            # Find the active expedition for this party
+            exp = next((e for e in active_expeditions if e.party_id == p.id), None)
+            expedition_id = exp.id if exp else None
+        elif any(m.hp_current < m.hp_max for m in p.members):
+            status = "Healing"
+            expedition_id = None
+        elif len(p.members) == 0:
+            status = "Empty"
+            expedition_id = None
+        else:
+            status = "Ready"
+            expedition_id = None
+        parties_summary.append({
+            "id": p.id,
+            "name": p.name,
+            "member_count": len(p.members),
+            "status": status,
+            "expedition_id": expedition_id,
+            "members": [
+                {
+                    "id": m.id,
+                    "name": m.name,
+                    "adventurer_class": m.adventurer_class.value,
+                    "level": m.level,
+                    "hp_current": m.hp_current,
+                    "hp_max": m.hp_max,
+                }
+                for m in p.members
+            ],
         })
 
     # Hint for new players
@@ -481,7 +534,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     if party_count == 0 and adventurer_count > 0:
         hint = "Form a party in the Tavern to get started."
     elif party_count > 0 and len(active_expeditions) == 0:
-        hint = "Launch an expedition from the Expeditions page."
+        hint = "launch_expedition"
     elif not built_types:
         hint = "Visit the Village to build your first structure."
 
@@ -499,6 +552,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "dungeon_name": keep.dungeon_name,
         "max_dungeon_level": keep.max_dungeon_level or 1,
         "buildings": buildings_summary,
+        "parties": parties_summary,
         "hint": hint,
         "active_expeditions": [
             {
