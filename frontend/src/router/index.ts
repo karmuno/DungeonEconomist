@@ -37,7 +37,7 @@ const router = createRouter({
       component: () => import('../views/AdventurersView.vue'),
     },
     {
-      path: '/parties',
+      path: '/parties/:partyId?',
       name: 'parties',
       component: () => import('../views/PartiesView.vue'),
     },

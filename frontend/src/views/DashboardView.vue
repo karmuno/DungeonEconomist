@@ -186,7 +186,7 @@ function openParty(party: DashboardStats['parties'][0]) {
           </button>
           <button
             class="btn btn-sm btn-secondary"
-            @click="showPartyModal = false; router.push('/parties')"
+            @click="showPartyModal = false; router.push(`/parties/${selectedParty.id}`)"
           >
             Manage Party
           </button>

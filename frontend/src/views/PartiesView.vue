@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import type { AdventurerOut, PartyOut } from '../types'
+import { useRouter, useRoute } from 'vue-router'
+import type { AdventurerOut, PartyOut, ExpeditionSummary } from '../types'
 import * as adventurersApi from '../api/adventurers'
 import * as partiesApi from '../api/parties'
+import * as expeditionsApi from '../api/expeditions'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 
 const router = useRouter()
+const route = useRoute()
 const notifications = useNotificationsStore()
 
 const allAdventurers = ref<AdventurerOut[]>([])
@@ -48,11 +50,25 @@ onMounted(async () => {
   loading.value = false
 })
 
+const expeditions = ref<ExpeditionSummary[]>([])
+
+// Current expedition for the selected party (if on expedition)
+const currentExpedition = computed(() => {
+  if (!selectedParty.value?.on_expedition) return null
+  return expeditions.value.find(e =>
+    e.party_id === selectedParty.value!.id && (e.result === 'in_progress' || e.result === 'awaiting_choice')
+  ) ?? null
+})
+
 async function fetchAll() {
   allAdventurers.value = await adventurersApi.list()
   parties.value = await partiesApi.list()
-  // Auto-select first party if none selected
-  if (selectedPartyId.value === null && parties.value.length > 0) {
+  expeditions.value = await expeditionsApi.list()
+  // Select from route param, or first party
+  const paramId = Number(route.params.partyId)
+  if (paramId && parties.value.some(p => p.id === paramId)) {
+    selectedPartyId.value = paramId
+  } else if (selectedPartyId.value === null && parties.value.length > 0) {
     selectedPartyId.value = parties.value[0].id
   }
 }
@@ -229,6 +245,14 @@ async function deleteParty() {
           </div>
           <div class="mt-3 flex gap-1">
             <button
+              v-if="currentExpedition"
+              class="btn btn-primary btn-sm"
+              @click="router.push(`/expedition/${currentExpedition.id}/summary`)"
+            >
+              View Current Expedition
+            </button>
+            <button
+              v-else
               class="btn btn-primary btn-sm"
               :disabled="selectedParty.on_expedition || selectedParty.members.length === 0"
               @click="router.push(`/launch-expedition/${selectedParty.id}`)"

@@ -33,6 +33,12 @@ const availableParties = computed(() =>
   parties.value.filter(p => !p.on_expedition && p.members.length > 0)
 )
 
+function partyReadiness(p: PartyOut): string {
+  if (p.members.length === 0) return 'Empty'
+  if (p.members.every(m => m.hp_current >= m.hp_max)) return 'Ready'
+  return 'Healing'
+}
+
 function hpColor(current: number, max: number): string {
   const pct = max > 0 ? current / max : 0
   if (pct >= 0.6) return 'var(--accent-green)'
@@ -100,7 +106,7 @@ async function launchExpedition() {
               :key="p.id"
               :value="p.id"
             >
-              {{ p.name }} ({{ p.members.length }} members)
+              {{ p.name }} ({{ p.members.length }}) — {{ partyReadiness(p) }}
             </option>
           </select>
         </div>
