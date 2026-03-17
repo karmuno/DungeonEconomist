@@ -50,6 +50,22 @@ const canLevelUp = computed(() => {
       />
     </div>
 
+    <!-- Magic Items -->
+    <div v-if="adventurer.magic_items && adventurer.magic_items.length > 0" class="mb-2 mt-2">
+      <span class="bar-label">Equipment</span>
+      <div class="item-list">
+        <div v-for="item in adventurer.magic_items" :key="item.id" class="item-row">
+          <span class="item-icon">{{ item.item_type === 'weapon' ? '\u2694' : '\u1F6E1' }}</span>
+          <span class="item-name">{{ item.name }}</span>
+          <span class="item-bonus">+{{ item.bonus }} {{ item.item_type === 'weapon' ? 'ATK' : 'DEF' }}</span>
+        </div>
+      </div>
+    </div>
+    <div v-else class="mb-2 mt-2">
+      <span class="bar-label">Equipment</span>
+      <div class="text-muted" style="font-size: 12px">No magic items</div>
+    </div>
+
     <div v-if="adventurer.is_dead" class="mb-1 text-danger">
       Died on day {{ adventurer.death_day }}
     </div>
@@ -81,5 +97,34 @@ const canLevelUp = computed(() => {
 .bar-label {
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.item-list {
+  margin-top: 4px;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+}
+
+.item-icon {
+  font-size: 14px;
+}
+
+.item-name {
+  flex: 1;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.item-bonus {
+  font-family: var(--font-mono);
+  color: var(--accent-green);
+  font-size: 11px;
 }
 </style>

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 from datetime import datetime
@@ -50,8 +50,27 @@ class AdventurerOut(BaseModel):
     death_day: Optional[int] = None
     death_party_name: Optional[str] = None
     bankruptcy_day: Optional[int] = None
+    magic_items: List[Dict[str, Any]] = []
     next_level_xp: Optional[int] = None
     xp_progress: Optional[float] = None
+
+    @field_validator('magic_items', mode='before')
+    @classmethod
+    def serialize_magic_items(cls, v):
+        if not v:
+            return []
+        result = []
+        for item in v:
+            if isinstance(item, dict):
+                result.append(item)
+            else:
+                result.append({
+                    "id": item.id,
+                    "name": item.name,
+                    "item_type": item.item_type,
+                    "bonus": item.bonus or 0,
+                })
+        return result
 
     class Config:
         from_attributes = True

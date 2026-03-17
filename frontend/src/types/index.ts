@@ -66,6 +66,7 @@ export interface AdventurerOut {
   death_day?: number | null
   death_party_name?: string | null
   bankruptcy_day?: number | null
+  magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
   next_level_xp?: number | null
   xp_progress?: number | null
 }

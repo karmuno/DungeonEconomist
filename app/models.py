@@ -237,6 +237,7 @@ class MagicItem(Base):
     adventurer_id = Column(Integer, ForeignKey('adventurers.id'), nullable=False)
     name = Column(String, nullable=False)
     item_type = Column(String, nullable=False)  # 'weapon' or 'armor'
+    bonus = Column(Integer, default=1)  # +N bonus, equals dungeon level where found
     found_day = Column(Integer, nullable=True)
     found_expedition_id = Column(Integer, nullable=True)
 

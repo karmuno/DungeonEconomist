@@ -221,22 +221,27 @@ def _finalize_expedition(
     if living_members:
         magic_chance = _get_magic_item_chance(keep, db)
         if magic_chance > 0 and _random.random() < magic_chance:
-            from app.magic_items import generate_magic_item
+            from app.magic_items import generate_magic_item, can_equip
             from app.models import MagicItem
-            item = generate_magic_item()
-            recipient = _random.choice(living_members)
-            magic_item = MagicItem(
-                adventurer_id=recipient.id,
-                name=item["name"],
-                item_type=item["item_type"],
-                found_day=keep.current_day,
-                found_expedition_id=expedition.id,
-            )
-            db.add(magic_item)
-            events.append({
-                "type": "loot",
-                "message": f"{recipient.name} found a magic item: {item['name']}!",
-            })
+            dungeon_lvl = expedition.dungeon_level or 1
+            item = generate_magic_item(dungeon_lvl)
+            # Find a recipient who has a free slot for this item type
+            eligible = [m for m in living_members if can_equip(m, item["item_type"])]
+            if eligible:
+                recipient = _random.choice(eligible)
+                magic_item = MagicItem(
+                    adventurer_id=recipient.id,
+                    name=item["name"],
+                    item_type=item["item_type"],
+                    bonus=item["bonus"],
+                    found_day=keep.current_day,
+                    found_expedition_id=expedition.id,
+                )
+                db.add(magic_item)
+                events.append({
+                    "type": "loot",
+                    "message": f"{recipient.name} found a magic item: {item['name']}!",
+                })
 
     # Apply stairs discovery from decision points (if player pressed on through them)
     for dp in sim_result.get("decision_points", []):
@@ -302,15 +307,22 @@ def launch_expedition(
             )
 
     # Convert party to simulator format
+    from app.magic_items import get_weapon_bonus, get_armor_bonus
+    combat_bonus = _get_combat_bonus(keep, db)  # Training Grounds bonus
+
     party_members = []
     for member in party.members:
+        weapon_bonus = get_weapon_bonus(member)
+        armor_bonus = get_armor_bonus(member)
         party_members.append({
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level,
+            "level": member.level + weapon_bonus + combat_bonus,  # effective level for combat
+            "base_level": member.level,  # actual level for XP etc.
             "hit_points": member.hp_max,
-            "current_hp": member.hp_current,
+            "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
+            "armor_buffer": armor_bonus,  # track buffer separately
             "xp": member.xp,
         })
 
