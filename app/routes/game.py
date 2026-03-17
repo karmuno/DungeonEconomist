@@ -562,6 +562,29 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             ],
         })
 
+    # Unassigned adventurers (not in any party, not dead/bankrupt/assigned)
+    from app.models import party_adventurer
+    in_party_ids = db.query(party_adventurer.c.adventurer_id).subquery()
+    unassigned = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_dead == False,
+        Adventurer.is_bankrupt == False,
+        Adventurer.is_assigned == False,
+        Adventurer.on_expedition == False,
+        ~Adventurer.id.in_(in_party_ids),
+    ).all()
+    unassigned_summary = [
+        {
+            "id": a.id,
+            "name": a.name,
+            "adventurer_class": a.adventurer_class.value,
+            "level": a.level,
+            "hp_current": a.hp_current,
+            "hp_max": a.hp_max,
+        }
+        for a in unassigned
+    ]
+
     # Hint for new players
     hint = None
     if party_count == 0 and adventurer_count > 0:
@@ -586,6 +609,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "max_dungeon_level": keep.max_dungeon_level or 1,
         "buildings": buildings_summary,
         "parties": parties_summary,
+        "unassigned_adventurers": unassigned_summary,
         "hint": hint,
         "active_expeditions": [
             {

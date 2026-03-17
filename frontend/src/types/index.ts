@@ -219,6 +219,14 @@ export interface DashboardStats {
       hp_max: number
     }>
   }>
+  unassigned_adventurers: Array<{
+    id: number
+    name: string
+    adventurer_class: string
+    level: number
+    hp_current: number
+    hp_max: number
+  }>
   hint: string | null
   active_expeditions: Array<{
     id: number

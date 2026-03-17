@@ -133,6 +133,21 @@ function openParty(party: DashboardStats['parties'][0]) {
         </div>
       </div>
 
+      <!-- Unassigned Adventurers -->
+      <div v-if="stats.unassigned_adventurers.length > 0" class="card dash-card mb-2 clickable" @click="router.push('/adventurers')">
+        <h3 class="mb-1">Unassigned Adventurers</h3>
+        <div class="unassigned-list">
+          <div v-for="a in stats.unassigned_adventurers" :key="a.id" class="unassigned-row">
+            <span class="unassigned-name">{{ a.name }}</span>
+            <span class="badge">{{ a.adventurer_class }}</span>
+            <span class="stat">Lv {{ a.level }}</span>
+            <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">
+              {{ a.hp_current }}/{{ a.hp_max }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <!-- Village -->
       <div v-if="stats.buildings.length > 0" class="card dash-card mb-2 clickable" @click="router.push('/village')">
         <h3 class="mb-1">Village</h3>
@@ -321,6 +336,20 @@ function openParty(party: DashboardStats['parties'][0]) {
 .status-healing { background: rgba(241, 196, 15, 0.15); color: #fbbf24; }
 .status-expedition { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
 .status-empty { background: rgba(128, 128, 128, 0.15); color: #888; }
+
+/* Unassigned */
+.unassigned-list { display: flex; flex-direction: column; gap: 3px; }
+
+.unassigned-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+}
+
+.unassigned-name { font-weight: 600; flex: 1; font-size: 13px; }
 
 /* Village */
 .buildings-row { display: flex; gap: 8px; flex-wrap: wrap; }
