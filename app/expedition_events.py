@@ -74,23 +74,24 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
                     "options": ["press_on", "retreat"],
                 })
 
-    # Stairs discovery — one roll per expedition, only at deepest unlocked level
+    # Stairs discovery — 5% chance per turn, only at deepest unlocked level
     if dungeon_level >= max_dungeon_level and dungeon_level < total_levels:
         # TODO: add building bonuses to stairs_chance
         stairs_chance = BASE_STAIRS_CHANCE
-        if random.random() < stairs_chance:
-            # Place stairs at a real turn (last turn of the expedition)
-            stairs_turn = log[-1].get("turn", total_turns)
-            next_level = dungeon_level + 1
-            next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "unknown depths"
-            decision_points.append({
-                "after_turn": stairs_turn,
-                "type": "stairs",
-                "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
-                "new_level": next_level,
-                "new_level_name": next_name,
-                "options": ["press_on", "retreat"],
-            })
+        for i, turn in enumerate(log):
+            if random.random() < stairs_chance:
+                turn_num = turn.get("turn", i + 1)
+                next_level = dungeon_level + 1
+                next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "unknown depths"
+                decision_points.append({
+                    "after_turn": turn_num,
+                    "type": "stairs",
+                    "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
+                    "new_level": next_level,
+                    "new_level_name": next_name,
+                    "options": ["press_on", "retreat"],
+                })
+                break  # Only one stairs discovery per expedition
 
     # Sort by turn order
     decision_points.sort(key=lambda dp: dp["after_turn"])
