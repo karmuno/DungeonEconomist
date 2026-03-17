@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Structure
-Venturekeep - A D&D Party Management Simulation using FastAPI, SQLAlchemy, and SQLite
+Venturekeep - A retro RPG party management simulation using FastAPI, SQLAlchemy, and SQLite
 
 ## Build Commands
 - Run server: `python -m app.main`

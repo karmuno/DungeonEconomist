@@ -18,7 +18,7 @@ create_tables()
 # FastAPI app
 app = FastAPI(
     title="Venturekeep",
-    description="D&D Party Management Simulation",
+    description="Retro RPG Party Management Simulation",
     version="0.5.0"
 )
 

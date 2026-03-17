@@ -1,15 +1,15 @@
 # Venturekeep
 
-A D&D-inspired party management simulation game. Manage a pool of adventurers, form parties, send them on dungeon expeditions, and run an economy of gold, XP, and upkeep.
+A retro RPG party management simulation. Manage a pool of adventurers, form parties, send them on dungeon expeditions, and run an economy of gold, XP, and upkeep.
 
-Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired by OD&D/AD&D resource management.
+Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired by classic tabletop RPG resource management.
 
 ## Features
 
 - **Adventurer Management** — Create and manage adventurers across 6 classic classes (Fighter, Cleric, Magic-User, Elf, Dwarf, Hobbit). Track XP, HP, gold, and equipment.
 - **Party System** — Form parties of 2-9 adventurers with shared funds and supply inventories.
 - **Dungeon Expeditions** — Send parties into dungeons with scaling difficulty (levels 1-6). Combat, traps, treasure, and special items are resolved through a turn-based simulation engine.
-- **Character Progression** — 10-level progression system with class-specific HP gains, bonuses, and XP thresholds following classic D&D curves.
+- **Character Progression** — 10-level progression system with class-specific HP gains, bonuses, and XP thresholds following classic RPG curves.
 - **Economy** — Loot splits (70% adventurers / 30% treasury), upkeep costs every 30 game days, bankruptcy mechanics, and equipment purchasing.
 - **Game Time** — Advance days to trigger expedition returns, upkeep cycles, and healing.
 

@@ -4,7 +4,7 @@ Character progression and level-up system for Venturekeep
 from app.models import AdventurerClass
 
 # XP thresholds for each level
-# Using classic D&D-like progressive scale
+# Classic progressive scale
 XP_THRESHOLDS = {
     1: 0,
     2: 2000,

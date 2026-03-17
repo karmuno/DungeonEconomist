@@ -1,8 +1,8 @@
-D&D Party Management Simulation
+Retro RPG Party Management Simulation
 Design Document – Final Draft (Updated)
 
 Game Overview
-A high-level management simulation game based on OD&D/AD&D rules. Players oversee a pool of adventurers and are tasked with keeping them alive, funded, and progressing through dungeons while developing supporting town infrastructure. There is no "win" state — the world persists and evolves, with a long-term dream of procedural dungeons forming from retired adventurers.
+A high-level management simulation game inspired by classic tabletop RPG rules. Players oversee a pool of adventurers and are tasked with keeping them alive, funded, and progressing through dungeons while developing supporting town infrastructure. There is no "win" state — the world persists and evolves, with a long-term dream of procedural dungeons forming from retired adventurers.
 
 Visual Style & User Interface
 Minimalist 1-bit (black and white) sprites and graphics
@@ -103,7 +103,7 @@ Racial level caps, but unique advantages
 
 
 Character Advancement
-Automatic level-ups per OD&D XP thresholds
+Automatic level-ups per classic RPG XP thresholds
 
 
 Spells randomly acquired per level-up
@@ -112,7 +112,7 @@ Spells randomly acquired per level-up
 Followers gained automatically at high levels
 
 
-Hit points, saving throws, and attack bonuses improve per OD&D
+Hit points, saving throws, and attack bonuses improve per classic RPG
 
 
 Character Death & Recovery
@@ -122,7 +122,7 @@ Death is permanent unless resurrection is available
 Resurrection: Requires high-level cleric + proper temple staffing
 
 
-Cost follows OD&D rules
+Cost follows classic RPG rules
 
 
 Non-resurrected adventurers are interred via town Temple system
@@ -246,7 +246,7 @@ Initiative
 Action choice: fight, flee, parlay
 
 
-Simulation of OD&D-style combat
+Simulation of classic RPG-style combat
 
 
 Players observe, not direct, combat
@@ -391,7 +391,7 @@ Future Features (Should Have)
 Henchmen and hirelings
 
 
-Full OD&D turn timing
+Full classic RPG turn timing
 
 
 Parlay system
