@@ -100,6 +100,7 @@ export interface PartyOut {
   keep_id?: number | null
   auto_delve_healed: boolean
   auto_delve_full: boolean
+  auto_decide_events: boolean
   members: AdventurerOut[]
 }
 
@@ -227,6 +228,7 @@ export interface DashboardStats {
     expedition_id: number | null
     auto_delve_healed: boolean
     auto_delve_full: boolean
+    auto_decide_events: boolean
     members: Array<{
       id: number
       name: string

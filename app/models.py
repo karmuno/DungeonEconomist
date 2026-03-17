@@ -164,6 +164,7 @@ class Party(Base):
     keep_id = Column(Integer, ForeignKey('keeps.id'), nullable=False)
     auto_delve_healed = Column(Boolean, default=False, nullable=False)
     auto_delve_full = Column(Boolean, default=False, nullable=False)
+    auto_decide_events = Column(Boolean, default=False, nullable=False)
 
     members = relationship('Adventurer', secondary=party_adventurer, back_populates='parties')
     expeditions = relationship('Expedition', foreign_keys='Expedition.party_id', back_populates='party')

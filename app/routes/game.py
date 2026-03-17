@@ -298,24 +298,24 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     for expedition in awaiting:
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}
+        is_silent = expedition.party and expedition.party.auto_decide_events
         choice = auto_decide(dp.get("type", ""), expedition.party.members if expedition.party else [])
 
-        # Apply the auto-decision
         sim_result = expedition.simulation_data or {}
         decision_points = sim_result.get("decision_points", [])
         resolved = expedition.resolved_phases or 0
 
         if choice == "retreat":
             result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
-            events.append(GameEvent(
-                type="expedition_complete",
-                message=f"Party '{party_name}' decided to retreat: {dp.get('message', '')}",
-                expedition_id=expedition.id,
-            ))
+            if not is_silent:
+                events.append(GameEvent(
+                    type="expedition_complete",
+                    message=f"Party '{party_name}' decided to retreat: {dp.get('message', '')}",
+                    expedition_id=expedition.id,
+                ))
             for evt in result.get("events", []):
                 events.append(GameEvent(type=evt["type"], message=evt["message"]))
         else:
-            # Press on
             expedition.resolved_phases = resolved + 1
             expedition.pending_event = None
             if expedition.resolved_phases < len(decision_points):
@@ -323,11 +323,12 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             else:
                 expedition.decision_day = None
             expedition.result = "in_progress"
-            events.append(GameEvent(
-                type="expedition_choice",
-                message=f"Party '{party_name}' pressed on: {dp.get('message', '')}",
-                expedition_id=expedition.id,
-            ))
+            if not is_silent:
+                events.append(GameEvent(
+                    type="expedition_choice",
+                    message=f"Party '{party_name}' pressed on: {dp.get('message', '')}",
+                    expedition_id=expedition.id,
+                ))
 
     # Process in-progress expedition events (scoped via Party.keep_id)
     active_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
@@ -345,6 +346,27 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             resolved = expedition.resolved_phases or 0
             if resolved < len(decision_points):
                 dp = decision_points[resolved]
+                party_obj = expedition.party
+
+                # Auto-decide if party has auto_decide_events enabled
+                if party_obj and party_obj.auto_decide_events:
+                    choice = auto_decide(dp.get("type", ""), party_obj.members if party_obj else [])
+                    if choice == "retreat":
+                        result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
+                        # Silent — no popup, just completion events
+                        for evt in result.get("events", []):
+                            events.append(GameEvent(type=evt["type"], message=evt["message"]))
+                    else:
+                        expedition.resolved_phases = resolved + 1
+                        expedition.pending_event = None
+                        if expedition.resolved_phases < len(decision_points):
+                            expedition.decision_day = expedition.return_day
+                        else:
+                            expedition.decision_day = None
+                        # Silent — no notification for pressing on
+                    continue
+
+                # Otherwise prompt the player
                 expedition.result = "awaiting_choice"
                 expedition.pending_event = dp
                 events.append(GameEvent(
@@ -394,6 +416,9 @@ def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
     ).all()
     events = []
     for expedition in awaiting:
+        # Skip auto-decide parties — they don't block time
+        if expedition.party and expedition.party.auto_decide_events:
+            continue
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}
         events.append(GameEvent(
@@ -576,6 +601,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "expedition_id": expedition_id,
             "auto_delve_healed": p.auto_delve_healed,
             "auto_delve_full": p.auto_delve_full,
+            "auto_decide_events": p.auto_decide_events,
             "members": [
                 _adv_summary(m)
                 for m in p.members

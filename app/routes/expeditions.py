@@ -69,9 +69,25 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
     decision_points = sim_result.get("decision_points", [])
     resolved = expedition.resolved_phases or 0
 
-    # If there are still unresolved decision points, pause
+    # If there are still unresolved decision points
     if resolved < len(decision_points):
         dp = decision_points[resolved]
+        party = expedition.party
+
+        # Auto-decide if party has auto_decide_events
+        if party and party.auto_decide_events:
+            from app.expedition_events import auto_decide
+            while resolved < len(decision_points):
+                dp = decision_points[resolved]
+                choice = auto_decide(dp.get("type", ""), party.members if party else [])
+                if choice == "retreat":
+                    return _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
+                resolved += 1
+                expedition.resolved_phases = resolved
+            # All decisions auto-resolved with press_on, finalize normally
+            return _finalize_expedition(expedition, sim_result, db, keep)
+
+        # Otherwise pause for player input
         expedition.result = "awaiting_choice"
         expedition.pending_event = dp
         expedition.decision_day = expedition.return_day

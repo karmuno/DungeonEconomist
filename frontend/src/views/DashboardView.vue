@@ -172,17 +172,18 @@ async function unassignFromBuilding(buildingId: number, advId: number, advName: 
   }
 }
 
-// Auto-delve toggle
-async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
+// Auto-delve / auto-decide toggle
+async function togglePartySetting(partyId: number, field: 'healed' | 'full' | 'auto_decide') {
   const party = stats.value?.parties.find(p => p.id === partyId)
   if (!party) return
   const healed = field === 'healed' ? !party.auto_delve_healed : party.auto_delve_healed
   const full = field === 'full' ? !party.auto_delve_full : party.auto_delve_full
+  const autoDecide = field === 'auto_decide' ? !party.auto_decide_events : party.auto_decide_events
   try {
-    await partiesApi.updateAutoDelve(partyId, healed, full)
+    await partiesApi.updateAutoDelve(partyId, healed, full, autoDecide)
     await fetchStats()
   } catch {
-    notifications.add('Failed to update auto-delve', 'error')
+    notifications.add('Failed to update settings', 'error')
   }
 }
 </script>
@@ -303,12 +304,17 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
               <div class="auto-delve-row">
                 <span class="auto-delve-label">Auto-Delve:</span>
                 <label class="checkbox-label" @click.stop>
-                  <input type="checkbox" :checked="p.auto_delve_healed" @change="toggleAutoDelve(p.id, 'healed')" />
+                  <input type="checkbox" :checked="p.auto_delve_healed" @change="togglePartySetting(p.id, 'healed')" />
                   When Healed
                 </label>
                 <label class="checkbox-label" @click.stop>
-                  <input type="checkbox" :checked="p.auto_delve_full" @change="toggleAutoDelve(p.id, 'full')" />
+                  <input type="checkbox" :checked="p.auto_delve_full" @change="togglePartySetting(p.id, 'full')" />
                   When Full
+                </label>
+                <span class="auto-delve-label" style="margin-left: 8px">|</span>
+                <label class="checkbox-label" @click.stop>
+                  <input type="checkbox" :checked="p.auto_decide_events" @change="togglePartySetting(p.id, 'auto_decide')" />
+                  Auto-Decide Events
                 </label>
               </div>
             </div>

@@ -128,19 +128,16 @@ async function removeMember(id: number) {
   }
 }
 
-async function toggleAutoDelve(field: 'healed' | 'full') {
+async function togglePartySetting(field: 'healed' | 'full' | 'auto_decide') {
   if (!selectedParty.value) return
-  const healed = field === 'healed'
-    ? !selectedParty.value.auto_delve_healed
-    : selectedParty.value.auto_delve_healed
-  const full = field === 'full'
-    ? !selectedParty.value.auto_delve_full
-    : selectedParty.value.auto_delve_full
+  const healed = field === 'healed' ? !selectedParty.value.auto_delve_healed : selectedParty.value.auto_delve_healed
+  const full = field === 'full' ? !selectedParty.value.auto_delve_full : selectedParty.value.auto_delve_full
+  const autoDecide = field === 'auto_decide' ? !selectedParty.value.auto_decide_events : selectedParty.value.auto_decide_events
   try {
-    await partiesApi.updateAutoDelve(selectedParty.value.id, healed, full)
+    await partiesApi.updateAutoDelve(selectedParty.value.id, healed, full, autoDecide)
     await fetchAll()
   } catch {
-    notifications.add('Failed to update auto-delve', 'error')
+    notifications.add('Failed to update settings', 'error')
   }
 }
 
@@ -289,7 +286,7 @@ async function deleteParty() {
               <input
                 type="checkbox"
                 :checked="selectedParty.auto_delve_healed"
-                @change="toggleAutoDelve('healed')"
+                @change="togglePartySetting('healed')"
               />
               When Healed
             </label>
@@ -297,9 +294,18 @@ async function deleteParty() {
               <input
                 type="checkbox"
                 :checked="selectedParty.auto_delve_full"
-                @change="toggleAutoDelve('full')"
+                @change="togglePartySetting('full')"
               />
               When Full
+            </label>
+            <span class="auto-delve-label" style="margin-left: 8px">|</span>
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                :checked="selectedParty.auto_decide_events"
+                @change="togglePartySetting('auto_decide')"
+              />
+              Auto-Decide Events
             </label>
           </div>
         </template>
