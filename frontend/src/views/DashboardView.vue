@@ -89,14 +89,10 @@ function openParty(party: DashboardStats['parties'][0]) {
           <div class="stat-value text-green">{{ formatCurrency(stats.treasury_gold, stats.treasury_silver, stats.treasury_copper) }}</div>
           <div class="stat-label">Treasury</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ stats.total_score }}</div>
-          <div class="stat-label">Score</div>
-        </div>
       </div>
 
       <!-- Active Expeditions -->
-      <div v-if="stats.active_expeditions.length > 0" class="card mb-2">
+      <div v-if="stats.active_expeditions.length > 0" class="card dash-card mb-2">
         <h3 class="mb-1">Active Expeditions</h3>
         <div class="active-list">
           <div
@@ -121,7 +117,7 @@ function openParty(party: DashboardStats['parties'][0]) {
       </div>
 
       <!-- Parties -->
-      <div v-if="stats.parties.length > 0" class="card mb-2">
+      <div v-if="stats.parties.length > 0" class="card dash-card mb-2">
         <h3 class="mb-1">Parties</h3>
         <div class="party-list">
           <div
@@ -138,7 +134,7 @@ function openParty(party: DashboardStats['parties'][0]) {
       </div>
 
       <!-- Village -->
-      <div v-if="stats.buildings.length > 0" class="card mb-2 clickable" @click="router.push('/village')">
+      <div v-if="stats.buildings.length > 0" class="card dash-card mb-2 clickable" @click="router.push('/village')">
         <h3 class="mb-1">Village</h3>
         <div class="buildings-row">
           <div v-for="b in stats.buildings" :key="b.building_type" class="building-chip">
@@ -148,7 +144,7 @@ function openParty(party: DashboardStats['parties'][0]) {
           </div>
         </div>
       </div>
-      <div v-else class="card mb-2 clickable" @click="router.push('/village')">
+      <div v-else class="card dash-card mb-2 clickable" @click="router.push('/village')">
         <h3 class="mb-1">Village</h3>
         <p class="text-muted" style="font-size: 12px">No buildings yet. Visit the Village to build.</p>
       </div>
@@ -231,7 +227,7 @@ function openParty(party: DashboardStats['parties'][0]) {
 
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.5rem;
 }
 
@@ -268,6 +264,8 @@ function openParty(party: DashboardStats['parties'][0]) {
 }
 
 .text-green { color: var(--accent-green); }
+
+.dash-card { padding: 12px 16px; }
 
 /* Active expeditions */
 .active-list { display: flex; flex-direction: column; gap: 6px; }

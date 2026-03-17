@@ -157,15 +157,9 @@ async function skipToEvent() {
       </div>
     </div>
 
-    <div class="panel-row">
-      <div class="panel-stat">
-        <h3 class="section-label">Treasury</h3>
-        <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
-      </div>
-      <div class="panel-stat">
-        <h3 class="section-label">Score</h3>
-        <div class="score-value">{{ player.totalScore }}</div>
-      </div>
+    <div class="panel-section">
+      <h3 class="section-label">Treasury</h3>
+      <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
     </div>
 
     <div class="time-controls">
