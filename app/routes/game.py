@@ -120,12 +120,13 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
 
     events: list[GameEvent] = []
 
-    # Only process active (non-dead, non-bankrupt) adventurers not on expedition
+    # Only process active adventurers not on expedition and not assigned to buildings
     adventurers = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
         Adventurer.on_expedition == False,
+        Adventurer.is_assigned == False,
     ).all()
     total_copper_transferred = 0
     bankrupt_count = 0
