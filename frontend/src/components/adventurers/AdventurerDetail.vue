@@ -33,6 +33,7 @@ const canLevelUp = computed(() => {
     <div class="detail-stats mb-2">
       <span><strong>{{ adventurer.adventurer_class }}</strong> Lv.{{ adventurer.level }}</span>
       <span class="text-gold">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</span>
+      <span class="adv-id">#{{ adventurer.id }}</span>
     </div>
 
     <div class="mb-1">
@@ -92,6 +93,12 @@ const canLevelUp = computed(() => {
   display: flex;
   justify-content: space-between;
   font-size: 0.9rem;
+}
+
+.adv-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .bar-label {
