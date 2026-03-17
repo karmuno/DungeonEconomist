@@ -93,6 +93,8 @@ class PartyOut(PartyBase):
     on_expedition: bool = False
     current_expedition_id: Optional[int] = None
     keep_id: Optional[int] = None
+    auto_delve_healed: bool = False
+    auto_delve_full: bool = False
     members: List[AdventurerOut] = []
 
     class Config:

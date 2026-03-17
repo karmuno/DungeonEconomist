@@ -98,6 +98,8 @@ export interface PartyOut {
   on_expedition: boolean
   current_expedition_id?: number | null
   keep_id?: number | null
+  auto_delve_healed: boolean
+  auto_delve_full: boolean
   members: AdventurerOut[]
 }
 

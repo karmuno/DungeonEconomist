@@ -253,6 +253,39 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern"
         ))
 
+    # Auto-delve: launch expeditions for parties with auto-delve enabled
+    auto_delve_parties = db.query(Party).filter(
+        Party.keep_id == keep.id,
+        Party.on_expedition == False,
+        (Party.auto_delve_healed == True) | (Party.auto_delve_full == True),
+    ).all()
+    for party in auto_delve_parties:
+        if not party.members:
+            continue
+        # Check conditions
+        all_healed = all(m.hp_current >= m.hp_max for m in party.members)
+        is_full = len(party.members) >= 6
+
+        should_launch = True
+        if party.auto_delve_healed and not all_healed:
+            should_launch = False
+        if party.auto_delve_full and not is_full:
+            should_launch = False
+        # At least one flag must be checked
+        if not party.auto_delve_healed and not party.auto_delve_full:
+            should_launch = False
+
+        if should_launch:
+            # Launch at the keep's max dungeon level
+            from app.routes.expeditions import _auto_launch_expedition
+            exp_result = _auto_launch_expedition(party, keep, db)
+            if exp_result:
+                events.append(GameEvent(
+                    type="expedition_complete",
+                    message=f"Party '{party.name}' auto-launched to depth {keep.max_dungeon_level}!",
+                    expedition_id=exp_result.get("expedition_id"),
+                ))
+
     # Auto-resolve any awaiting_choice expeditions from PREVIOUS days
     # (player skipped the decision — the party decides on its own)
     from app.expedition_events import auto_decide

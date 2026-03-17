@@ -37,3 +37,7 @@ export function deleteParty(id: number): Promise<{ ok: boolean }> {
 export function getStatus(id: number): Promise<PartyStatus> {
   return get<PartyStatus>(`/parties/${id}/status`)
 }
+
+export function updateAutoDelve(id: number, healed: boolean, full: boolean): Promise<{ ok: boolean }> {
+  return put<{ ok: boolean }>(`/parties/${id}/auto-delve`, { auto_delve_healed: healed, auto_delve_full: full })
+}

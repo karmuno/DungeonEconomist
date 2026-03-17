@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -177,6 +178,28 @@ def remove_adventurer_from_party(
     db.commit()
     db.refresh(party)
     return party
+
+
+class AutoDelveUpdate(BaseModel):
+    auto_delve_healed: bool = False
+    auto_delve_full: bool = False
+
+
+@router.put("/parties/{party_id}/auto-delve")
+def update_auto_delve(
+    party_id: int,
+    data: AutoDelveUpdate,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
+    """Update auto-delve settings for a party."""
+    party = db.query(Party).filter(Party.id == party_id, Party.keep_id == keep.id).first()
+    if not party:
+        raise HTTPException(status_code=404, detail="Party not found")
+    party.auto_delve_healed = data.auto_delve_healed
+    party.auto_delve_full = data.auto_delve_full
+    db.commit()
+    return {"ok": True, "auto_delve_healed": party.auto_delve_healed, "auto_delve_full": party.auto_delve_full}
 
 
 @router.delete("/parties/{party_id}")

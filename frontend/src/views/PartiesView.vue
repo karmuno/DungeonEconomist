@@ -128,6 +128,22 @@ async function removeMember(id: number) {
   }
 }
 
+async function toggleAutoDelve(field: 'healed' | 'full') {
+  if (!selectedParty.value) return
+  const healed = field === 'healed'
+    ? !selectedParty.value.auto_delve_healed
+    : selectedParty.value.auto_delve_healed
+  const full = field === 'full'
+    ? !selectedParty.value.auto_delve_full
+    : selectedParty.value.auto_delve_full
+  try {
+    await partiesApi.updateAutoDelve(selectedParty.value.id, healed, full)
+    await fetchAll()
+  } catch {
+    notifications.add('Failed to update auto-delve', 'error')
+  }
+}
+
 async function deleteParty() {
   if (!selectedParty.value) return
   if (!confirmingDisband.value) {
@@ -267,6 +283,25 @@ async function deleteParty() {
               {{ confirmingDisband ? 'Are you sure? This will disband the party.' : 'Disband Party' }}
             </button>
           </div>
+          <div class="auto-delve-row mt-2">
+            <span class="auto-delve-label">Auto-Delve:</span>
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                :checked="selectedParty.auto_delve_healed"
+                @change="toggleAutoDelve('healed')"
+              />
+              When Healed
+            </label>
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                :checked="selectedParty.auto_delve_full"
+                @change="toggleAutoDelve('full')"
+              />
+              When Full
+            </label>
+          </div>
         </template>
         <div v-else class="text-muted">Select a party above</div>
       </div>
@@ -325,6 +360,33 @@ async function deleteParty() {
 
 .stat.xp {
   color: var(--accent-blue, #60a5fa);
+}
+
+.auto-delve-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.auto-delve-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  accent-color: var(--accent-green);
 }
 
 .ml-1 {

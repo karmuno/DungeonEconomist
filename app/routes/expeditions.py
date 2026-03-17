@@ -263,6 +263,88 @@ def _finalize_expedition(
     return {"events": events, "simulation_data": effective_result}
 
 
+def _auto_launch_expedition(party, keep, db) -> dict | None:
+    """Launch an expedition automatically for auto-delve. Returns summary or None on failure."""
+    from app.magic_items import get_weapon_bonus, get_armor_bonus
+
+    if not party.members or party.on_expedition:
+        return None
+
+    # Check for dead/bankrupt members
+    for member in party.members:
+        if member.is_bankrupt or member.is_dead:
+            return None
+
+    dungeon_level = keep.max_dungeon_level or 1
+    combat_bonus = _get_combat_bonus(keep, db)
+
+    party_members = []
+    for member in party.members:
+        weapon_bonus = get_weapon_bonus(member)
+        armor_bonus = get_armor_bonus(member)
+        party_members.append({
+            "id": member.id,
+            "name": member.name,
+            "character_class": member.adventurer_class.value,
+            "level": member.level + weapon_bonus + combat_bonus,
+            "base_level": member.level,
+            "hit_points": member.hp_max,
+            "current_hp": member.hp_current + armor_bonus,
+            "armor_buffer": armor_bonus,
+            "xp": member.xp,
+        })
+
+    simulator_party_idx = simulator.add_party(party_members)
+    expedition_id_sim = simulator.start_expedition(simulator_party_idx, dungeon_level=dungeon_level)
+
+    start_day = keep.current_day
+    duration = get_level_duration(dungeon_level)
+    return_day = start_day + duration - 1
+
+    sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
+    sim_result["starting_hp"] = {
+        m["name"]: m.get("current_hp", m.get("hit_points", 10))
+        for m in party_members
+    }
+    build_phases(sim_result, dungeon_level, keep.max_dungeon_level)
+
+    decision_points = sim_result.get("decision_points", [])
+    first_decision_day = None
+    if decision_points:
+        earliest = start_day + 1
+        latest = max(earliest, return_day - 1)
+        first_decision_day = _random.randint(earliest, latest)
+
+    db_expedition = Expedition(
+        party_id=party.id,
+        dungeon_level=dungeon_level,
+        start_day=start_day,
+        duration_days=duration,
+        return_day=return_day,
+        started_at=datetime.now(),
+        result="in_progress",
+        resolved_phases=0,
+        decision_day=first_decision_day,
+        simulation_data=_make_json_safe(sim_result),
+    )
+    db.add(db_expedition)
+    db.commit()
+    db.refresh(db_expedition)
+
+    party.on_expedition = True
+    party.current_expedition_id = db_expedition.id
+    for member in party.members:
+        member.on_expedition = True
+        member.is_available = False
+    db.commit()
+
+    return {
+        "expedition_id": db_expedition.id,
+        "party_id": party.id,
+        "dungeon_level": dungeon_level,
+    }
+
+
 @router.post("/expeditions/")
 def launch_expedition(
     expedition_data: ExpeditionCreate,
