@@ -47,16 +47,12 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
 function processEvents(result: { current_day: number; events: Array<{ type: string; message: string; expedition_id?: number | null }> }) {
   notifications.onDayAdvanced(result.current_day)
   for (const event of result.events) {
-    // Expedition choice — show popup (unless user is already on that summary)
+    // Expedition choice — always show popup
     if (event.type === 'expedition_choice' && event.expedition_id) {
-      const onSummaryPage = route.path === `/expedition/${event.expedition_id}/summary`
-      if (!onSummaryPage) {
-        choiceMessage.value = event.message
-        choiceExpeditionId.value = event.expedition_id
-        choiceEventType.value = ''
-        showChoicePopup.value = true
-      }
-      // Either way, the summary page will refetch via expeditionVersion
+      choiceMessage.value = event.message
+      choiceExpeditionId.value = event.expedition_id
+      choiceEventType.value = ''
+      showChoicePopup.value = true
       gameTime.expeditionVersion++
       continue
     }
@@ -225,7 +221,7 @@ async function skipToEvent() {
         class="btn btn-sm choice-popup-view"
         @click="viewExpedition"
       >
-        View Expedition Details
+        You Decide
       </button>
     </div>
   </ModalDialog>
