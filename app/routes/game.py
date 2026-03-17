@@ -451,11 +451,39 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
 
     active_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
         Party.keep_id == keep.id,
-        Expedition.result == "in_progress",
+        Expedition.result.in_(["in_progress", "awaiting_choice"]),
     ).all()
     recent_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
         Party.keep_id == keep.id,
-    ).order_by(Expedition.started_at.desc()).limit(5).all()
+        Expedition.result == "completed",
+    ).order_by(Expedition.finished_at.desc()).limit(5).all()
+
+    # Buildings summary
+    from app.models import Building
+    from app.buildings import get_building_name, get_building_class, BUILDING_TYPES
+    buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
+    buildings_summary = []
+    built_types = set()
+    for b in buildings:
+        if b.building_type not in BUILDING_TYPES:
+            continue
+        built_types.add(b.building_type)
+        buildings_summary.append({
+            "building_type": b.building_type,
+            "name": get_building_name(b.building_type, b.level),
+            "level": b.level,
+            "adventurer_class": get_building_class(b.building_type),
+            "assigned_count": len(b.assigned_adventurers),
+        })
+
+    # Hint for new players
+    hint = None
+    if party_count == 0 and adventurer_count > 0:
+        hint = "Form a party in the Tavern to get started."
+    elif party_count > 0 and len(active_expeditions) == 0:
+        hint = "Launch an expedition from the Expeditions page."
+    elif not built_types:
+        hint = "Visit the Village to build your first structure."
 
     return {
         "adventurer_count": adventurer_count,
@@ -468,12 +496,19 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "treasury_copper": keep.treasury_copper,
         "total_score": keep.total_score,
         "current_day": keep.current_day,
+        "dungeon_name": keep.dungeon_name,
+        "max_dungeon_level": keep.max_dungeon_level or 1,
+        "buildings": buildings_summary,
+        "hint": hint,
         "active_expeditions": [
             {
                 "id": e.id,
-                "party_id": e.party_id,
+                "party_name": e.party.name if e.party else "Unknown",
+                "dungeon_level": e.dungeon_level or 1,
                 "start_day": e.start_day,
                 "return_day": e.return_day,
+                "duration_days": e.duration_days,
+                "days_elapsed": max(0, keep.current_day - e.start_day),
                 "result": e.result,
             }
             for e in active_expeditions

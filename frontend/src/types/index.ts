@@ -192,11 +192,24 @@ export interface DashboardStats {
   treasury_copper: number
   total_score: number
   current_day: number
+  dungeon_name: string | null
+  max_dungeon_level: number
+  buildings: Array<{
+    building_type: string
+    name: string
+    level: number
+    adventurer_class: string
+    assigned_count: number
+  }>
+  hint: string | null
   active_expeditions: Array<{
     id: number
-    party_id: number
+    party_name: string
+    dungeon_level: number
     start_day: number
     return_day: number
+    duration_days: number
+    days_elapsed: number
     result: string
   }>
   recent_expeditions: Array<{
