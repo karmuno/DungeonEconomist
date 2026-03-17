@@ -295,7 +295,7 @@ def _finalize_expedition(
     return {"events": events, "simulation_data": effective_result}
 
 
-def _auto_launch_expedition(party, keep, db) -> dict | None:
+def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -> dict | None:
     """Launch an expedition automatically for auto-delve. Returns summary or None on failure."""
     from app.magic_items import get_weapon_bonus, get_armor_bonus
 
@@ -307,7 +307,9 @@ def _auto_launch_expedition(party, keep, db) -> dict | None:
         if member.is_bankrupt or member.is_dead:
             return None
 
-    dungeon_level = keep.max_dungeon_level or 1
+    if dungeon_level is None:
+        dungeon_level = keep.max_dungeon_level or 1
+    dungeon_level = min(dungeon_level, keep.max_dungeon_level or 1)
     combat_bonus = _get_combat_bonus(keep, db)
 
     party_members = []

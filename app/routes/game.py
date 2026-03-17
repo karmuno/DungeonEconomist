@@ -277,13 +277,15 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             should_launch = False
 
         if should_launch:
-            # Launch at the keep's max dungeon level
             from app.routes.expeditions import _auto_launch_expedition
-            exp_result = _auto_launch_expedition(party, keep, db)
+            # Use party's preferred level, clamped to max unlocked
+            target_level = party.auto_delve_level if party.auto_delve_level else (keep.max_dungeon_level or 1)
+            target_level = min(target_level, keep.max_dungeon_level or 1)
+            exp_result = _auto_launch_expedition(party, keep, db, dungeon_level=target_level)
             if exp_result:
                 events.append(GameEvent(
                     type="expedition_complete",
-                    message=f"Party '{party.name}' auto-launched to depth {keep.max_dungeon_level}!",
+                    message=f"Party '{party.name}' auto-launched to depth {target_level}!",
                     expedition_id=exp_result.get("expedition_id"),
                 ))
 
@@ -621,6 +623,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "auto_delve_healed": p.auto_delve_healed,
             "auto_delve_full": p.auto_delve_full,
             "auto_decide_events": p.auto_decide_events,
+            "auto_delve_level": p.auto_delve_level,
             "members": [
                 _adv_summary(m)
                 for m in p.members

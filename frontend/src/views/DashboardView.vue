@@ -180,7 +180,18 @@ async function togglePartySetting(partyId: number, field: 'healed' | 'full' | 'a
   const full = field === 'full' ? !party.auto_delve_full : party.auto_delve_full
   const autoDecide = field === 'auto_decide' ? !party.auto_decide_events : party.auto_decide_events
   try {
-    await partiesApi.updateAutoDelve(partyId, healed, full, autoDecide)
+    await partiesApi.updateAutoDelve(partyId, healed, full, autoDecide, party.auto_delve_level)
+    await fetchStats()
+  } catch {
+    notifications.add('Failed to update settings', 'error')
+  }
+}
+
+async function setAutoDelveLevel(partyId: number, level: number | null) {
+  const party = stats.value?.parties.find(p => p.id === partyId)
+  if (!party) return
+  try {
+    await partiesApi.updateAutoDelve(partyId, party.auto_delve_healed, party.auto_delve_full, party.auto_decide_events, level)
     await fetchStats()
   } catch {
     notifications.add('Failed to update settings', 'error')
@@ -311,6 +322,15 @@ async function togglePartySetting(partyId: number, field: 'healed' | 'full' | 'a
                   <input type="checkbox" :checked="p.auto_delve_full" @change="togglePartySetting(p.id, 'full')" />
                   When Full
                 </label>
+                <select
+                  class="form-select auto-level-select"
+                  :value="p.auto_delve_level ?? ''"
+                  @click.stop
+                  @change="setAutoDelveLevel(p.id, ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null)"
+                >
+                  <option value="">Deepest</option>
+                  <option v-for="n in (stats?.max_dungeon_level ?? 1)" :key="n" :value="n">Depth {{ n }}</option>
+                </select>
                 <span class="auto-delve-label" style="margin-left: 8px">|</span>
                 <label class="checkbox-label" @click.stop>
                   <input type="checkbox" :checked="p.auto_decide_events" @change="togglePartySetting(p.id, 'auto_decide')" />
@@ -503,6 +523,7 @@ async function togglePartySetting(partyId: number, field: 'healed' | 'full' | 'a
 .auto-delve-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
 .checkbox-label input[type="checkbox"] { accent-color: var(--accent-green); }
+.auto-level-select { width: auto; min-width: 90px; padding: 2px 6px; font-size: 11px; }
 
 /* Enriched stats */
 .stat.xp { color: var(--accent-blue, #60a5fa); }

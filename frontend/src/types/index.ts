@@ -101,6 +101,7 @@ export interface PartyOut {
   auto_delve_healed: boolean
   auto_delve_full: boolean
   auto_decide_events: boolean
+  auto_delve_level: number | null
   members: AdventurerOut[]
 }
 
@@ -229,6 +230,7 @@ export interface DashboardStats {
     auto_delve_healed: boolean
     auto_delve_full: boolean
     auto_decide_events: boolean
+    auto_delve_level: number | null
     members: Array<{
       id: number
       name: string

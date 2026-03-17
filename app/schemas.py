@@ -96,6 +96,7 @@ class PartyOut(PartyBase):
     auto_delve_healed: bool = False
     auto_delve_full: bool = False
     auto_decide_events: bool = False
+    auto_delve_level: Optional[int] = None
     members: List[AdventurerOut] = []
 
     class Config:

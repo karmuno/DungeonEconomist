@@ -184,6 +184,7 @@ class AutoDelveUpdate(BaseModel):
     auto_delve_healed: bool = False
     auto_delve_full: bool = False
     auto_decide_events: bool = False
+    auto_delve_level: int | None = None  # null = max unlocked
 
 
 @router.put("/parties/{party_id}/auto-delve")
@@ -200,6 +201,7 @@ def update_auto_delve(
     party.auto_delve_healed = data.auto_delve_healed
     party.auto_delve_full = data.auto_delve_full
     party.auto_decide_events = data.auto_decide_events
+    party.auto_delve_level = data.auto_delve_level
     db.commit()
     return {"ok": True}
 

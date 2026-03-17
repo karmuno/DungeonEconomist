@@ -38,10 +38,17 @@ export function getStatus(id: number): Promise<PartyStatus> {
   return get<PartyStatus>(`/parties/${id}/status`)
 }
 
-export function updateAutoDelve(id: number, healed: boolean, full: boolean, autoDecide?: boolean): Promise<{ ok: boolean }> {
+export function updateAutoDelve(
+  id: number,
+  healed: boolean,
+  full: boolean,
+  autoDecide?: boolean,
+  autoDelveLevel?: number | null,
+): Promise<{ ok: boolean }> {
   return put<{ ok: boolean }>(`/parties/${id}/auto-delve`, {
     auto_delve_healed: healed,
     auto_delve_full: full,
     auto_decide_events: autoDecide ?? false,
+    auto_delve_level: autoDelveLevel ?? null,
   })
 }

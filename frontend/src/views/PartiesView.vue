@@ -5,6 +5,7 @@ import type { AdventurerOut, PartyOut, ExpeditionSummary } from '../types'
 import * as adventurersApi from '../api/adventurers'
 import * as partiesApi from '../api/parties'
 import * as expeditionsApi from '../api/expeditions'
+import * as gameApi from '../api/game'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 
@@ -51,6 +52,7 @@ onMounted(async () => {
 })
 
 const expeditions = ref<ExpeditionSummary[]>([])
+const maxDungeonLevel = ref(1)
 
 // Current expedition for the selected party (if on expedition)
 const currentExpedition = computed(() => {
@@ -64,6 +66,10 @@ async function fetchAll() {
   allAdventurers.value = await adventurersApi.list()
   parties.value = await partiesApi.list()
   expeditions.value = await expeditionsApi.list()
+  try {
+    const dungeon = await gameApi.getDungeonInfo()
+    maxDungeonLevel.value = dungeon.max_dungeon_level
+  } catch { /* keep default */ }
   // Select from route param, or first party
   const paramId = Number(route.params.partyId)
   if (paramId && parties.value.some(p => p.id === paramId)) {
@@ -134,7 +140,23 @@ async function togglePartySetting(field: 'healed' | 'full' | 'auto_decide') {
   const full = field === 'full' ? !selectedParty.value.auto_delve_full : selectedParty.value.auto_delve_full
   const autoDecide = field === 'auto_decide' ? !selectedParty.value.auto_decide_events : selectedParty.value.auto_decide_events
   try {
-    await partiesApi.updateAutoDelve(selectedParty.value.id, healed, full, autoDecide)
+    await partiesApi.updateAutoDelve(selectedParty.value.id, healed, full, autoDecide, selectedParty.value.auto_delve_level)
+    await fetchAll()
+  } catch {
+    notifications.add('Failed to update settings', 'error')
+  }
+}
+
+async function setAutoDelveLevel(level: number | null) {
+  if (!selectedParty.value) return
+  try {
+    await partiesApi.updateAutoDelve(
+      selectedParty.value.id,
+      selectedParty.value.auto_delve_healed,
+      selectedParty.value.auto_delve_full,
+      selectedParty.value.auto_decide_events,
+      level,
+    )
     await fetchAll()
   } catch {
     notifications.add('Failed to update settings', 'error')
@@ -298,6 +320,14 @@ async function deleteParty() {
               />
               When Full
             </label>
+            <select
+              class="form-select auto-level-select"
+              :value="selectedParty.auto_delve_level ?? ''"
+              @change="setAutoDelveLevel(($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null)"
+            >
+              <option value="">Deepest</option>
+              <option v-for="n in maxDungeonLevel" :key="n" :value="n">Depth {{ n }}</option>
+            </select>
             <span class="auto-delve-label" style="margin-left: 8px">|</span>
             <label class="checkbox-label">
               <input
@@ -393,6 +423,13 @@ async function deleteParty() {
 
 .checkbox-label input[type="checkbox"] {
   accent-color: var(--accent-green);
+}
+
+.auto-level-select {
+  width: auto;
+  min-width: 90px;
+  padding: 2px 6px;
+  font-size: 11px;
 }
 
 .ml-1 {
