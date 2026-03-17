@@ -19,7 +19,7 @@ create_tables()
 app = FastAPI(
     title="Venturekeep",
     description="D&D Party Management Simulation",
-    version="0.3.0"
+    version="0.5.0"
 )
 
 # CORS (permissive for local dev)
