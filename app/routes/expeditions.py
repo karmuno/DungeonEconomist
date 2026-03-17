@@ -127,23 +127,39 @@ def _finalize_expedition(
         )
         db.add(exp_node)
 
-    # Apply results to adventurers
+    # Replay simulation to get actual per-member HP
     dead_names = set(effective_result.get("dead_members", []))
     living_members = []
+
+    # Determine which log entries to replay (respect retreat cutoff)
+    full_log = effective_result.get("log", [])
+    cutoff_turn = effective_result.get("retreat_cutoff_turn")
+    if cutoff_turn is not None:
+        replay_log = [t for t in full_log if t.get("turn", 0) <= cutoff_turn]
+    else:
+        replay_log = full_log
 
     if party:
         party.on_expedition = False
         party.current_expedition_id = None
 
+        # Replay HP from simulation using starting_hp snapshot
+        starting_hp = effective_result.get("starting_hp", {})
+        sim_hp = _replay_member_hp(party.members, replay_log, dead_names, starting_hp)
+
         xp_per_member = int(effective_result.get("xp_per_party_member", 0))
 
         for member in party.members:
             is_dead = member.name in dead_names
+            replayed_hp = sim_hp.get(member.name, member.hp_current)
+            # Clamp to real hp_max (armor buffer may have inflated starting_hp)
+            final_hp = max(1, min(replayed_hp, member.hp_max)) if not is_dead else 0
+
             log = ExpeditionLog(
                 expedition_id=expedition.id,
                 adventurer_id=member.id,
                 xp_share=xp_per_member,
-                hp_change=-member.hp_max if is_dead else -(member.hp_max - max(1, member.hp_current - 5)),
+                hp_change=final_hp - member.hp_current if not is_dead else -member.hp_current,
                 status="dead" if is_dead else "alive"
             )
             db.add(log)
@@ -159,7 +175,7 @@ def _finalize_expedition(
                 member.is_available = False
                 events.append({"type": "death", "message": f"{member.name} died during the expedition"})
             else:
-                member.hp_current = max(1, member.hp_current - 5)
+                member.hp_current = final_hp
                 member.on_expedition = False
                 member.is_available = True
                 living_members.append(member)
