@@ -400,11 +400,30 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     upkeep_events = process_upkeep(keep, db)
     events.extend(upkeep_events)
 
+    # Auto level-up
+    from app.progression import check_for_level_up, calculate_hp_gain
+    level_up_candidates = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_dead == False,
+        Adventurer.is_bankrupt == False,
+    ).all()
+    for adv in level_up_candidates:
+        while check_for_level_up(adv.level, adv.xp):
+            old_level = adv.level
+            adv.level += 1
+            hp_gain = calculate_hp_gain(adv.adventurer_class, old_level)
+            adv.hp_max += hp_gain
+            adv.hp_current += hp_gain
+            events.append(GameEvent(
+                type="level_up",
+                message=f"{adv.name} leveled up to {adv.level}! (+{hp_gain} HP)",
+            ))
+
     return events
 
 
 # Event types that are considered notable for skip-to-event
-NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "loot"}
+NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "loot", "level_up"}
 
 
 def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
