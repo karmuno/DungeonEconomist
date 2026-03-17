@@ -478,6 +478,10 @@ def _adv_summary(m) -> dict:
         "gold": m.gold,
         "silver": m.silver,
         "copper": m.copper,
+        "magic_items": [
+            {"id": i.id, "name": i.name, "item_type": i.item_type, "bonus": i.bonus or 0}
+            for i in m.magic_items
+        ] if m.magic_items else [],
     }
 
 
@@ -543,10 +547,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "adventurer_class": cls,
             "assigned_count": assigned_count,
             "effects": effects,
-            "assigned_adventurers": [
-                {"id": a.id, "name": a.name, "level": a.level}
-                for a in b.assigned_adventurers
-            ],
+            "assigned_adventurers": [_adv_summary(a) for a in b.assigned_adventurers],
         })
 
     # Parties with status

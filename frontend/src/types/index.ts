@@ -204,7 +204,20 @@ export interface DashboardStats {
     adventurer_class: string
     assigned_count: number
     effects: string[]
-    assigned_adventurers: Array<{ id: number; name: string; level: number }>
+    assigned_adventurers: Array<{
+      id: number
+      name: string
+      adventurer_class: string
+      level: number
+      hp_current: number
+      hp_max: number
+      xp: number
+      next_level_xp: number | null
+      gold: number
+      silver: number
+      copper: number
+      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+    }>
   }>
   parties: Array<{
     id: number
@@ -226,6 +239,7 @@ export interface DashboardStats {
       gold: number
       silver: number
       copper: number
+      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
     }>
   }>
   unassigned_adventurers: Array<{
@@ -240,6 +254,7 @@ export interface DashboardStats {
     gold: number
     silver: number
     copper: number
+    magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
   }>
   hint: string | null
   active_expeditions: Array<{
