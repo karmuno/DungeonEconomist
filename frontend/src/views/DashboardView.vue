@@ -117,6 +117,20 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
     notifications.add(err?.data?.detail ?? 'Failed to assign', 'error')
   }
 }
+
+// Auto-delve toggle
+async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
+  const party = stats.value?.parties.find(p => p.id === partyId)
+  if (!party) return
+  const healed = field === 'healed' ? !party.auto_delve_healed : party.auto_delve_healed
+  const full = field === 'full' ? !party.auto_delve_full : party.auto_delve_full
+  try {
+    await partiesApi.updateAutoDelve(partyId, healed, full)
+    await fetchStats()
+  } catch {
+    notifications.add('Failed to update auto-delve', 'error')
+  }
+}
 </script>
 
 <template>
@@ -201,11 +215,13 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
               <span class="badge" :class="partyStatusClass(p.status)">{{ p.status }}</span>
             </div>
             <div v-if="expandedPartyId === p.id" class="party-members">
-              <div v-for="m in p.members" :key="m.id" class="party-member-row">
+              <div v-for="m in p.members" :key="m.id" class="party-member-row clickable" @click.stop="router.push(`/adventurers`)">
                 <span class="member-name">{{ m.name }}</span>
                 <span class="badge">{{ m.adventurer_class }}</span>
                 <span class="stat">Lv {{ m.level }}</span>
-                <ProgressBar :value="m.hp_current" :max="m.hp_max" style="width: 80px" />
+                <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
+                <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp">/{{ m.next_level_xp }}</template> XP</span>
+                <span class="stat gold">{{ formatCurrency(m.gold, m.silver, m.copper) }}</span>
               </div>
               <div v-if="p.members.length === 0" class="text-muted" style="font-size: 12px; padding: 4px 0">Drop adventurers here</div>
               <div class="party-actions">
@@ -220,6 +236,17 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
                   @click.stop="router.push(`/launch-expedition/${p.id}`)"
                 >Launch Expedition</button>
                 <button class="btn btn-sm btn-secondary" @click.stop="router.push(`/parties/${p.id}`)">Manage</button>
+              </div>
+              <div class="auto-delve-row">
+                <span class="auto-delve-label">Auto-Delve:</span>
+                <label class="checkbox-label" @click.stop>
+                  <input type="checkbox" :checked="p.auto_delve_healed" @change="toggleAutoDelve(p.id, 'healed')" />
+                  When Healed
+                </label>
+                <label class="checkbox-label" @click.stop>
+                  <input type="checkbox" :checked="p.auto_delve_full" @change="toggleAutoDelve(p.id, 'full')" />
+                  When Full
+                </label>
               </div>
             </div>
           </div>
@@ -241,9 +268,9 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
             <span class="unassigned-name">{{ a.name }}</span>
             <span class="badge">{{ a.adventurer_class }}</span>
             <span class="stat">Lv {{ a.level }}</span>
-            <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">
-              {{ a.hp_current }}/{{ a.hp_max }}
-            </span>
+            <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
+            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+            <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
           </div>
         </div>
       </div>
@@ -271,8 +298,14 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
               <span v-if="b.effects.length > 0" class="building-effect-tag">{{ b.effects[0] }}</span>
             </div>
             <div v-if="expandedBuilding === b.building_type" class="building-expanded">
-              <div v-if="b.effects.length > 0" class="building-effects-full">
+              <div v-if="b.effects.length > 0" class="building-effects-full mb-1">
                 <span v-for="(fx, i) in b.effects" :key="i" class="effect-tag">{{ fx }}</span>
+              </div>
+              <div v-if="b.assigned_adventurers.length > 0" class="building-assigned">
+                <div v-for="a in b.assigned_adventurers" :key="a.id" class="building-assigned-row">
+                  <span class="member-name">{{ a.name }}</span>
+                  <span class="stat">Lv {{ a.level }}</span>
+                </div>
               </div>
               <div v-else class="text-muted" style="font-size: 12px">Drop {{ b.adventurer_class }}s here to activate bonuses</div>
             </div>
@@ -372,4 +405,18 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
 }
 
 .badge-warning { background: rgba(241, 196, 15, 0.15); color: #fbbf24; }
+
+/* Auto-delve */
+.auto-delve-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--border-color); margin-top: 6px; }
+.auto-delve-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.checkbox-label input[type="checkbox"] { accent-color: var(--accent-green); }
+
+/* Enriched stats */
+.stat.xp { color: var(--accent-blue, #60a5fa); }
+.stat.gold { color: #fbbf24; }
+
+/* Building assigned list */
+.building-assigned { display: flex; flex-direction: column; gap: 2px; }
+.building-assigned-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; }
 </style>

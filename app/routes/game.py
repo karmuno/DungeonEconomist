@@ -463,6 +463,24 @@ def skip_to_event(keep: Keep = Depends(get_current_keep), db: Session = Depends(
     )
 
 
+def _adv_summary(m) -> dict:
+    """Compact adventurer summary for dashboard."""
+    from app.progression import calculate_xp_for_next_level
+    return {
+        "id": m.id,
+        "name": m.name,
+        "adventurer_class": m.adventurer_class.value,
+        "level": m.level,
+        "hp_current": m.hp_current,
+        "hp_max": m.hp_max,
+        "xp": m.xp,
+        "next_level_xp": calculate_xp_for_next_level(m.level),
+        "gold": m.gold,
+        "silver": m.silver,
+        "copper": m.copper,
+    }
+
+
 @router.get("/dashboard/stats")
 def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
     """Get aggregated dashboard stats for the home page."""
@@ -525,6 +543,10 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "adventurer_class": cls,
             "assigned_count": assigned_count,
             "effects": effects,
+            "assigned_adventurers": [
+                {"id": a.id, "name": a.name, "level": a.level}
+                for a in b.assigned_adventurers
+            ],
         })
 
     # Parties with status
@@ -551,15 +573,10 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "member_count": len(p.members),
             "status": status,
             "expedition_id": expedition_id,
+            "auto_delve_healed": p.auto_delve_healed,
+            "auto_delve_full": p.auto_delve_full,
             "members": [
-                {
-                    "id": m.id,
-                    "name": m.name,
-                    "adventurer_class": m.adventurer_class.value,
-                    "level": m.level,
-                    "hp_current": m.hp_current,
-                    "hp_max": m.hp_max,
-                }
+                _adv_summary(m)
                 for m in p.members
             ],
         })
@@ -575,17 +592,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         Adventurer.on_expedition == False,
         ~Adventurer.id.in_(in_party_ids),
     ).all()
-    unassigned_summary = [
-        {
-            "id": a.id,
-            "name": a.name,
-            "adventurer_class": a.adventurer_class.value,
-            "level": a.level,
-            "hp_current": a.hp_current,
-            "hp_max": a.hp_max,
-        }
-        for a in unassigned
-    ]
+    unassigned_summary = [_adv_summary(a) for a in unassigned]
 
     # Hint for new players
     hint = None

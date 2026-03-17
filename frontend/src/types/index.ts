@@ -204,6 +204,7 @@ export interface DashboardStats {
     adventurer_class: string
     assigned_count: number
     effects: string[]
+    assigned_adventurers: Array<{ id: number; name: string; level: number }>
   }>
   parties: Array<{
     id: number
@@ -211,6 +212,8 @@ export interface DashboardStats {
     member_count: number
     status: string
     expedition_id: number | null
+    auto_delve_healed: boolean
+    auto_delve_full: boolean
     members: Array<{
       id: number
       name: string
@@ -218,6 +221,11 @@ export interface DashboardStats {
       level: number
       hp_current: number
       hp_max: number
+      xp: number
+      next_level_xp: number | null
+      gold: number
+      silver: number
+      copper: number
     }>
   }>
   unassigned_adventurers: Array<{
@@ -227,6 +235,11 @@ export interface DashboardStats {
     level: number
     hp_current: number
     hp_max: number
+    xp: number
+    next_level_xp: number | null
+    gold: number
+    silver: number
+    copper: number
   }>
   hint: string | null
   active_expeditions: Array<{
