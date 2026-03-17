@@ -35,7 +35,7 @@ const selectedPartyId = ref<number | null>(null)
 const confirmingDisband = ref(false)
 
 // Default roster: show Available + Recovering (not On Expedition)
-const DEFAULT_STATUSES = new Set(['Available', 'Recovering'])
+const DEFAULT_STATUSES = new Set(['Available', 'Recovering', 'On Expedition'])
 
 const filters = ref({
   classFilter: '',
