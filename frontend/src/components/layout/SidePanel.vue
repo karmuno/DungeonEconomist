@@ -86,11 +86,16 @@ async function popupChoice(choice: string) {
     }
 
     if (result.status === 'in_progress') {
-      notifications.add('The expedition presses on...', 'info')
+      const msg = result.auto_choice
+        ? `The party decided to press on!`
+        : 'The expedition presses on...'
+      notifications.add(msg, 'info')
     } else if (result.status === 'completed') {
       await player.fetchPlayer()
-      notifications.add(
-        result.retreated ? 'The party retreated safely' : 'The expedition is complete!',
+      const retMsg = result.auto_choice === 'retreat'
+        ? 'The party decided to retreat!'
+        : result.retreated ? 'The party retreated safely' : 'The expedition is complete!'
+      notifications.add(retMsg,
         {
           type: result.retreated ? 'info' : 'success',
           action: {
@@ -216,12 +221,19 @@ async function skipToEvent() {
         >
           Retreat
         </button>
+        <button
+          class="btn btn-secondary"
+          :disabled="choosingInPopup"
+          @click="popupChoice('auto')"
+        >
+          You Decide
+        </button>
       </div>
       <button
         class="btn btn-sm choice-popup-view"
         @click="viewExpedition"
       >
-        You Decide
+        View Expedition Details
       </button>
     </div>
   </ModalDialog>

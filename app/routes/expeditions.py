@@ -485,7 +485,7 @@ def launch_expedition(
 
 
 class ExpeditionChoice(BaseModel):
-    choice: str  # "press_on" or "retreat"
+    choice: str  # "press_on", "retreat", or "auto"
 
 
 @router.post("/expeditions/{expedition_id}/choose")
@@ -506,35 +506,43 @@ def make_expedition_choice(
     if expedition.result != "awaiting_choice":
         raise HTTPException(status_code=400, detail="Expedition is not awaiting a choice")
 
-    if data.choice not in ("press_on", "retreat"):
-        raise HTTPException(status_code=400, detail="Invalid choice. Must be 'press_on' or 'retreat'")
+    if data.choice not in ("press_on", "retreat", "auto"):
+        raise HTTPException(status_code=400, detail="Invalid choice. Must be 'press_on', 'retreat', or 'auto'")
+
+    # Auto: let the party decide
+    choice = data.choice
+    if choice == "auto":
+        from app.expedition_events import auto_decide
+        dp = expedition.pending_event or {}
+        choice = auto_decide(dp.get("type", ""), expedition.party.members if expedition.party else [])
 
     sim_result = expedition.simulation_data
     decision_points = sim_result.get("decision_points", [])
     resolved = expedition.resolved_phases or 0
 
-    if data.choice == "retreat":
-        # Apply partial results and end
+    was_auto = data.choice == "auto"
+
+    if choice == "retreat":
         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
         db.commit()
         return {
             "status": "completed",
             "retreated": True,
+            "auto_choice": "retreat" if was_auto else None,
             "events": result.get("events", []),
         }
 
-    # Press on — advance past this decision point
+    # Press on
     expedition.resolved_phases = resolved + 1
     expedition.pending_event = None
 
-    # Check if there's another decision point
     if expedition.resolved_phases < len(decision_points):
-        # Schedule next decision for the last day of the expedition
         expedition.decision_day = expedition.return_day
         expedition.result = "in_progress"
         db.commit()
         return {
             "status": "in_progress",
+            "auto_choice": "press_on" if was_auto else None,
             "message": "The expedition continues...",
             "events": [],
         }
@@ -545,6 +553,7 @@ def make_expedition_choice(
     db.commit()
     return {
         "status": "in_progress",
+        "auto_choice": "press_on" if was_auto else None,
         "message": "The expedition continues...",
         "events": [],
     }

@@ -91,11 +91,16 @@ async function makeChoice(choice: string) {
     }
 
     if (result.status === 'in_progress') {
-      notifications.add('The expedition continues...', 'info')
+      const msg = result.auto_choice
+        ? `The party decided to press on!`
+        : 'The expedition continues...'
+      notifications.add(msg, 'info')
     } else if (result.status === 'completed') {
       await player.fetchPlayer()
-      notifications.add(
-        result.retreated ? 'The party retreated safely' : 'The expedition is complete!',
+      const retMsg = result.auto_choice === 'retreat'
+        ? 'The party decided to retreat!'
+        : result.retreated ? 'The party retreated safely' : 'The expedition is complete!'
+      notifications.add(retMsg,
         {
           type: result.retreated ? 'info' : 'success',
           action: {
@@ -204,6 +209,9 @@ function statusClass(result: string): string {
           </button>
           <button class="btn btn-secondary" :disabled="choosing" @click="makeChoice('retreat')">
             Retreat
+          </button>
+          <button class="btn btn-secondary" :disabled="choosing" @click="makeChoice('auto')">
+            You Decide
           </button>
         </div>
       </div>
