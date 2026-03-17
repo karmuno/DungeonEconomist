@@ -197,6 +197,7 @@ export interface DashboardStats {
   dungeon_name: string | null
   max_dungeon_level: number
   buildings: Array<{
+    id: number
     building_type: string
     name: string
     level: number

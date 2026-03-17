@@ -518,6 +518,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             if "magic_item_chance_per_assigned" in bonuses:
                 effects.append(f"+{assigned_count * bonuses['magic_item_chance_per_assigned']}% magic item chance")
         buildings_summary.append({
+            "id": b.id,
             "building_type": b.building_type,
             "name": get_building_name(b.building_type, b.level),
             "level": b.level,
