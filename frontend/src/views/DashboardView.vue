@@ -60,10 +60,30 @@ function toggleBuilding(type: string) {
   expandedBuilding.value = expandedBuilding.value === type ? null : type
 }
 
-// Drag from unassigned
-function onDragStart(e: DragEvent, advId: number) {
-  e.dataTransfer?.setData('text/plain', String(advId))
+// Drag source tracking: "unassigned", "party:ID", or "building:ID"
+const dragOverUnassigned = ref(false)
+let dragSource = ''
+let dragAdvId = 0
+let dragAdvName = ''
+
+function onDragStart(e: DragEvent, advId: number, advName: string, source: string) {
+  dragAdvId = advId
+  dragAdvName = advName
+  dragSource = source
   e.dataTransfer!.effectAllowed = 'move'
+  e.dataTransfer?.setData('text/plain', String(advId))
+}
+
+// Helper: remove adventurer from their current source
+async function removeFromSource() {
+  if (dragSource.startsWith('party:')) {
+    const partyId = Number(dragSource.split(':')[1])
+    await partiesApi.removeMember({ party_id: partyId, adventurer_id: dragAdvId })
+  } else if (dragSource.startsWith('building:')) {
+    const buildingId = Number(dragSource.split(':')[1])
+    await buildingsApi.unassign(buildingId, dragAdvId)
+  }
+  // "unassigned" — nothing to remove from
 }
 
 // Drop on party
@@ -71,21 +91,17 @@ function onPartyDragOver(e: DragEvent, partyId: number) {
   e.preventDefault()
   dragOverPartyId.value = partyId
 }
-
-function onPartyDragLeave() {
-  dragOverPartyId.value = null
-}
+function onPartyDragLeave() { dragOverPartyId.value = null }
 
 async function onPartyDrop(e: DragEvent, partyId: number) {
   e.preventDefault()
   dragOverPartyId.value = null
-  const advId = Number(e.dataTransfer?.getData('text/plain'))
-  if (!advId) return
-  const adv = stats.value?.unassigned_adventurers.find(a => a.id === advId)
+  if (!dragAdvId) return
   const party = stats.value?.parties.find(p => p.id === partyId)
   try {
-    await partiesApi.addMember({ party_id: partyId, adventurer_id: advId })
-    notifications.add(`${adv?.name ?? 'Adventurer'} joined ${party?.name ?? 'party'}`, 'success')
+    await removeFromSource()
+    await partiesApi.addMember({ party_id: partyId, adventurer_id: dragAdvId })
+    notifications.add(`${dragAdvName} joined ${party?.name ?? 'party'}`, 'success')
     await fetchStats()
   } catch (err: any) {
     notifications.add(err?.data?.detail ?? 'Failed to add to party', 'error')
@@ -97,24 +113,62 @@ function onBuildingDragOver(e: DragEvent, buildingType: string) {
   e.preventDefault()
   dragOverBuilding.value = buildingType
 }
-
-function onBuildingDragLeave() {
-  dragOverBuilding.value = null
-}
+function onBuildingDragLeave() { dragOverBuilding.value = null }
 
 async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'][0]) {
   e.preventDefault()
   dragOverBuilding.value = null
-  if (!building.id) return
-  const advId = Number(e.dataTransfer?.getData('text/plain'))
-  if (!advId) return
-  const adv = stats.value?.unassigned_adventurers.find(a => a.id === advId)
+  if (!building.id || !dragAdvId) return
   try {
-    await buildingsApi.assign(building.id, advId)
-    notifications.add(`${adv?.name ?? 'Adventurer'} assigned to ${building.name}`, 'success')
+    await removeFromSource()
+    await buildingsApi.assign(building.id, dragAdvId)
+    notifications.add(`${dragAdvName} assigned to ${building.name}`, 'success')
     await fetchStats()
   } catch (err: any) {
     notifications.add(err?.data?.detail ?? 'Failed to assign', 'error')
+  }
+}
+
+// Drop on unassigned zone (to unassign from party or building)
+function onUnassignedDragOver(e: DragEvent) {
+  if (dragSource !== 'unassigned') {
+    e.preventDefault()
+    dragOverUnassigned.value = true
+  }
+}
+function onUnassignedDragLeave() { dragOverUnassigned.value = false }
+
+async function onUnassignedDrop(e: DragEvent) {
+  e.preventDefault()
+  dragOverUnassigned.value = false
+  if (!dragAdvId || dragSource === 'unassigned') return
+  try {
+    await removeFromSource()
+    notifications.add(`${dragAdvName} returned to tavern`, 'info')
+    await fetchStats()
+  } catch (err: any) {
+    notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
+  }
+}
+
+// Direct unassign buttons
+async function removeFromParty(partyId: number, advId: number, advName: string) {
+  try {
+    await partiesApi.removeMember({ party_id: partyId, adventurer_id: advId })
+    notifications.add(`${advName} removed from party`, 'info')
+    await fetchStats()
+  } catch (err: any) {
+    notifications.add(err?.data?.detail ?? 'Failed to remove', 'error')
+  }
+}
+
+async function unassignFromBuilding(buildingId: number, advId: number, advName: string) {
+  try {
+    await buildingsApi.unassign(buildingId, advId)
+    notifications.add(`${advName} returned to tavern`, 'info')
+    await fetchStats()
+  } catch (err: any) {
+    notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
   }
 }
 
@@ -215,13 +269,21 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
               <span class="badge" :class="partyStatusClass(p.status)">{{ p.status }}</span>
             </div>
             <div v-if="expandedPartyId === p.id" class="party-members">
-              <div v-for="m in p.members" :key="m.id" class="party-member-row clickable" @click.stop="router.push(`/adventurers`)">
+              <div
+                v-for="m in p.members"
+                :key="m.id"
+                class="party-member-row draggable"
+                draggable="true"
+                @dragstart="onDragStart($event, m.id, m.name, `party:${p.id}`)"
+              >
+                <span class="drag-handle">&#x2630;</span>
                 <span class="member-name">{{ m.name }}</span>
                 <span class="badge">{{ m.adventurer_class }}</span>
                 <span class="stat">Lv {{ m.level }}</span>
                 <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
                 <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp">/{{ m.next_level_xp }}</template> XP</span>
                 <span class="stat gold">{{ formatCurrency(m.gold, m.silver, m.copper) }}</span>
+                <button v-if="!p.on_expedition" class="remove-btn" @click.stop="removeFromParty(p.id, m.id, m.name)">&times;</button>
               </div>
               <div v-if="p.members.length === 0" class="text-muted" style="font-size: 12px; padding: 4px 0">Drop adventurers here</div>
               <div class="party-actions">
@@ -231,7 +293,7 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
                   @click.stop="router.push(`/expedition/${p.expedition_id}/summary`)"
                 >View Expedition</button>
                 <button
-                  v-else-if="p.status === 'Ready'"
+                  v-if="p.status !== 'On Expedition' && p.members.length > 0"
                   class="btn btn-primary btn-sm"
                   @click.stop="router.push(`/launch-expedition/${p.id}`)"
                 >Launch Expedition</button>
@@ -253,16 +315,25 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
         </div>
       </div>
 
-      <!-- Unassigned Adventurers (draggable) -->
-      <div v-if="stats.unassigned_adventurers.length > 0" class="card dash-card mb-2">
+      <!-- Unassigned Adventurers (draggable + drop zone for unassigning) -->
+      <div
+        class="card dash-card mb-2"
+        :class="{ 'drop-hover': dragOverUnassigned }"
+        @dragover="onUnassignedDragOver"
+        @dragleave="onUnassignedDragLeave"
+        @drop="onUnassignedDrop"
+      >
         <h3 class="mb-1">Unassigned Adventurers</h3>
+        <div v-if="stats.unassigned_adventurers.length === 0" class="text-muted" style="font-size: 12px">
+          Drag adventurers here to unassign them
+        </div>
         <div class="unassigned-list">
           <div
             v-for="a in stats.unassigned_adventurers"
             :key="a.id"
             class="unassigned-row draggable"
             draggable="true"
-            @dragstart="onDragStart($event, a.id)"
+            @dragstart="onDragStart($event, a.id, a.name, 'unassigned')"
           >
             <span class="drag-handle">&#x2630;</span>
             <span class="unassigned-name">{{ a.name }}</span>
@@ -302,9 +373,17 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
                 <span v-for="(fx, i) in b.effects" :key="i" class="effect-tag">{{ fx }}</span>
               </div>
               <div v-if="b.assigned_adventurers.length > 0" class="building-assigned">
-                <div v-for="a in b.assigned_adventurers" :key="a.id" class="building-assigned-row">
+                <div
+                  v-for="a in b.assigned_adventurers"
+                  :key="a.id"
+                  class="building-assigned-row draggable"
+                  draggable="true"
+                  @dragstart="onDragStart($event, a.id, a.name, `building:${b.id}`)"
+                >
+                  <span class="drag-handle">&#x2630;</span>
                   <span class="member-name">{{ a.name }}</span>
                   <span class="stat">Lv {{ a.level }}</span>
+                  <button class="remove-btn" @click.stop="unassignFromBuilding(b.id, a.id, a.name)">&times;</button>
                 </div>
               </div>
               <div v-else class="text-muted" style="font-size: 12px">Drop {{ b.adventurer_class }}s here to activate bonuses</div>
@@ -419,4 +498,14 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
 /* Building assigned list */
 .building-assigned { display: flex; flex-direction: column; gap: 2px; }
 .building-assigned-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; }
+
+/* Remove/drag controls */
+.remove-btn {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 16px; padding: 0 2px; line-height: 1; opacity: 0.5; flex-shrink: 0;
+}
+.remove-btn:hover { color: var(--accent-red, #e74c3c); opacity: 1; }
+.draggable { cursor: grab; }
+.draggable:active { cursor: grabbing; }
+.drop-hover { background: rgba(74, 222, 128, 0.08) !important; border-color: var(--accent-green) !important; }
 </style>
