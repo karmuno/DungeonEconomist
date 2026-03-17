@@ -27,6 +27,7 @@ function partyDisplay(adv: AdventurerOut): string {
     <thead>
       <tr>
         <th>Name</th>
+        <th>Items</th>
         <th>Class</th>
         <th>Level</th>
         <th>Party</th>
@@ -44,6 +45,9 @@ function partyDisplay(adv: AdventurerOut): string {
         @click="emit('select', adv.id)"
       >
         <td>{{ adv.name }}</td>
+        <td>
+          <span v-for="item in (adv.magic_items || [])" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
+        </td>
         <td>{{ adv.adventurer_class }}</td>
         <td>{{ adv.level }}</td>
         <td>{{ partyDisplay(adv) }}</td>
@@ -58,3 +62,16 @@ function partyDisplay(adv: AdventurerOut): string {
   </table>
   <EmptyState v-else message="No adventurers found" />
 </template>
+
+<style scoped>
+.item-tag {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  margin-right: 2px;
+}
+</style>

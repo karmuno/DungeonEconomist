@@ -56,7 +56,7 @@ const canLevelUp = computed(() => {
       <span class="bar-label">Equipment</span>
       <div class="item-list">
         <div v-for="item in adventurer.magic_items" :key="item.id" class="item-row">
-          <span class="item-icon">{{ item.item_type === 'weapon' ? '\u2694' : '\u1F6E1' }}</span>
+          <span class="item-icon">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}</span>
           <span class="item-name">{{ item.name }}</span>
           <span class="item-bonus">+{{ item.bonus }} {{ item.item_type === 'weapon' ? 'ATK' : 'DEF' }}</span>
         </div>

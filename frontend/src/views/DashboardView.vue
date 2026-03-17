@@ -278,12 +278,12 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
               >
                 <span class="drag-handle">&#x2630;</span>
                 <span class="member-name">{{ m.name }}</span>
+                <span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
                 <span class="badge">{{ m.adventurer_class }}</span>
                 <span class="stat">Lv {{ m.level }}</span>
                 <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
                 <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp">/{{ m.next_level_xp }}</template> XP</span>
                 <span class="stat gold">{{ formatCurrency(m.gold, m.silver, m.copper) }}</span>
-                <span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694' : '\uD83D\uDEE1' }}+{{ item.bonus }}</span>
                 <button v-if="!p.on_expedition" class="remove-btn" @click.stop="removeFromParty(p.id, m.id, m.name)">&times;</button>
               </div>
               <div v-if="p.members.length === 0" class="text-muted" style="font-size: 12px; padding: 4px 0">Drop adventurers here</div>
@@ -338,12 +338,12 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
           >
             <span class="drag-handle">&#x2630;</span>
             <span class="unassigned-name">{{ a.name }}</span>
+            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
             <span class="badge">{{ a.adventurer_class }}</span>
             <span class="stat">Lv {{ a.level }}</span>
             <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
             <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
             <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
-            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694' : '\uD83D\uDEE1' }}+{{ item.bonus }}</span>
           </div>
         </div>
       </div>
@@ -384,12 +384,12 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
                 >
                   <span class="drag-handle">&#x2630;</span>
                   <span class="member-name">{{ a.name }}</span>
+                  <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
                   <span class="badge">{{ a.adventurer_class }}</span>
                   <span class="stat">Lv {{ a.level }}</span>
                   <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
                   <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
                   <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
-                  <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694' : '\uD83D\uDEE1' }}+{{ item.bonus }}</span>
                   <button class="remove-btn" @click.stop="unassignFromBuilding(b.id, a.id, a.name)">&times;</button>
                 </div>
               </div>
