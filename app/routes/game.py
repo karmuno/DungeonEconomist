@@ -143,27 +143,16 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
             keep.total_score += cost_copper
             total_copper_transferred += cost_copper
         else:
-            # Try selling magic items to cover the shortfall
-            from app.models import MagicItem
-            shortfall = cost_copper - adv.total_copper()
+            # Sacrifice all magic items to skip upkeep entirely this month
             if adv.magic_items:
-                # Sell all magic items — each worth 100cp per bonus level
-                items_value = sum((item.bonus or 1) * 100 for item in adv.magic_items)
-                if adv.total_copper() + items_value >= cost_copper:
-                    # Selling items covers the cost
-                    adv.add_currency(items_value)
-                    item_names = [item.name for item in adv.magic_items]
-                    for item in list(adv.magic_items):
-                        db.delete(item)
-                    adv.subtract_currency(cost_copper)
-                    keep.add_treasury(cost_copper)
-                    keep.total_score += cost_copper
-                    total_copper_transferred += cost_copper
-                    events.append(GameEvent(
-                        type="upkeep",
-                        message=f"{adv.name} sold magic items to pay upkeep: {', '.join(item_names)}"
-                    ))
-                    continue
+                item_names = [item.name for item in adv.magic_items]
+                for item in list(adv.magic_items):
+                    db.delete(item)
+                events.append(GameEvent(
+                    type="upkeep",
+                    message=f"{adv.name} sacrificed magic items to avoid debtor's prison: {', '.join(item_names)}"
+                ))
+                continue
 
             # Bankruptcy is permanent — adventurer goes to debtor's prison
             remaining = adv.total_copper()
