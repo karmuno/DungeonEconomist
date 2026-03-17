@@ -161,9 +161,9 @@ async function toggleAutoDelve(partyId: number, field: 'healed' | 'full') {
           <div class="stat-value">{{ stats.expedition_count }}</div>
           <div class="stat-label">Expeditions</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-value text-green">{{ formatCurrency(stats.treasury_gold, stats.treasury_silver, stats.treasury_copper) }}</div>
-          <div class="stat-label">Treasury</div>
+        <div class="stat-card clickable" @click="router.push('/village')">
+          <div class="stat-value">{{ stats.buildings.length }}</div>
+          <div class="stat-label">Buildings</div>
         </div>
       </div>
 
