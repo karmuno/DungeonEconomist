@@ -1,7 +1,9 @@
 import random
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.models import Base, Adventurer, AdventurerClass
+
+from app.models import Adventurer, AdventurerClass
 
 DATABASE_URL = "sqlite:///./data/db.sqlite"
 

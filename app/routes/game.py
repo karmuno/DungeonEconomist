@@ -1,19 +1,24 @@
 import math
 import random
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.database import get_db
-from app.models import (
-    Adventurer, AdventurerClass, Party, Expedition, Keep,
-    ExpeditionNodeResult, ExpeditionLog, party_adventurer,
-)
-from app.schemas import GameTimeInfo, AdvanceDayResult, GameEvent
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
 from app.auth import get_current_keep
+from app.database import get_db
+from app.dungeons import DUNGEON_LEVELS
+from app.models import (
+    Adventurer,
+    AdventurerClass,
+    Expedition,
+    Keep,
+    Party,
+    party_adventurer,
+)
 from app.names import generate_adventurer_name
-from app.dungeons import DUNGEON_LEVEL_NAMES, DUNGEON_LEVELS
-from app.routes.expeditions import resolve_expedition, _finalize_expedition
+from app.routes.expeditions import _finalize_expedition, resolve_expedition
+from app.schemas import AdvanceDayResult, GameEvent, GameTimeInfo
 
 router = APIRouter()
 
@@ -50,8 +55,8 @@ def create_random_adventurer(adventurer_class: AdventurerClass, keep: Keep, db: 
 
 def run_daily_recruitment(keep: Keep, db: Session) -> list:
     """Run daily recruitment rolls. Returns list of new adventurers created."""
-    from app.models import Building
     from app.buildings import BUILDING_CONFIG, has_recruitment_bonus
+    from app.models import Building
 
     # Tavern count: available + on_expedition only (not dead, bankrupt, or assigned)
     active_count = db.query(Adventurer).filter(
@@ -296,7 +301,6 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
         Party.keep_id == keep.id,
         Expedition.result == "awaiting_choice",
     ).all()
-    newly_awaiting_ids: set[int] = set()
     for expedition in awaiting:
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}
@@ -403,7 +407,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     events.extend(upkeep_events)
 
     # Auto level-up
-    from app.progression import check_for_level_up, calculate_hp_gain
+    from app.progression import calculate_hp_gain, check_for_level_up
     level_up_candidates = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
@@ -561,8 +565,14 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     ).order_by(Expedition.finished_at.desc()).limit(5).all()
 
     # Buildings summary
+    from app.buildings import (
+        BUILDING_CONFIG,
+        BUILDING_TYPES,
+        get_building_class,
+        get_building_name,
+        has_recruitment_bonus,
+    )
     from app.models import Building
-    from app.buildings import get_building_name, get_building_class, BUILDING_TYPES, BUILDING_CONFIG, has_recruitment_bonus
     buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
     buildings_summary = []
     built_types = set()
@@ -631,7 +641,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         })
 
     # Unassigned adventurers (not in any party, not dead/bankrupt/assigned)
-    from app.models import party_adventurer
     in_party_ids = db.query(party_adventurer.c.adventurer_id).subquery()
     unassigned = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
@@ -692,6 +701,8 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
                 "duration_days": e.duration_days,
                 "result": e.result,
                 "treasure_total": (e.simulation_data or {}).get("treasure_total", 0),
+                "treasure_silver": (e.simulation_data or {}).get("treasure_silver", 0),
+                "treasure_copper": (e.simulation_data or {}).get("treasure_copper", 0),
                 "xp_earned": (e.simulation_data or {}).get("xp_earned", 0),
             }
             for e in recent_expeditions

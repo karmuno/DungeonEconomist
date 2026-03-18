@@ -2,15 +2,15 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.database import create_tables
-from app.routes import adventurers, parties, expeditions, game
-from app.routes import auth as auth_routes
-from app.routes import keeps as keeps_routes
-from app.routes import buildings as buildings_routes
 from app.routes import admin as admin_routes
+from app.routes import adventurers, expeditions, game, parties
+from app.routes import auth as auth_routes
+from app.routes import buildings as buildings_routes
+from app.routes import keeps as keeps_routes
 
 # Create tables on startup
 create_tables()

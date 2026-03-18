@@ -1,14 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth import get_current_keep
 from app.database import get_db
 from app.models import Adventurer, Keep
-from app.schemas import AdventurerOut, AdventurerCreate, LevelUpResult
-from app.auth import get_current_keep
-from app.progression import (
-    calculate_xp_for_next_level, check_for_level_up,
-    calculate_hp_gain, get_class_level_bonuses
-)
+from app.progression import calculate_hp_gain, calculate_xp_for_next_level, check_for_level_up, get_class_level_bonuses
+from app.schemas import AdventurerCreate, AdventurerOut, LevelUpResult
 
 router = APIRouter()
 

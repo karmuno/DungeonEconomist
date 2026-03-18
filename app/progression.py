@@ -23,7 +23,7 @@ HP_GAIN_BY_CLASS = {
     AdventurerClass.FIGHTER: 8,  # d8 average = 4.5, + 3 CON
     AdventurerClass.CLERIC: 6,   # d6 average = 3.5, + 2 CON
     AdventurerClass.MAGIC_USER: 4,  # d4 average = 2.5, + 1 CON
-    AdventurerClass.ELF: 6,     # d6 average = 3.5, + 2 CON 
+    AdventurerClass.ELF: 6,     # d6 average = 3.5, + 2 CON
     AdventurerClass.DWARF: 8,   # d8 average = 4.5, + 3 CON
     AdventurerClass.HOBBIT: 6,  # d6 average = 3.5, + 2 CON
 }
@@ -54,7 +54,7 @@ def calculate_xp_for_next_level(current_level: int) -> int:
     """Calculate the XP needed for the next level"""
     if current_level >= 10:  # Max level for MVP
         return None
-    
+
     return XP_THRESHOLDS[current_level + 1]
 
 def check_for_level_up(current_level: int, current_xp: int) -> bool:
@@ -62,28 +62,28 @@ def check_for_level_up(current_level: int, current_xp: int) -> bool:
     next_level = current_level + 1
     if next_level > 10:  # Max level for MVP
         return False
-    
+
     return current_xp >= XP_THRESHOLDS[next_level]
 
 def calculate_hp_gain(adventurer_class: AdventurerClass, current_level: int) -> int:
     """Calculate HP gain for a level up based on class"""
     base_hp = HP_GAIN_BY_CLASS[adventurer_class]
     class_multiplier = CLASS_BONUSES[adventurer_class].get("hp_multiplier", 1.0)
-    
+
     # Higher levels gain slightly less HP
     level_factor = max(0.8, 1.0 - (current_level * 0.02))
-    
+
     hp_gain = int(base_hp * class_multiplier * level_factor)
     return max(1, hp_gain)  # Always gain at least 1 HP
 
 def get_class_level_bonuses(adventurer_class: AdventurerClass, new_level: int):
     """Get the cumulative class-specific bonuses for a level"""
     base_bonuses = CLASS_BONUSES[adventurer_class].copy()
-    
+
     # Remove hp_multiplier as it's only used for HP calculation
     if "hp_multiplier" in base_bonuses:
         del base_bonuses["hp_multiplier"]
-    
+
     # Calculate cumulative bonuses
     cumulative_bonuses = {}
     for bonus_type, bonus_value in base_bonuses.items():
@@ -95,5 +95,5 @@ def get_class_level_bonuses(adventurer_class: AdventurerClass, new_level: int):
             else:
                 # Percentage bonuses (effectiveness, resistance, etc)
                 cumulative_bonuses[bonus_type] = bonus_value * (new_level - 1)
-    
+
     return cumulative_bonuses

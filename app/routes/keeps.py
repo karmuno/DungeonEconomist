@@ -1,16 +1,15 @@
 import random
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Account, Keep, Adventurer, AdventurerClass, Building
 from app.auth import get_current_account
-from app.names import generate_adventurer_name
+from app.database import get_db
 from app.dungeons import generate_dungeon_name
-from app.buildings import BUILDING_TYPES
+from app.models import Account, Adventurer, AdventurerClass, Keep
+from app.names import generate_adventurer_name
 
 router = APIRouter(prefix="/keeps", tags=["keeps"])
 
@@ -112,7 +111,7 @@ def delete_keep(
     account: Account = Depends(get_current_account),
     db: Session = Depends(get_db),
 ):
-    from app.models import Party, Expedition, ExpeditionNodeResult, ExpeditionLog, party_adventurer
+    from app.models import Expedition, ExpeditionLog, ExpeditionNodeResult, Party, party_adventurer
 
     keep = db.query(Keep).filter(Keep.id == keep_id, Keep.account_id == account.id).first()
     if not keep:

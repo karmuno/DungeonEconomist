@@ -1,9 +1,11 @@
+
 import pytest
-import statistics # For calculating averages/medians if needed
+
+from app.expedition import CombatOutcome
 
 # Assuming the Expedition class is in app.expedition
 # We need to import it carefully if there are naming conflicts or for clarity
-from app.expedition import Expedition as SimulationExpedition, CombatOutcome
+from app.expedition import Expedition as SimulationExpedition
 
 # Standard party composition for balancing tests
 # Ensure current_hp is part of the initial setup for each member
@@ -37,8 +39,6 @@ def analyze_results(results_list):
     total_xp_earned = sum(r['xp_earned'] for r in results_list)
     total_loot_obtained = sum(r['treasure_total'] for r in results_list)
 
-    total_hp_lost_overall = 0
-    total_initial_hp_overall = 0 # To calculate percentage HP loss
 
     # Calculate HP lost per run by comparing initial and final HP (implicitly)
     # The 'hp_lost' in resources_used is cumulative for the party in that run.

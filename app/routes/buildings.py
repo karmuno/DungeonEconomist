@@ -1,15 +1,21 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Keep, Building, Adventurer
 from app.auth import get_current_keep
 from app.buildings import (
-    BUILDING_TYPES, BUILDING_CONFIG, get_building_name, get_upgrade_cost,
-    get_max_assigned, get_min_level_for_assignment, get_max_building_level,
-    get_building_class, has_recruitment_bonus,
+    BUILDING_CONFIG,
+    BUILDING_TYPES,
+    get_building_class,
+    get_building_name,
+    get_max_assigned,
+    get_max_building_level,
+    get_min_level_for_assignment,
+    get_upgrade_cost,
+    has_recruitment_bonus,
 )
+from app.database import get_db
+from app.models import Adventurer, Building, Keep
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 

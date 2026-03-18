@@ -1,13 +1,13 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.database import get_db
-from app.models import Adventurer, Party, Keep
-from app.schemas import PartyOut, PartyCreate, PartyMemberOperation
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.auth import get_current_keep
-from app.routes.adventurers import add_progression_data
+from app.database import get_db
+from app.models import Adventurer, Keep, Party
+from app.schemas import PartyCreate, PartyMemberOperation, PartyOut
 
 router = APIRouter()
 
@@ -219,7 +219,7 @@ def delete_party(
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Cannot delete a party currently on expedition")
     # Clear FK references before deleting
-    from app.models import Expedition, ExpeditionNodeResult, ExpeditionLog
+    from app.models import Expedition, ExpeditionLog, ExpeditionNodeResult
     party.current_expedition_id = None
     party.members.clear()
     db.flush()
