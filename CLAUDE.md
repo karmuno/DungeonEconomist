@@ -1,32 +1,62 @@
-# CLAUDE.md
+# CLAUDE.md — Venturekeep
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Retro RPG party management sim: FastAPI + SQLAlchemy + SQLite backend, Vue 3 + TypeScript + Pinia frontend.
 
-## Project Structure
-Venturekeep - A retro RPG party management simulation using FastAPI, SQLAlchemy, and SQLite
+## Quick Reference
 
-## Build Commands
-- Run server: `python -m app.main`
-- Run tests: `pytest tests/`
-- Run single test: `pytest tests/test_sim.py::test_name`
-- Seed adventurers: `python -m app.seed_adventurers` 
-- Seed equipment: `python -m app.seed_equipment`
-- Lint code: `flake8`
-- Type check: `mypy .`
+- See [README.md](README.md) for full architecture, project structure, and setup instructions.
+- See [buildplans/](buildplans/) for design docs and roadmap.
 
-## Code Style Guidelines
-- Imports: Standard library first, then third-party, then local modules
-- Formatting: Follow PEP 8 (4 spaces for indentation)
-- Types: Use type hints for function parameters and return values
-- Models: SQLAlchemy models in models.py with snake_case naming
-- Schemas: Pydantic models in schemas.py with PascalCase naming
-- Error Handling: Use FastAPI's HTTPException for API errors
-- Database: Use SQLAlchemy Session with dependency injection
-- Enums: Use Python's enum module for enumerations
-- Docstrings: Use """ """ style docstrings for classes and functions
+## Build & Run
 
-## Development Environment
-- Use the virtual environment
+```bash
+# Backend (port 8000)
+python -m app.main
 
-## Memories
-- Read the README
+# Frontend dev server (port 5173)
+cd frontend && npm run dev
+
+# Seed data
+python -m app.seed_adventurers
+python -m app.seed_equipment
+```
+
+## Test & Lint
+
+```bash
+# Tests
+pytest tests/
+pytest tests/test_sim.py::test_name    # single test
+
+# Lint (Python)
+ruff check .
+ruff check --fix .
+
+# Lint (Frontend)
+cd frontend && npx eslint .
+
+# Type check
+mypy .
+cd frontend && npx vue-tsc --noEmit
+```
+
+## Critical Constraints
+
+- **Package management**: Use `uv`, not pip.
+- **Schema changes**: Always use Alembic migrations (`alembic revision --autogenerate`). Never delete the database to migrate.
+- **Database**: SQLite at `./data/db.sqlite`. Use SQLAlchemy sessions with FastAPI dependency injection.
+- **Virtual environment**: Always activate `.venv` before running Python commands.
+
+## Git Workflow
+
+- **Session start**: Pull latest from `main` before starting work (`git pull origin main`).
+- **During work**: Commit and push at every natural stopping point — after completing a significant task or a batch of small related tasks. Never let uncommitted work accumulate.
+- **Periodic pull**: Re-pull from `main` every ~10-15 tasks to stay current.
+- **Branches**: Always work on feature branches. Create PRs for merge.
+
+## Scoped Rules
+
+Additional conventions are in `.claude/rules/`:
+- `python-style.md` — Python code style (applies to `app/**`, `tests/**`)
+- `frontend-style.md` — Vue/TypeScript conventions (applies to `frontend/**`)
+- `testing.md` — Testing conventions

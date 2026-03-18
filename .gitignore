@@ -182,5 +182,6 @@ test_db.sqlite
 node_modules/
 frontend/dist/
 
-# Claude Code
-.claude/
+# Claude Code — ignore local state, allow shared rules
+.claude/*
+!.claude/rules/
