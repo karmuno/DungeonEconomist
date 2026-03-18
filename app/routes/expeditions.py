@@ -1,20 +1,27 @@
+import contextlib
 import json
 import math
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+import random as _random
 from datetime import datetime
 
-from app.database import get_db
-from app.models import (
-    Adventurer, Party, Expedition, ExpeditionNodeResult, ExpeditionLog, Keep,
-)
-from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
-from app.simulator import DungeonSimulator, calculate_loot_split
-from app.progression import check_for_level_up
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.auth import get_current_keep
+from app.database import get_db
 from app.dungeons import DUNGEON_LEVEL_NAMES, get_level_duration
 from app.expedition_events import build_phases, calculate_retreat_results
+from app.models import (
+    Expedition,
+    ExpeditionLog,
+    ExpeditionNodeResult,
+    Keep,
+    Party,
+)
+from app.progression import check_for_level_up
+from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
+from app.simulator import DungeonSimulator
 
 router = APIRouter()
 
@@ -28,8 +35,6 @@ def _make_json_safe(obj):
     if isinstance(obj, list):
         return [_make_json_safe(v) for v in obj]
     return obj
-
-import random as _random
 
 # Shared simulator instance
 simulator = DungeonSimulator()
@@ -105,7 +110,7 @@ def _finalize_expedition(
     retreat: bool = False,
 ) -> dict:
     """Apply final results to adventurers and complete the expedition."""
-    from app.routes.game import format_currency, copper_to_parts
+    from app.routes.game import copper_to_parts, format_currency
 
     party = expedition.party
     events = []
@@ -196,8 +201,12 @@ def _finalize_expedition(
                 member.is_available = True
                 living_members.append(member)
 
-        # Distribute loot
-        total_loot_copper = effective_result.get("treasure_total", 0) * 100
+        # Distribute loot (convert all treasure to copper for even split)
+        total_loot_copper = (
+            effective_result.get("treasure_total", 0) * 100
+            + effective_result.get("treasure_silver", 0) * 10
+            + effective_result.get("treasure_copper", 0)
+        )
         living_count = len(living_members)
         if living_count > 0 and total_loot_copper > 0:
             individual_share_copper = total_loot_copper // living_count
@@ -253,7 +262,7 @@ def _finalize_expedition(
     if living_members:
         magic_chance = _get_magic_item_chance(keep, db)
         if magic_chance > 0 and _random.random() < magic_chance:
-            from app.magic_items import generate_magic_item, can_equip
+            from app.magic_items import can_equip, generate_magic_item
             from app.models import MagicItem
             dungeon_lvl = expedition.dungeon_level or 1
             item = generate_magic_item(dungeon_lvl)
@@ -297,7 +306,7 @@ def _finalize_expedition(
 
 def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -> dict | None:
     """Launch an expedition automatically for auto-delve. Returns summary or None on failure."""
-    from app.magic_items import get_weapon_bonus, get_armor_bonus
+    from app.magic_items import get_armor_bonus, get_weapon_bonus
 
     if not party.members or party.on_expedition:
         return None
@@ -423,7 +432,7 @@ def launch_expedition(
             )
 
     # Convert party to simulator format
-    from app.magic_items import get_weapon_bonus, get_armor_bonus
+    from app.magic_items import get_armor_bonus, get_weapon_bonus
     combat_bonus = _get_combat_bonus(keep, db)  # Training Grounds bonus
 
     party_members = []
@@ -670,7 +679,7 @@ def get_expedition_results(
         party_status = {
             "members_total": len(party.members) if party else 0,
             "members_alive": len([m for m in party.members if m.hp_current > 0]) if party else 0,
-            "members_dead": len([l for l in expedition_logs if l.status == "dead"]),
+            "members_dead": len([log_entry for log_entry in expedition_logs if log_entry.status == "dead"]),
             "hp_current": sum(m.hp_current for m in party.members) if party else 0,
             "hp_max": sum(m.hp_max for m in party.members) if party else 0,
             "hp_percentage": (sum(m.hp_current for m in party.members) /
@@ -699,11 +708,13 @@ def get_expedition_results(
             "duration_days": db_expedition.duration_days,
             "return_day": db_expedition.return_day,
             "treasure_total": sum(node.loot for node in node_results),
+            "treasure_silver": 0,
+            "treasure_copper": 0,
             "special_items": [],
             "xp_earned": sum(node.xp_earned for node in node_results),
             "xp_per_party_member": sum(node.xp_earned for node in node_results) / max(1, len(party.members)) if party else 0,
             "resources_used": {"hp_lost": 0},
-            "dead_members": [l.adventurer.name for l in expedition_logs if l.status == "dead"],
+            "dead_members": [log_entry.adventurer.name for log_entry in expedition_logs if log_entry.status == "dead"],
             "party_status": party_status,
             "log": log,
             "party_members_ready_for_level_up": members_ready_for_level_up
@@ -949,10 +960,8 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
 
     events_log = []
     for node in node_results:
-        try:
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
             events_log.append(json.loads(node.log))
-        except (json.JSONDecodeError, TypeError):
-            pass
 
     return {
         "expedition_id": expedition.id,
@@ -1020,4 +1029,4 @@ def advance_expedition_turn(
 
         return result
     except ValueError:
-        raise HTTPException(status_code=404, detail="Expedition not found in simulator")
+        raise HTTPException(status_code=404, detail="Expedition not found in simulator") from None

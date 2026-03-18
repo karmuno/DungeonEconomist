@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import Account, Keep, Adventurer, MagicItem
 from app.auth import get_current_account, get_current_keep
-from app.magic_items import generate_magic_item, can_equip
+from app.database import get_db
+from app.magic_items import can_equip, generate_magic_item
+from app.models import Account, Adventurer, Keep, MagicItem
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -50,14 +50,14 @@ def execute_command(
     if cmd == "give" and len(parts) >= 3:
         return _handle_give(parts[1:], keep, db)
 
-    raise HTTPException(status_code=400, detail=f"Unknown command. Type 'help' for available commands.")
+    raise HTTPException(status_code=400, detail="Unknown command. Type 'help' for available commands.")
 
 
 def _get_adventurer(adv_id_str: str, keep: Keep, db: Session) -> Adventurer:
     try:
         adv_id = int(adv_id_str)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid adventurer ID: {adv_id_str}")
+        raise HTTPException(status_code=400, detail=f"Invalid adventurer ID: {adv_id_str}") from None
     adv = db.query(Adventurer).filter(Adventurer.id == adv_id, Adventurer.keep_id == keep.id).first()
     if not adv:
         raise HTTPException(status_code=404, detail=f"Adventurer #{adv_id} not found")
@@ -69,7 +69,7 @@ def _handle_add(args: list[str], keep: Keep, db: Session) -> dict:
     try:
         amount = int(args[1])
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid amount: {args[1]}")
+        raise HTTPException(status_code=400, detail=f"Invalid amount: {args[1]}") from None
 
     if resource in ("gp", "gold"):
         keep.add_treasury(amount * 100)
@@ -104,8 +104,9 @@ def _handle_give(args: list[str], keep: Keep, db: Session) -> dict:
                 item = generate_magic_item(level)
                 # Force the other type
                 item["item_type"] = other_type
-                from app.data.magic_items import _ITEM_DATA
                 import random
+
+                from app.data.magic_items import _ITEM_DATA
                 base = random.choice(_ITEM_DATA["weapons"] if other_type == "weapon" else _ITEM_DATA["armor"])
                 item["name"] = f"{item['name'].split()[0]} {base} +{level}"
             else:
@@ -126,9 +127,9 @@ def _handle_give(args: list[str], keep: Keep, db: Session) -> dict:
         try:
             amount = int(args[2])
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid XP amount: {args[2]}")
+            raise HTTPException(status_code=400, detail=f"Invalid XP amount: {args[2]}") from None
         adv.xp += amount
         db.commit()
         return {"ok": True, "message": f"Granted {amount} XP to {adv.name} (#{adv.id}). Total: {adv.xp}"}
 
-    raise HTTPException(status_code=400, detail=f"Unknown give subcommand. Try: give item <id> [level] | give xp <id> <amount>")
+    raise HTTPException(status_code=400, detail="Unknown give subcommand. Try: give item <id> [level] | give xp <id> <amount>")

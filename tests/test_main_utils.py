@@ -1,15 +1,15 @@
+import math
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-import math
-from datetime import datetime, timedelta
+from sqlalchemy.orm import Session, sessionmaker
 
-from app.main import app
+from app.auth import create_access_token, hash_password
 from app.database import get_db
-from app.models import Base, Adventurer, AdventurerClass, Party, Expedition, Account, Keep
-from app.schemas import AdventurerCreate, PartyCreate, GameTimeInfo
-from app.auth import hash_password, create_access_token
+from app.main import app
+from app.models import Account, Adventurer, AdventurerClass, Base, Keep, Party
 
 # Use an in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_db.sqlite"
@@ -187,7 +187,6 @@ def test_bankrupt_adventurer_cannot_launch_expedition(client: TestClient, db_ses
 
     expedition_data = {
         "party_id": party.id,
-        "dungeon_level": 1,
         "dungeon_level": 1
     }
     response = client.post("/expeditions/", json=expedition_data, headers=auth_headers(token, keep.id))
@@ -209,7 +208,6 @@ def test_non_bankrupt_party_launches_expedition(client: TestClient, db_session: 
 
     expedition_data = {
         "party_id": party.id,
-        "dungeon_level": 1,
         "dungeon_level": 1
     }
     response = client.post("/expeditions/", json=expedition_data, headers=auth_headers(token, keep.id))

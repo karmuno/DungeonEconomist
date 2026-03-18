@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any, Union
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, field_validator
+
 
 class AdventurerClass(str, Enum):
     FIGHTER = 'Fighter'
@@ -28,8 +30,8 @@ class LevelUpResult(BaseModel):
     old_level: int
     new_level: int
     hp_gained: int
-    next_level_xp: Optional[int] = None
-    class_bonuses: Dict[str, Any] = {}
+    next_level_xp: int | None = None
+    class_bonuses: dict[str, Any] = {}
 
 class AdventurerOut(BaseModel):
     id: int
@@ -47,12 +49,12 @@ class AdventurerOut(BaseModel):
     is_assigned: bool = False
     is_bankrupt: bool = False
     is_dead: bool = False
-    death_day: Optional[int] = None
-    death_party_name: Optional[str] = None
-    bankruptcy_day: Optional[int] = None
-    magic_items: List[Dict[str, Any]] = []
-    next_level_xp: Optional[int] = None
-    xp_progress: Optional[float] = None
+    death_day: int | None = None
+    death_party_name: str | None = None
+    bankruptcy_day: int | None = None
+    magic_items: list[dict[str, Any]] = []
+    next_level_xp: int | None = None
+    xp_progress: float | None = None
 
     @field_validator('magic_items', mode='before')
     @classmethod
@@ -89,22 +91,22 @@ class PartyCreate(PartyBase):
 
 class PartyOut(PartyBase):
     id: int
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
     on_expedition: bool = False
-    current_expedition_id: Optional[int] = None
-    keep_id: Optional[int] = None
+    current_expedition_id: int | None = None
+    keep_id: int | None = None
     auto_delve_healed: bool = False
     auto_delve_full: bool = False
     auto_decide_events: bool = False
-    auto_delve_level: Optional[int] = None
-    members: List[AdventurerOut] = []
+    auto_delve_level: int | None = None
+    members: list[AdventurerOut] = []
 
     class Config:
         from_attributes = True
 
 class PartyStatusUpdate(BaseModel):
     on_expedition: bool
-    current_expedition_id: Optional[int] = None
+    current_expedition_id: int | None = None
 
 class PartyMemberOperation(BaseModel):
     party_id: int
@@ -117,7 +119,7 @@ class ExpeditionCreate(BaseModel):
 
 class TreasureItem(BaseModel):
     gold: int
-    special_item: Optional[str] = None
+    special_item: str | None = None
     xp_value: int
 
 class CombatResult(BaseModel):
@@ -128,13 +130,13 @@ class CombatResult(BaseModel):
 
 class EncounterEvent(BaseModel):
     type: EncounterType
-    combat: Optional[CombatResult] = None
-    treasure: Optional[TreasureItem] = None
-    trap_damage: Optional[int] = None
+    combat: CombatResult | None = None
+    treasure: TreasureItem | None = None
+    trap_damage: int | None = None
 
 class TurnLog(BaseModel):
     turn: int
-    events: List[EncounterEvent] = []
+    events: list[EncounterEvent] = []
 
 class PartyStatus(BaseModel):
     members_total: int
@@ -153,7 +155,7 @@ class AdventurerLevelUpInfo(BaseModel):
 class GameEvent(BaseModel):
     type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep'
     message: str
-    expedition_id: Optional[int] = None
+    expedition_id: int | None = None
 
 class GameTimeInfo(BaseModel):
     current_day: int
@@ -164,30 +166,32 @@ class AdvanceDayResult(BaseModel):
     current_day: int
     day_started_at: datetime
     last_updated: datetime
-    events: List[GameEvent] = []
+    events: list[GameEvent] = []
 
 class ExpeditionResult(BaseModel):
     expedition_id: int
     party_id: int
     dungeon_level: int
     turns: int
-    start_day: Optional[int] = None
-    duration_days: Optional[int] = None
-    return_day: Optional[int] = None
+    start_day: int | None = None
+    duration_days: int | None = None
+    return_day: int | None = None
     start_time: datetime
-    end_time: Optional[datetime] = None
+    end_time: datetime | None = None
     treasure_total: int
-    special_items: List[str] = []
+    treasure_silver: int = 0
+    treasure_copper: int = 0
+    special_items: list[str] = []
     xp_earned: float
     xp_per_party_member: float
-    resources_used: Dict[str, Any]
-    dead_members: List[str] = []
+    resources_used: dict[str, Any]
+    dead_members: list[str] = []
     party_status: PartyStatus
-    log: List[TurnLog] = []
-    party_members_ready_for_level_up: Optional[List[AdventurerLevelUpInfo]] = None
+    log: list[TurnLog] = []
+    party_members_ready_for_level_up: list[AdventurerLevelUpInfo] | None = None
 
 class TurnResult(BaseModel):
     turn: int
-    events: List[Dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
     party_status: PartyStatus
     expedition_ended: bool

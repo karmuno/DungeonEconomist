@@ -5,9 +5,9 @@ Usage:
 """
 import sys
 
+from app.auth import hash_password
 from app.database import SessionLocal, create_tables
 from app.models import Account
-from app.auth import hash_password
 
 
 def main():
