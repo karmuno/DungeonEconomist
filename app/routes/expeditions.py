@@ -141,7 +141,7 @@ def _finalize_expedition(
         log_entries = stored_log
         exp_node = ExpeditionNodeResult(
             expedition_id=expedition.id,
-            node_id=1,
+            node_id=None,
             success=True,
             xp_earned=int(effective_result["xp_earned"] / len(log_entries)) if log_entries else 0,
             loot=int(effective_result["treasure_total"] / len(log_entries)) if log_entries else 0,
@@ -1019,7 +1019,7 @@ def advance_expedition_turn(
 
         exp_node = ExpeditionNodeResult(
             expedition_id=db_expedition.id,
-            node_id=1,
+            node_id=None,
             success=True,
             xp_earned=sum(event.get("xp_earned", 0) for event in result["events"]) if "events" in result else 0,
             loot=sum(event.get("treasure", {}).get("gold", 0) for event in result["events"] if "treasure" in event) if "events" in result else 0,
