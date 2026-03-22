@@ -157,6 +157,7 @@ class GameEvent(BaseModel):
     message: str
     expedition_id: int | None = None
     first_time: bool = False
+    event_subtype: str | None = None  # e.g. 'stairs', 'death', 'big_haul' for expedition_choice events
 
 class GameTimeInfo(BaseModel):
     current_day: int

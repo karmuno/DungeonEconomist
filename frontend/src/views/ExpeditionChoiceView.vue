@@ -105,20 +105,45 @@ function eventClass(type: string): string {
         </div>
 
         <div class="choice-buttons">
-          <button
-            class="btn btn-primary choice-btn"
-            :disabled="submitting"
-            @click="makeChoice('press_on')"
-          >
-            Press On
-          </button>
-          <button
-            class="btn btn-secondary choice-btn"
-            :disabled="submitting"
-            @click="makeChoice('retreat')"
-          >
-            Retreat
-          </button>
+          <template v-if="pendingEvent.type === 'stairs'">
+            <button
+              class="btn btn-primary choice-btn"
+              :disabled="submitting"
+              @click="makeChoice('press_on_same')"
+            >
+              Continue This Level
+            </button>
+            <button
+              class="btn btn-success choice-btn"
+              :disabled="submitting"
+              @click="makeChoice('press_on_next')"
+            >
+              Descend Deeper
+            </button>
+            <button
+              class="btn btn-secondary choice-btn"
+              :disabled="submitting"
+              @click="makeChoice('retreat')"
+            >
+              Retreat (Level Saved)
+            </button>
+          </template>
+          <template v-else>
+            <button
+              class="btn btn-primary choice-btn"
+              :disabled="submitting"
+              @click="makeChoice('press_on')"
+            >
+              Press On
+            </button>
+            <button
+              class="btn btn-secondary choice-btn"
+              :disabled="submitting"
+              @click="makeChoice('retreat')"
+            >
+              Retreat
+            </button>
+          </template>
         </div>
       </div>
     </div>

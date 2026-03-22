@@ -323,6 +323,8 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             for evt in result.get("events", []):
                 events.append(GameEvent(type=evt["type"], message=evt["message"]))
         else:
+            if choice == "press_on_next" and dp.get("new_level"):
+                expedition.dungeon_level = dp["new_level"]
             expedition.resolved_phases = resolved + 1
             expedition.pending_event = None
             if expedition.resolved_phases < len(decision_points):
@@ -335,6 +337,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                     type="expedition_choice",
                     message=f"Party '{party_name}' pressed on: {dp.get('message', '')}",
                     expedition_id=expedition.id,
+                    event_subtype=dp.get("type"),
                 ))
 
     # Process in-progress expedition events (scoped via Party.keep_id)
@@ -364,6 +367,8 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                         for evt in result.get("events", []):
                             events.append(GameEvent(type=evt["type"], message=evt["message"]))
                     else:
+                        if choice == "press_on_next" and dp.get("new_level"):
+                            expedition.dungeon_level = dp["new_level"]
                         expedition.resolved_phases = resolved + 1
                         expedition.pending_event = None
                         if expedition.resolved_phases < len(decision_points):
@@ -380,6 +385,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                     type="expedition_choice",
                     message=f"Party '{party_name}': {dp.get('message', 'A decision awaits')}",
                     expedition_id=expedition.id,
+                    event_subtype=dp.get("type"),
                 ))
                 continue
 
@@ -393,6 +399,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                     type="expedition_choice",
                     message=f"Party '{party_name}': {pending.get('message', 'A decision awaits')}",
                     expedition_id=expedition.id,
+                    event_subtype=pending.get("type"),
                 ))
             else:
                 events.append(GameEvent(
@@ -442,6 +449,7 @@ def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
             type="expedition_choice",
             message=f"Party '{party_name}': {dp.get('message', 'A decision awaits')}",
             expedition_id=expedition.id,
+            event_subtype=dp.get("type"),
         ))
     return events
 

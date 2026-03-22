@@ -87,6 +87,8 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
                 choice = auto_decide(dp.get("type", ""), party.members if party else [])
                 if choice == "retreat":
                     return _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
+                if choice == "press_on_next" and dp.get("new_level"):
+                    expedition.dungeon_level = dp["new_level"]
                 resolved += 1
                 expedition.resolved_phases = resolved
             # All decisions auto-resolved with press_on, finalize normally
@@ -284,19 +286,17 @@ def _finalize_expedition(
                     "message": f"{recipient.name} found a magic item: {item['name']}!",
                 })
 
-    # Apply stairs discovery from decision points (if player pressed on through them)
+    # Apply stairs discovery — finding stairs always unlocks the next level,
+    # regardless of whether the party pressed on or retreated.
     for dp in sim_result.get("decision_points", []):
         if dp["type"] == "stairs":
-            # Only unlock if the player didn't retreat before this point
-            dp_index = sim_result["decision_points"].index(dp)
-            if (expedition.resolved_phases or 0) > dp_index or not retreat:
-                new_level = dp.get("new_level", 0)
-                if new_level > keep.max_dungeon_level:
-                    keep.max_dungeon_level = new_level
-                    events.append({
-                        "type": "stairs",
-                        "message": dp["message"],
-                    })
+            new_level = dp.get("new_level", 0)
+            if new_level > keep.max_dungeon_level:
+                keep.max_dungeon_level = new_level
+                events.append({
+                    "type": "stairs",
+                    "message": dp["message"],
+                })
 
     if retreat:
         events.insert(0, {"type": "expedition_complete", "message": "The party retreated from the dungeon"})
@@ -528,7 +528,7 @@ def launch_expedition(
 
 
 class ExpeditionChoice(BaseModel):
-    choice: str  # "press_on", "retreat", or "auto"
+    choice: str  # "press_on", "press_on_same", "press_on_next", "retreat", or "auto"
 
 
 @router.post("/expeditions/{expedition_id}/choose")
@@ -549,8 +549,9 @@ def make_expedition_choice(
     if expedition.result != "awaiting_choice":
         raise HTTPException(status_code=400, detail="Expedition is not awaiting a choice")
 
-    if data.choice not in ("press_on", "retreat", "auto"):
-        raise HTTPException(status_code=400, detail="Invalid choice. Must be 'press_on', 'retreat', or 'auto'")
+    valid_choices = ("press_on", "press_on_same", "press_on_next", "retreat", "auto")
+    if data.choice not in valid_choices:
+        raise HTTPException(status_code=400, detail=f"Invalid choice. Must be one of: {', '.join(valid_choices)}")
 
     # Auto: let the party decide
     choice = data.choice
@@ -575,9 +576,17 @@ def make_expedition_choice(
             "events": result.get("events", []),
         }
 
-    # Press on
+    # Press on (same level, next level, or generic press_on for non-stairs events)
+    if choice == "press_on_next":
+        dp = expedition.pending_event or {}
+        new_level = dp.get("new_level")
+        if new_level:
+            expedition.dungeon_level = new_level
+
     expedition.resolved_phases = resolved + 1
     expedition.pending_event = None
+
+    auto_choice_label = choice if was_auto else None
 
     if expedition.resolved_phases < len(decision_points):
         expedition.decision_day = expedition.return_day
@@ -585,7 +594,7 @@ def make_expedition_choice(
         db.commit()
         return {
             "status": "in_progress",
-            "auto_choice": "press_on" if was_auto else None,
+            "auto_choice": auto_choice_label,
             "message": "The expedition continues...",
             "events": [],
         }
@@ -596,7 +605,7 @@ def make_expedition_choice(
     db.commit()
     return {
         "status": "in_progress",
-        "auto_choice": "press_on" if was_auto else None,
+        "auto_choice": auto_choice_label,
         "message": "The expedition continues...",
         "events": [],
     }

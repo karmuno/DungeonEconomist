@@ -219,12 +219,25 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
           Loot secured so far: {{ summary.pending_event!.loot_so_far }} gp
         </div>
         <div class="decision-buttons">
-          <button class="btn btn-primary" :disabled="choosing" @click="makeChoice('press_on')">
-            Press On
-          </button>
-          <button class="btn btn-secondary" :disabled="choosing" @click="makeChoice('retreat')">
-            Retreat
-          </button>
+          <template v-if="summary.pending_event!.type === 'stairs'">
+            <button class="btn btn-primary" :disabled="choosing" @click="makeChoice('press_on_same')">
+              Continue This Level
+            </button>
+            <button class="btn btn-success" :disabled="choosing" @click="makeChoice('press_on_next')">
+              Descend Deeper
+            </button>
+            <button class="btn btn-secondary" :disabled="choosing" @click="makeChoice('retreat')">
+              Retreat (Level Saved)
+            </button>
+          </template>
+          <template v-else>
+            <button class="btn btn-primary" :disabled="choosing" @click="makeChoice('press_on')">
+              Press On
+            </button>
+            <button class="btn btn-secondary" :disabled="choosing" @click="makeChoice('retreat')">
+              Retreat
+            </button>
+          </template>
           <button class="btn btn-secondary" :disabled="choosing" @click="makeChoice('auto')">
             You Decide
           </button>
