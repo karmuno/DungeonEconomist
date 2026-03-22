@@ -54,6 +54,23 @@ Open [http://localhost:5173](http://localhost:5173) for the app. The Vite dev se
 
 API docs are available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
+### Docker (Postgres)
+
+For local development with Postgres:
+
+```bash
+# Start only Postgres (run app natively with hot-reload)
+docker compose up db
+cp .env.example .env          # DATABASE_URL points to local Postgres
+source .env && alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+
+# Or start everything in Docker (no hot-reload)
+docker compose up --build
+```
+
+Open [http://localhost:8000](http://localhost:8000). Data persists in a Docker volume across restarts.
+
 ### Production Build
 
 ```bash

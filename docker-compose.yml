@@ -1,0 +1,38 @@
+# Local development: Postgres database + app with hot-reload.
+# Usage:
+#   docker compose up        # start Postgres + app
+#   docker compose up db     # start only Postgres (run app natively)
+#
+# Production (Render): uses Dockerfile directly with DATABASE_URL env var
+# pointing to a managed Postgres instance — no docker-compose needed.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: venturekeep
+      POSTGRES_USER: venturekeep
+      POSTGRES_PASSWORD: venturekeep
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U venturekeep"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://venturekeep:venturekeep@db:5432/venturekeep
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
