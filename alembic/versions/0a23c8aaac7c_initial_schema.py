@@ -102,7 +102,7 @@ def upgrade() -> None:
     op.create_table('expedition_node_results',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('expedition_id', sa.Integer(), nullable=False),
-    sa.Column('node_id', sa.Integer(), nullable=False),
+    sa.Column('node_id', sa.Integer(), nullable=True),
     sa.Column('success', sa.Boolean(), nullable=True),
     sa.Column('xp_earned', sa.Integer(), nullable=True),
     sa.Column('loot', sa.Integer(), nullable=True),

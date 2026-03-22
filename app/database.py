@@ -1,11 +1,18 @@
 import os
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models import Base
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/db.sqlite")
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    # Only fall back to SQLite for local dev (not in Docker/production).
+    if os.environ.get("PORT"):
+        raise RuntimeError("DATABASE_URL must be set in production (PORT is set but DATABASE_URL is not)")
+    DATABASE_URL = "sqlite:///./data/db.sqlite"
+    Path("./data").mkdir(exist_ok=True)
 
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
