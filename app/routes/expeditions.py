@@ -80,10 +80,13 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
         party = expedition.party
 
         # Auto-decide if party has auto_decide_events
+        # (never auto-decide stairs — always prompt the player)
         if party and party.auto_decide_events:
             from app.expedition_events import auto_decide
             while resolved < len(decision_points):
                 dp = decision_points[resolved]
+                if dp.get("type") == "stairs":
+                    break  # stairs always require player input
                 choice = auto_decide(dp.get("type", ""), party.members if party else [])
                 if choice == "retreat":
                     return _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
@@ -91,6 +94,13 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
                     expedition.dungeon_level = dp["new_level"]
                 resolved += 1
                 expedition.resolved_phases = resolved
+            # If we stopped at a stairs decision, pause for player input
+            if resolved < len(decision_points):
+                dp = decision_points[resolved]
+                expedition.result = "awaiting_choice"
+                expedition.pending_event = dp
+                expedition.decision_day = expedition.return_day
+                return {"events": [], "awaiting_choice": True, "pending_event": dp}
             # All decisions auto-resolved with press_on, finalize normally
             return _finalize_expedition(expedition, sim_result, db, keep)
 

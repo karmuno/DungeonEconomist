@@ -359,7 +359,8 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                 party_obj = expedition.party
 
                 # Auto-decide if party has auto_decide_events enabled
-                if party_obj and party_obj.auto_decide_events:
+                # (never auto-decide stairs — always prompt the player)
+                if party_obj and party_obj.auto_decide_events and dp.get("type") != "stairs":
                     choice = auto_decide(dp.get("type", ""), party_obj.members if party_obj else [])
                     if choice == "retreat":
                         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
