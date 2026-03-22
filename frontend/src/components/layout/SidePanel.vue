@@ -532,9 +532,14 @@ onUnmounted(() => {
 
 .choice-popup-buttons {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
   justify-content: center;
   margin-bottom: 0.75rem;
+}
+
+.choice-popup-buttons .btn {
+  min-width: 120px;
 }
 
 .choice-popup-view {
