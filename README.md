@@ -4,6 +4,8 @@ A retro RPG party management simulation. Manage a pool of adventurers, form part
 
 Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired by classic tabletop RPG resource management.
 
+**[Try the live demo](https://venturekeep.onrender.com/)** — hosted on Render's free tier, so the first load may take a minute to spin up. Data may be reset at any time.
+
 ## Features
 
 - **Adventurer Management** — Create and manage adventurers across 6 classic classes (Fighter, Cleric, Magic-User, Elf, Dwarf, Hobbit). Track XP, HP, gold, and equipment.

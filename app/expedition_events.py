@@ -23,10 +23,17 @@ BASE_STAIRS_CHANCE = 0.025
 def auto_decide(event_type: str, party: list = None) -> str:
     """Have the party automatically decide what to do at a decision point.
 
-    Returns 'press_on' or 'retreat'. Eventually this will factor in party
-    composition, morale, HP levels, etc.
+    For stairs events, returns 'press_on_same', 'press_on_next', or 'retreat'.
+    For other events, returns 'press_on' or 'retreat'.
+    Eventually this will factor in party composition, morale, HP levels, etc.
     """
     # TODO: weight by party composition, current HP %, class abilities
+    if event_type == "stairs":
+        return random.choices(
+            ["press_on_same", "press_on_next", "retreat"],
+            weights=[50, 30, 20],
+            k=1,
+        )[0]
     return random.choice(["press_on", "retreat"])
 
 
@@ -90,7 +97,7 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
                     "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
                     "new_level": next_level,
                     "new_level_name": next_name,
-                    "options": ["press_on", "retreat"],
+                    "options": ["press_on_same", "press_on_next", "retreat"],
                 })
                 break  # Only one stairs discovery per expedition
 

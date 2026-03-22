@@ -50,7 +50,7 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   level_up: 'success',
 }
 
-function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean }>) {
+function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null }>) {
   for (const event of events) {
     // First-time level up — show popup
     if (event.type === 'level_up' && event.first_time) {
@@ -63,7 +63,7 @@ function processEvents(events: Array<{ type: string; message: string; expedition
     if (event.type === 'expedition_choice' && event.expedition_id) {
       choiceMessage.value = event.message
       choiceExpeditionId.value = event.expedition_id
-      choiceEventType.value = ''
+      choiceEventType.value = event.event_subtype ?? ''
       showChoicePopup.value = true
       gameTime.expeditionVersion++
       continue
@@ -229,20 +229,45 @@ onUnmounted(() => {
     <div class="choice-popup">
       <p class="choice-popup-msg">{{ choiceMessage }}</p>
       <div class="choice-popup-buttons">
-        <button
-          class="btn btn-primary"
-          :disabled="choosingInPopup"
-          @click="popupChoice('press_on')"
-        >
-          Press On
-        </button>
-        <button
-          class="btn btn-secondary"
-          :disabled="choosingInPopup"
-          @click="popupChoice('retreat')"
-        >
-          Retreat
-        </button>
+        <template v-if="choiceEventType === 'stairs'">
+          <button
+            class="btn btn-primary"
+            :disabled="choosingInPopup"
+            @click="popupChoice('press_on_same')"
+          >
+            Continue This Level
+          </button>
+          <button
+            class="btn btn-success"
+            :disabled="choosingInPopup"
+            @click="popupChoice('press_on_next')"
+          >
+            Descend Deeper
+          </button>
+          <button
+            class="btn btn-secondary"
+            :disabled="choosingInPopup"
+            @click="popupChoice('retreat')"
+          >
+            Retreat (Level Saved)
+          </button>
+        </template>
+        <template v-else>
+          <button
+            class="btn btn-primary"
+            :disabled="choosingInPopup"
+            @click="popupChoice('press_on')"
+          >
+            Press On
+          </button>
+          <button
+            class="btn btn-secondary"
+            :disabled="choosingInPopup"
+            @click="popupChoice('retreat')"
+          >
+            Retreat
+          </button>
+        </template>
         <button
           class="btn btn-secondary"
           :disabled="choosingInPopup"

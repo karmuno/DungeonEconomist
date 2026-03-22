@@ -37,7 +37,7 @@ const availableAdventurers = computed(() => {
   return allAdventurers.value.filter((a) => {
     if (selectedIds.value.has(a.id)) return false
     if (affiliatedIds.value.has(a.id)) return false
-    if (!a.is_available || a.on_expedition || a.is_dead || a.is_bankrupt) return false
+    if (!a.is_available || a.on_expedition || a.is_assigned || a.is_dead || a.is_bankrupt) return false
     if (classFilter.value && a.adventurer_class !== classFilter.value) return false
     return true
   })
