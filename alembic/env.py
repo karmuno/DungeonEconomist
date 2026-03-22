@@ -14,10 +14,13 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override sqlalchemy.url from DATABASE_URL env var if set
+# Override sqlalchemy.url from DATABASE_URL env var if set.
+# In production (PORT is set by Render), DATABASE_URL is required.
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
+elif os.environ.get("PORT"):
+    raise RuntimeError("DATABASE_URL must be set in production (PORT is set but DATABASE_URL is not)")
 
 # add your model's MetaData object here
 # for 'autogenerate' support
