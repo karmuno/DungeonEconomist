@@ -25,9 +25,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   async function fetchPlayer() {
-    // First load from cached keep data
-    loadFromKeep()
-    // Then refresh from server
+    // Refresh from server
     try {
       const stats = await gameApi.getDashboardStats()
       treasuryGold.value = stats.treasury_gold

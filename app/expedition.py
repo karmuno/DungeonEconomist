@@ -1,6 +1,23 @@
-import sys
 import random
+import sys
 from enum import Enum
+
+from app.monsters import (
+    get_monster_count,
+    get_monster_hit_dice,
+    get_random_monster,
+    roll_monster_hd,
+)
+
+# PC hit die size by class (matches progression.py comments)
+PC_HIT_DIE = {
+    "Fighter": 8,
+    "Dwarf": 8,
+    "Cleric": 6,
+    "Elf": 6,
+    "Hobbit": 6,
+    "Magic-User": 4,
+}
 
 class EncounterType(Enum):
     MONSTER = "Monster"
@@ -31,62 +48,82 @@ class Expedition:
             "hp_lost": 0,
         }
         self.dead = []
-        
-    def check_for_encounter(self):
-        """Check if an encounter occurs on this turn"""
+
+    def determine_room_contents(self):
+        """Determine what's in this room.
+
+        Returns a list of encounter types (may be empty, or contain
+        MONSTER + TREASURE together).
+
+        Odds:
+          1/3 monster (of those, 4/6 also have treasure)
+          If no monster: 1/6 treasure, 1/6 trap, 1/6 clue, 3/6 empty
+        """
         roll = random.randint(1, 6)
-        return roll == 1 or (roll == 6 and random.random() < 0.5)  # 50% chance on a 6
-    
-    def determine_encounter_type(self):
-        """Determine what type of encounter occurs"""
-        roll = random.randint(1, 6)
-        if roll <= 3:
-            return EncounterType.MONSTER
-        elif roll == 4:
-            return EncounterType.TRAP
-        elif roll == 5:
-            return EncounterType.CLUE
-        else:
-            return EncounterType.TREASURE
-    
+        if roll <= 2:  # 2/6 = 1/3 monster
+            # Monster room — 4/6 chance of treasure too
+            if random.randint(1, 6) <= 4:
+                return [EncounterType.MONSTER, EncounterType.TREASURE]
+            return [EncounterType.MONSTER]
+        else:  # 4/6 = 2/3 no monster
+            sub = random.randint(1, 6)
+            if sub == 1:
+                return [EncounterType.TREASURE]
+            elif sub == 2:
+                return [EncounterType.TRAP]
+            elif sub == 3:
+                return [EncounterType.CLUE]
+            else:  # 4, 5, 6 = empty
+                return []
+
+
     def resolve_combat(self, monster_type):
-        """Resolve combat with a monster encounter"""
-        # Calculate party strength (sum of levels)
-        party_strength = sum(
-            member["level"]
-            for member in self.party if member.get("current_hp", 1) > 0
-        )
-        
-        # Calculate monster strength based on type and dungeon level
-        monster_hit_dice = self._get_monster_hit_dice(monster_type, self.dungeon_level)
-        monster_difficulty = self._get_monster_difficulty(monster_type)
-        monster_strength = monster_hit_dice * monster_difficulty
-        
-        # Determine outcome
-        strength_ratio = party_strength / monster_strength if monster_strength else 1
-        
-        if strength_ratio > 2.0:
+        """Resolve combat by rolling HD for both sides.
+
+        PCs roll their class HD per level; monsters roll their HD per monster.
+        Outcome is determined by comparing the two totals.
+        """
+        alive_members = [m for m in self.party if m.get("current_hp", 1) > 0]
+
+        # Roll party HD: each living PC rolls (level)d(class_hit_die)
+        party_roll = 0
+        for member in alive_members:
+            die_size = PC_HIT_DIE.get(member.get("character_class", ""), 6)
+            level = member.get("level", 1)
+            party_roll += sum(random.randint(1, die_size) for _ in range(level))
+
+        # Determine number of monsters and roll their HD
+        monster_count = get_monster_count(monster_type)
+        monster_hd = get_monster_hit_dice(monster_type)
+        monster_roll = roll_monster_hd(monster_type, monster_count)
+        total_monster_hd = monster_hd * monster_count
+
+        # Compare rolls to determine outcome
+        if monster_roll == 0:
+            ratio = 2.0
+        else:
+            ratio = party_roll / monster_roll
+
+        if ratio >= 2.0:
             outcome = CombatOutcome.CLEAR_VICTORY
-            hp_loss_percentage = 0.1  # 10% HP loss
-        elif strength_ratio > 1.2:
+            hp_loss_percentage = 0.1
+        elif ratio >= 1.2:
             outcome = CombatOutcome.VICTORY
-            hp_loss_percentage = 0.25  # 25% HP loss
-        elif strength_ratio > 0.8:
+            hp_loss_percentage = 0.25
+        elif ratio >= 0.83:  # within ~20% of each other
             outcome = CombatOutcome.TOUGH_FIGHT
-            hp_loss_percentage = 0.5  # 50% HP loss
-        elif strength_ratio > 0.5:
+            hp_loss_percentage = 0.5
+        elif ratio >= 0.5:
             outcome = CombatOutcome.RETREAT
-            hp_loss_percentage = 0.6  # 60% HP loss
+            hp_loss_percentage = 0.6
         else:
             outcome = CombatOutcome.DISASTER
-            hp_loss_percentage = 0.8  # 80% HP loss or worse
-            
-        # Calculate resource depletion
-        alive_members = [m for m in self.party if m["current_hp"] > 0]
+            hp_loss_percentage = 0.8
+
+        # Apply damage to party
         total_party_hp = sum(member["current_hp"] for member in alive_members)
         hp_lost = int(total_party_hp * hp_loss_percentage)
-        
-        # Distribute damage among alive members
+
         if alive_members:
             base_loss = hp_lost // len(alive_members)
             remainder = hp_lost % len(alive_members)
@@ -97,80 +134,56 @@ class Expedition:
                     member["current_hp"] = 0
                     if member not in self.dead:
                         self.dead.append(member)
-        
-        # Update resources used
+
         self.resources_used["hp_lost"] += hp_lost
-        
-        # Calculate XP from monster
-        monster_xp = int(monster_hit_dice * (100 + (self.dungeon_level * 10))) # Base XP + bonus per dungeon level
-        
-        # Add bonus XP for surviving encounters in higher dungeon levels
+
+        # XP based on total monster HD defeated
+        monster_xp = int(total_monster_hd * (100 + (self.dungeon_level * 10)))
         if outcome not in [CombatOutcome.DISASTER, CombatOutcome.RETREAT]:
             monster_xp += self.dungeon_level * 10
 
         return {
             "outcome": outcome.value,
             "monster_type": monster_type,
+            "monster_count": monster_count,
+            "party_roll": party_roll,
+            "monster_roll": monster_roll,
             "hp_lost": hp_lost,
-            "xp_earned": monster_xp
+            "xp_earned": monster_xp,
         }
-    
+
     def generate_treasure(self, monster_type=None):
-        """Generate treasure based on encounter"""
-        # Basic treasure generation logic
-        base_value = self.dungeon_level * 100  # 100gp per dungeon level as base
-        
-        if monster_type:
-            # Treasure from monster
-            treasure_modifier = self._get_monster_treasure_modifier(monster_type)
-            treasure_value = int(base_value * treasure_modifier * random.uniform(0.5, 1.5))
-        else:
-            # Unguarded treasure
-            treasure_value = int(base_value * random.uniform(1.0, 3.0))
-        
-        # Chance for special items
-        special_item = None
-        # Increase chance for special item: 10% at L1, 15% at L2, ..., up to 50%
-        special_item_chance = min(0.5, 0.05 + (0.05 * self.dungeon_level))
-        if random.random() < special_item_chance:
-            special_item = self._generate_special_item()
-        
-        return {
-            "gold": treasure_value,
-            "special_item": special_item,
-            "xp_value": treasure_value  # 1 XP per GP
-        }
-    
+        """Generate treasure using JSON config."""
+        from app.treasure import generate_treasure as _gen_treasure
+        return _gen_treasure(self.dungeon_level)
+
     def run_expedition(self, turns=10):
         """Run the expedition for a number of turns"""
         expedition_log = []
-        
+
         for _ in range(turns):
             self.turns += 1
             turn_log = {"turn": self.turns, "events": []}
-            
-            # Check for encounter
-            if self.check_for_encounter():
-                encounter_type = self.determine_encounter_type()
+
+            room_contents = self.determine_room_contents()
+            for encounter_type in room_contents:
                 encounter_log = {"type": encounter_type.value}
-                
+
                 if encounter_type == EncounterType.MONSTER:
                     monster_type = self._get_random_monster()
                     combat_result = self.resolve_combat(monster_type)
                     encounter_log["combat"] = combat_result
                     self.xp_earned += combat_result["xp_earned"]
-                    
-                    # Generate treasure if monster defeated
-                    if combat_result["outcome"] in [CombatOutcome.CLEAR_VICTORY, CombatOutcome.VICTORY]:
-                        treasure = self.generate_treasure(monster_type)
-                        encounter_log["treasure"] = treasure
-                        self.treasure.append(treasure)
-                        self.xp_earned += treasure["xp_value"]
-                
+
+                elif encounter_type == EncounterType.TREASURE:
+                    treasure = self.generate_treasure()
+                    encounter_log["treasure"] = treasure
+                    self.treasure.append(treasure)
+                    self.xp_earned += treasure["xp_value"]
+
                 elif encounter_type == EncounterType.TRAP:
                     trap_damage = random.randint(1, 6) * self.dungeon_level
                     self.resources_used["hp_lost"] += trap_damage
-                    # Distribute trap damage among alive members
                     alive_members = [m for m in self.party if m["current_hp"] > 0]
                     if alive_members:
                         base_loss = trap_damage // len(alive_members)
@@ -183,22 +196,18 @@ class Expedition:
                                 if member not in self.dead:
                                     self.dead.append(member)
                     encounter_log["trap_damage"] = trap_damage
-                
-                elif encounter_type == EncounterType.TREASURE:
-                    treasure = self.generate_treasure()
-                    encounter_log["treasure"] = treasure
-                    self.treasure.append(treasure)
-                    self.xp_earned += treasure["xp_value"]
-                
+
                 turn_log["events"].append(encounter_log)
-            
+
             expedition_log.append(turn_log)
-        
+
         # Calculate final results
         results = {
             "turns": self.turns,
             "encounters": len(self.encounters),
             "treasure_total": sum(t["gold"] for t in self.treasure),
+            "treasure_silver": sum(t.get("silver", 0) for t in self.treasure),
+            "treasure_copper": sum(t.get("copper", 0) for t in self.treasure),
             "special_items": [t["special_item"] for t in self.treasure if t["special_item"]],
             "xp_earned": self.xp_earned,
             "xp_per_party_member": self.xp_earned // len(self.party) if self.party else 0,
@@ -206,77 +215,13 @@ class Expedition:
             "dead": [member["name"] for member in self.dead],
             "log": expedition_log
         }
-        
+
         return results
-    
-    # Helper methods
-    def _get_monster_hit_dice(self, monster_type, dungeon_level):
-        """Get hit dice for a monster based on type and dungeon level"""
-        # Simplified version - would be expanded with actual monster tables
-        base_hd = dungeon_level # Base HD directly scales with dungeon_level
-        monster_hd_modifiers = {
-            "Goblin": 0.5,
-            "Orc": 1.0,
-            "Hobgoblin": 1.5,
-            "Ogre": 2.5,  # Increased
-            "Troll": 3.5,  # Increased
-            "Dragon": 6.0  # Increased
-        }
-        return max(1, base_hd * monster_hd_modifiers.get(monster_type, 1.0)) # Ensure at least 1 HD
-    
-    def _get_monster_difficulty(self, monster_type):
-        """Get difficulty factor for a monster type"""
-        difficulties = {
-            "Goblin": 0.8,
-            "Orc": 1.0,
-            "Hobgoblin": 1.3, # Increased
-            "Ogre": 1.8,     # Increased
-            "Troll": 2.5,    # Increased
-            "Dragon": 4.0    # Increased
-        }
-        return difficulties.get(monster_type, 1.0)
-    
-    def _get_monster_treasure_modifier(self, monster_type):
-        """Get treasure modifier for a monster type"""
-        modifiers = {
-            "Goblin": 0.5,
-            "Orc": 1.0,
-            "Hobgoblin": 1.5, # Increased
-            "Ogre": 3.0,     # Increased
-            "Troll": 4.0,    # Increased
-            "Dragon": 8.0    # Increased
-        }
-        return modifiers.get(monster_type, 1.0)
-    
-    def _generate_special_item(self):
-        """Generate a special magic item"""
-        items = [
-            "Potion of Healing",
-            "Scroll of Protection",
-            "Ring of Protection +1",
-            "Sword +1",
-            "Wand of Magic Detection"
-        ]
-        return random.choice(items)
-    
+
+    # Helper methods (delegates to app.monsters JSON config)
     def _get_random_monster(self):
-        """Get a random monster appropriate for the dungeon level"""
-        # Simplified - would have proper monster tables by level
-        monster_tables = {
-            1: ["Goblin", "Orc", "Skeleton"],
-            2: ["Hobgoblin", "Zombie", "Ghoul"],
-            3: ["Ogre", "Wight", "Werewolf"],
-            4: ["Troll", "Wraith", "Owlbear"],
-            5: ["Giant", "Spectre", "Chimera"],
-            6: ["Dragon", "Vampire", "Demon"]
-        }
-        
-        level_table = monster_tables.get(
-            min(self.dungeon_level, max(monster_tables.keys())), 
-            monster_tables[1]
-        )
-        return random.choice(level_table)
-    
+        return get_random_monster(self.dungeon_level)
+
 def main(argv):
     # Create a party of adventurers
     party = [

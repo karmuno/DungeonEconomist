@@ -54,6 +54,14 @@
                     <span>{{ expedition_results.treasure_total }}</span>
                 </div>
                 <div class="flex justify-between">
+                    <span class="font-medium">Silver:</span>
+                    <span>{{ expedition_results.treasure_silver|default(0) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Copper:</span>
+                    <span>{{ expedition_results.treasure_copper|default(0) }}</span>
+                </div>
+                <div class="flex justify-between">
                     <span class="font-medium">XP:</span>
                     <span>{{ expedition_results.xp_earned }}</span>
                 </div>

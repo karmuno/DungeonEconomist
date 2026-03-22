@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import * as buildingsApi from '../api/buildings'
 import * as adventurersApi from '../api/adventurers'
 import type { BuildingData } from '../api/buildings'
 import type { AdventurerOut } from '../types'
 import { useNotificationsStore } from '../stores/notifications'
 import { usePlayerStore } from '../stores/player'
-import { formatCurrency } from '../utils/currency'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 
 const notifications = useNotificationsStore()

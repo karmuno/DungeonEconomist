@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
 import type { DashboardStats } from '../../types'
-import { formatGameDayShort } from '../../utils/calendar'
+import { formatCurrency } from '../../utils/currency'
 
 const router = useRouter()
 
@@ -39,7 +39,7 @@ function statusLabel(result: string): string {
         <tr v-for="exp in expeditions" :key="exp.id" class="clickable-row" @click="viewSummary(exp.id)">
           <td>{{ exp.party_name }}</td>
           <td>{{ exp.dungeon_level }}</td>
-          <td class="text-gold">{{ exp.treasure_total }}gp</td>
+          <td class="text-gold">{{ formatCurrency(exp.treasure_total, exp.treasure_silver ?? 0, exp.treasure_copper ?? 0) }}</td>
           <td>{{ exp.xp_earned }}</td>
           <td><StatusBadge :status="statusLabel(exp.result)" /></td>
         </tr>

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_keep
+from app.buildings import BUILDING_TYPES, get_upgrade_cost
 from app.database import get_db
 from app.dungeons import DUNGEON_LEVELS
 from app.models import (
@@ -407,23 +408,14 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     events.extend(upkeep_events)
 
     # Auto level-up
-    from app.progression import calculate_hp_gain, check_for_level_up
+    from app.progression import apply_level_ups
     level_up_candidates = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
     ).all()
     for adv in level_up_candidates:
-        while check_for_level_up(adv.level, adv.xp):
-            old_level = adv.level
-            adv.level += 1
-            hp_gain = calculate_hp_gain(adv.adventurer_class, old_level)
-            adv.hp_max += hp_gain
-            adv.hp_current += hp_gain
-            events.append(GameEvent(
-                type="level_up",
-                message=f"{adv.name} leveled up to {adv.level}! (+{hp_gain} HP)",
-            ))
+        apply_level_ups(adv, keep, events)
 
     return events
 
@@ -567,7 +559,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     # Buildings summary
     from app.buildings import (
         BUILDING_CONFIG,
-        BUILDING_TYPES,
         get_building_class,
         get_building_name,
         has_recruitment_bonus,
@@ -659,7 +650,9 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     elif party_count > 0 and len(active_expeditions) == 0:
         hint = "launch_expedition"
     elif not built_types:
-        hint = "Visit the Village to build your first structure."
+        cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
+        if keep.treasury_total_copper() >= cheapest_cost_copper:
+            hint = "Visit the Village to build your first structure."
 
     return {
         "adventurer_count": adventurer_count,
@@ -732,7 +725,7 @@ def get_dungeon_info(keep: Keep = Depends(get_current_keep)):
             "level": level_num,
             "name": lvl["name"],
             "duration_days": lvl["duration_days"],
-            "unlocked": level_num <= keep.max_dungeon_level,
+            "unlocked": level_num <= (keep.max_dungeon_level or 1),
         })
     return {
         "dungeon_name": keep.dungeon_name,

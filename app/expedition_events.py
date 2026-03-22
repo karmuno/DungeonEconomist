@@ -11,12 +11,13 @@ random; eventually this will depend on party composition and morale.
 """
 
 import random
+
 from app.dungeons import DUNGEON_LEVEL_NAMES
 
 # Treasure threshold for "big haul" event (gold pieces in a single turn)
 BIG_HAUL_THRESHOLD = 8
 
-BASE_STAIRS_CHANCE = 0.0025
+BASE_STAIRS_CHANCE = 0.025
 
 
 def auto_decide(event_type: str, party: list = None) -> str:
@@ -114,6 +115,8 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
 def _make_phase_from_log(start_turn: int, end_turn: int, log: list) -> dict:
     """Build a phase dict for turns [start_turn, end_turn)."""
     phase_loot = 0
+    phase_silver = 0
+    phase_copper = 0
     phase_xp = 0
     phase_deaths = []
 
@@ -123,6 +126,8 @@ def _make_phase_from_log(start_turn: int, end_turn: int, log: list) -> dict:
             treasure = event.get("treasure")
             if treasure:
                 phase_loot += treasure.get("gold", 0)
+                phase_silver += treasure.get("silver", 0)
+                phase_copper += treasure.get("copper", 0)
                 phase_xp += treasure.get("xp_value", 0)
             combat = event.get("combat")
             if combat:
@@ -133,6 +138,8 @@ def _make_phase_from_log(start_turn: int, end_turn: int, log: list) -> dict:
         "start_turn": start_turn,
         "end_turn": end_turn,
         "loot": phase_loot,
+        "silver": phase_silver,
+        "copper": phase_copper,
         "xp": phase_xp,
         "deaths": phase_deaths,
     }
@@ -141,11 +148,9 @@ def _make_phase_from_log(start_turn: int, end_turn: int, log: list) -> dict:
 def calculate_retreat_results(sim_result: dict, current_decision_index: int) -> dict:
     """Calculate partial results when player retreats at decision point N.
 
-    Includes everything up through the phase containing the trigger event,
-    plus one retreat turn (the turn right after the decision point).
+    Includes everything up through the phase containing the trigger event.
     """
     phases = sim_result.get("phases", [])
-    log = sim_result.get("log", [])
     decision_points = sim_result.get("decision_points", [])
 
     # Include phase 0 through current_decision_index (the phase that ends
@@ -153,46 +158,24 @@ def calculate_retreat_results(sim_result: dict, current_decision_index: int) -> 
     included_phases = phases[:current_decision_index + 1]
 
     partial_loot = sum(p["loot"] for p in included_phases)
+    partial_silver = sum(p.get("silver", 0) for p in included_phases)
+    partial_copper = sum(p.get("copper", 0) for p in included_phases)
     partial_xp = sum(p["xp"] for p in included_phases)
     partial_deaths = []
     for p in included_phases:
         partial_deaths.extend(p.get("deaths", []))
 
-    # Retreat turn: one turn after the decision point
-    retreat_turn_idx = None
-    if current_decision_index < len(decision_points):
-        dp_turn = decision_points[current_decision_index].get("after_turn", 0)
-        # The retreat turn is the next turn in the log after dp_turn
-        for i, turn in enumerate(log):
-            if turn.get("turn", 0) > dp_turn:
-                retreat_turn_idx = i
-                break
-
-    # Add retreat turn results (may encounter something on the way out)
-    retreat_log = None
-    if retreat_turn_idx is not None and retreat_turn_idx < len(log):
-        retreat_log = log[retreat_turn_idx]
-        for event in retreat_log.get("events", []):
-            treasure = event.get("treasure")
-            if treasure:
-                partial_loot += treasure.get("gold", 0)
-                partial_xp += treasure.get("xp_value", 0)
-            combat = event.get("combat")
-            if combat:
-                partial_xp += combat.get("xp_earned", 0)
-        partial_deaths.extend(retreat_log.get("deaths", []))
-
-    # Calculate the cutoff turn for the log (everything up to retreat turn)
+    # Calculate the cutoff turn for the log (everything up to the decision point)
     cutoff_turn = None
-    if retreat_log:
-        cutoff_turn = retreat_log.get("turn", 0)
-    elif current_decision_index < len(decision_points):
+    if current_decision_index < len(decision_points):
         cutoff_turn = decision_points[current_decision_index].get("after_turn", 0)
 
     member_count = sim_result.get("party_status", {}).get("members_total", 1)
 
     return {
         "treasure_total": partial_loot,
+        "treasure_silver": partial_silver,
+        "treasure_copper": partial_copper,
         "xp_earned": partial_xp,
         "xp_per_party_member": partial_xp // max(1, member_count),
         "dead_members": partial_deaths,

@@ -1,0 +1,52 @@
+{
+  "levels": {
+    "1": {
+      "name": "Petty Hoard",
+      "gold_dice": "2d6",
+      "gold_multiplier": 10,
+      "gold_bonus_dice": "1d10-1",
+      "silver_dice": "3d6",
+      "copper_dice": "5d6"
+    },
+    "2": {
+      "name": "Small Cache",
+      "gold_dice": "2d6",
+      "gold_multiplier": 20,
+      "gold_bonus_dice": "1d10-1",
+      "silver_dice": "4d6",
+      "copper_dice": "6d6"
+    },
+    "3": {
+      "name": "Modest Trove",
+      "gold_dice": "2d6",
+      "gold_multiplier": 30,
+      "gold_bonus_dice": "1d10-1",
+      "silver_dice": "5d8",
+      "copper_dice": "8d6"
+    },
+    "4": {
+      "name": "Wealthy Stash",
+      "gold_dice": "2d6",
+      "gold_multiplier": 40,
+      "gold_bonus_dice": "1d10-1",
+      "silver_dice": "6d8",
+      "copper_dice": "10d6"
+    },
+    "5": {
+      "name": "Grand Treasure",
+      "gold_dice": "2d6",
+      "gold_multiplier": 50,
+      "gold_bonus_dice": "1d10-1",
+      "silver_dice": "8d8",
+      "copper_dice": "10d8"
+    },
+    "6": {
+      "name": "Dragon's Hoard",
+      "gold_dice": "2d6",
+      "gold_multiplier": 60,
+      "gold_bonus_dice": "1d10-1",
+      "silver_dice": "10d10",
+      "copper_dice": "10d10"
+    }
+  }
+}

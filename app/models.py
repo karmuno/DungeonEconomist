@@ -37,6 +37,7 @@ class Keep(Base):
     created_at = Column(DateTime, default=datetime.now)
     dungeon_name = Column(String, nullable=True)
     max_dungeon_level = Column(Integer, default=1)
+    highest_level_achieved = Column(Integer, default=1)
 
     account = relationship('Account', back_populates='keeps')
     parties = relationship('Party', back_populates='keep')

@@ -1,0 +1,102 @@
+{
+  "monsters": {
+    "Goblin": {
+      "hit_dice": 0.5,
+      "treasure_modifier": 0.5,
+      "number_appearing": "2d4"
+    },
+    "Orc": {
+      "hit_dice": 1.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d6"
+    },
+    "Skeleton": {
+      "hit_dice": 1.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "2d4"
+    },
+    "Hobgoblin": {
+      "hit_dice": 1.5,
+      "treasure_modifier": 1.5,
+      "number_appearing": "1d6"
+    },
+    "Zombie": {
+      "hit_dice": 2.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d6"
+    },
+    "Ghoul": {
+      "hit_dice": 2.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d4"
+    },
+    "Ogre": {
+      "hit_dice": 4.0,
+      "treasure_modifier": 3.0,
+      "number_appearing": "1d3"
+    },
+    "Wight": {
+      "hit_dice": 3.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d4"
+    },
+    "Werewolf": {
+      "hit_dice": 4.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d4"
+    },
+    "Troll": {
+      "hit_dice": 6.0,
+      "treasure_modifier": 4.0,
+      "number_appearing": "1d3"
+    },
+    "Wraith": {
+      "hit_dice": 4.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d3"
+    },
+    "Owlbear": {
+      "hit_dice": 5.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d2"
+    },
+    "Giant": {
+      "hit_dice": 8.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d3"
+    },
+    "Spectre": {
+      "hit_dice": 6.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1d3"
+    },
+    "Chimera": {
+      "hit_dice": 9.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1"
+    },
+    "Dragon": {
+      "hit_dice": 10.0,
+      "treasure_modifier": 8.0,
+      "number_appearing": "1"
+    },
+    "Vampire": {
+      "hit_dice": 8.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1"
+    },
+    "Demon": {
+      "hit_dice": 9.0,
+      "treasure_modifier": 1.0,
+      "number_appearing": "1"
+    }
+  },
+  "encounter_tables": {
+    "1": ["Goblin", "Orc", "Skeleton"],
+    "2": ["Hobgoblin", "Zombie", "Ghoul"],
+    "3": ["Ogre", "Wight", "Werewolf"],
+    "4": ["Troll", "Wraith", "Owlbear"],
+    "5": ["Giant", "Spectre", "Chimera"],
+    "6": ["Dragon", "Vampire", "Demon"]
+  }
+}
