@@ -16,6 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await authApi.login(username, password)
     token.value = res.access_token
     localStorage.setItem('token', res.access_token)
+    localStorage.setItem('refreshToken', res.refresh_token)
     await fetchAccount()
   }
 
@@ -23,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await authApi.register(username, password)
     token.value = res.access_token
     localStorage.setItem('token', res.access_token)
+    localStorage.setItem('refreshToken', res.refresh_token)
     await fetchAccount()
   }
 
@@ -44,11 +46,17 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('keepId')
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      await authApi.logout()
+    } catch {
+      // Best-effort server-side revocation
+    }
     token.value = null
     account.value = null
     currentKeep.value = null
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('keepId')
   }
 

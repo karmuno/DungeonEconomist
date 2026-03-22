@@ -22,8 +22,8 @@ def main():
     username = args[0]
     password = args[1]
 
-    if len(password) < 4:
-        print("Error: Password must be at least 4 characters")
+    if len(password) < 8:
+        print("Error: Password must be at least 8 characters with at least one letter and one number")
         sys.exit(1)
 
     create_tables()

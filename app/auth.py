@@ -11,9 +11,16 @@ from app.database import get_db
 from app.models import Account, Keep
 
 # Config
-SECRET_KEY = os.environ.get("VENTUREKEEP_SECRET_KEY", "dev-secret-change-in-production")
+_secret = os.environ.get("VENTUREKEEP_SECRET_KEY", "")
+if not _secret and os.environ.get("PORT"):
+    raise RuntimeError(
+        "VENTUREKEEP_SECRET_KEY must be set in production. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
+SECRET_KEY = _secret or "dev-secret-local-only"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 bearer_scheme = HTTPBearer()
 
@@ -27,9 +34,27 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(account_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    payload = {"sub": str(account_id), "exp": expire}
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": str(account_id), "exp": expire, "type": "access"}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(account_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    payload = {"sub": str(account_id), "exp": expire, "type": "refresh"}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+# In-memory revocation set (cleared on restart — acceptable for this scale)
+_revoked_tokens: set[str] = set()
+
+
+def revoke_token(token: str) -> None:
+    _revoked_tokens.add(token)
+
+
+def is_token_revoked(token: str) -> bool:
+    return token in _revoked_tokens
 
 
 def get_current_account(
@@ -37,8 +62,13 @@ def get_current_account(
     db: Session = Depends(get_db),
 ) -> Account:
     """Extract Bearer token, decode JWT, return Account."""
+    raw_token = credentials.credentials
+    if is_token_revoked(raw_token):
+        raise HTTPException(status_code=401, detail="Token has been revoked") from None
     try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(raw_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Invalid token type") from None
         account_id = int(payload["sub"])
     except (JWTError, KeyError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid or expired token") from None

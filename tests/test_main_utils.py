@@ -44,7 +44,7 @@ def create_account_and_keep(db: Session, username: str = "testuser", keep_name: 
     """Create an account and keep, return (account, keep, token)."""
     account = Account(
         username=username,
-        password_hash=hash_password("testpass"),
+        password_hash=hash_password("testpass1"),
     )
     db.add(account)
     db.commit()
@@ -298,22 +298,22 @@ def test_game_time_returns_keep_time(client: TestClient, db_session: Session):
 
 def test_register_and_login(client: TestClient, db_session: Session):
     """Register a new account, then login"""
-    response = client.post("/auth/register", json={"username": "newuser", "password": "testpass"})
+    response = client.post("/auth/register", json={"username": "newuser", "password": "testpass1"})
     assert response.status_code == 200
     assert "access_token" in response.json()
 
-    response = client.post("/auth/login", json={"username": "newuser", "password": "testpass"})
+    response = client.post("/auth/login", json={"username": "newuser", "password": "testpass1"})
     assert response.status_code == 200
     assert "access_token" in response.json()
 
 def test_register_duplicate_username(client: TestClient, db_session: Session):
-    client.post("/auth/register", json={"username": "dupe", "password": "testpass"})
-    response = client.post("/auth/register", json={"username": "dupe", "password": "testpass"})
+    client.post("/auth/register", json={"username": "dupe", "password": "testpass1"})
+    response = client.post("/auth/register", json={"username": "dupe", "password": "testpass1"})
     assert response.status_code == 409
 
 def test_login_wrong_password(client: TestClient, db_session: Session):
-    client.post("/auth/register", json={"username": "user1", "password": "correct"})
-    response = client.post("/auth/login", json={"username": "user1", "password": "wrong"})
+    client.post("/auth/register", json={"username": "user1", "password": "correct1"})
+    response = client.post("/auth/login", json={"username": "user1", "password": "wrongpass1"})
     assert response.status_code == 401
 
 
@@ -321,7 +321,7 @@ def test_login_wrong_password(client: TestClient, db_session: Session):
 
 def test_create_keep_seeds_adventurers(client: TestClient, db_session: Session):
     """Creating a keep should seed 6 starting adventurers"""
-    response = client.post("/auth/register", json={"username": "keepuser", "password": "testpass"})
+    response = client.post("/auth/register", json={"username": "keepuser", "password": "testpass1"})
     token = response.json()["access_token"]
 
     response = client.post(

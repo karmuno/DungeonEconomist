@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -19,13 +20,16 @@ create_tables()
 app = FastAPI(
     title="Venturekeep",
     description="Retro RPG Party Management Simulation",
-    version="0.6.0"
+    version="0.6.1"
 )
 
-# CORS (permissive for local dev)
+# CORS — lock down in production, permissive for local dev
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()] if _cors_origins_env else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
