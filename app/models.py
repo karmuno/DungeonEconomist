@@ -174,14 +174,6 @@ class Party(Base):
     current_expedition = relationship('Expedition', foreign_keys=[current_expedition_id], post_update=True)
     keep = relationship('Keep', back_populates='parties')
 
-class DungeonNode(Base):
-    __tablename__ = 'dungeon_nodes'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    difficulty = Column(Integer, default=1)
-    description = Column(Text)
-
 class Expedition(Base):
     __tablename__ = 'expeditions'
 
@@ -212,14 +204,12 @@ class ExpeditionNodeResult(Base):
 
     id = Column(Integer, primary_key=True)
     expedition_id = Column(Integer, ForeignKey('expeditions.id'), nullable=False)
-    node_id = Column(Integer, ForeignKey('dungeon_nodes.id'), nullable=True)
     success = Column(Boolean)
     xp_earned = Column(Integer, default=0)
     loot = Column(Integer, default=0)
     log = Column(Text)
 
     expedition = relationship('Expedition', back_populates='node_results')
-    node = relationship('DungeonNode')
 
 # Simple log table for individual adventurer participation
 class ExpeditionLog(Base):
