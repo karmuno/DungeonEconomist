@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore, type Notification } from '../../stores/notifications'
@@ -8,9 +8,9 @@ import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 import ModalDialog from '../shared/ModalDialog.vue'
 import * as expeditionsApi from '../../api/expeditions'
+import eventBus from '../../eventBus'
 
 const router = useRouter()
-const route = useRoute()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
@@ -18,9 +18,14 @@ const notifications = useNotificationsStore()
 // Expedition choice popup
 const showChoicePopup = ref(false)
 const choiceMessage = ref('')
-const choiceEventType = ref('')
 const choiceExpeditionId = ref<number | null>(null)
+const choiceEventType = ref('')
 const choosingInPopup = ref(false)
+
+
+// Level-up popup
+const showLevelUpPopup = ref(false)
+const levelUpMessage = ref('')
 
 
 function handleAction(notification: Notification) {
@@ -45,9 +50,15 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   level_up: 'success',
 }
 
-function processEvents(result: { current_day: number; events: Array<{ type: string; message: string; expedition_id?: number | null }> }) {
-  notifications.onDayAdvanced(result.current_day)
-  for (const event of result.events) {
+function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean }>) {
+  for (const event of events) {
+    // First-time level up — show popup
+    if (event.type === 'level_up' && event.first_time) {
+      levelUpMessage.value = event.message
+      showLevelUpPopup.value = true
+      continue
+    }
+
     // Expedition choice — always show popup
     if (event.type === 'expedition_choice' && event.expedition_id) {
       choiceMessage.value = event.message
@@ -129,7 +140,8 @@ async function advanceDay() {
   try {
     const result = await gameTime.advanceDay()
     await player.fetchPlayer()
-    processEvents(result)
+    notifications.onDayAdvanced(result.current_day) // Moved here
+    processEvents(result.events) // Pass only events
   } catch {
     notifications.add('Failed to advance time', 'error')
   }
@@ -140,13 +152,22 @@ async function skipToEvent() {
   try {
     const result = await gameTime.skipToEvent()
     await player.fetchPlayer()
-    processEvents(result)
-  } catch {
+    notifications.onDayAdvanced(result.current_day)
+    processEvents(result.events)
+  } catch (e) {
     notifications.add('Failed to skip time', 'error')
   } finally {
     skipping.value = false
   }
 }
+
+onMounted(() => {
+  eventBus.on('game-events', processEvents)
+})
+
+onUnmounted(() => {
+  eventBus.off('game-events', processEvents)
+})
 </script>
 
 <template>
@@ -236,6 +257,25 @@ async function skipToEvent() {
       >
         View Expedition Details
       </button>
+    </div>
+  </ModalDialog>
+
+  <!-- Level-Up Popup -->
+  <ModalDialog
+    :is-open="showLevelUpPopup"
+    title="Level Up!"
+    @close="showLevelUpPopup = false"
+  >
+    <div class="choice-popup">
+      <p class="choice-popup-msg">{{ levelUpMessage }}</p>
+      <div class="choice-popup-buttons">
+        <button
+          class="btn btn-primary"
+          @click="showLevelUpPopup = false"
+        >
+          Awesome!
+        </button>
+      </div>
     </div>
   </ModalDialog>
 </template>

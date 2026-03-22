@@ -138,8 +138,8 @@ interface TurnLog {
   deaths?: string[]
   events: Array<{
     type: string
-    combat?: { outcome: string; monster_type: string; hp_lost: number; xp_earned: number }
-    treasure?: { gold: number; xp_value: number }
+    combat?: { outcome: string; monster_type: string; monster_count?: number; party_roll?: number; monster_roll?: number; hp_lost: number; xp_earned: number }
+    treasure?: { gold: number; silver: number; copper: number; xp_value: number; name: string }
     trap_damage?: number
   }>
 }
@@ -167,6 +167,21 @@ function statusClass(result: string): string {
   if (result === 'in_progress') return 'badge-info'
   if (result === 'awaiting_choice') return 'badge-warning'
   return 'badge-success'
+}
+
+const expandedCombats = ref<Set<string>>(new Set())
+
+function toggleCombat(turnNum: number, idx: number) {
+  const key = `${turnNum}-${idx}`
+  if (expandedCombats.value.has(key)) {
+    expandedCombats.value.delete(key)
+  } else {
+    expandedCombats.value.add(key)
+  }
+}
+
+function isCombatExpanded(turnNum: number, idx: number): boolean {
+  return expandedCombats.value.has(`${turnNum}-${idx}`)
 }
 </script>
 
@@ -261,16 +276,24 @@ function statusClass(result: string): string {
         <div class="events-log">
           <div v-for="turn in turnsWithActivity" :key="turn.turn" class="turn-entry">
             <div class="turn-header">Turn {{ turn.turn }}</div>
-            <div v-for="(event, idx) in turn.events" :key="idx" class="event-entry">
+            <div v-for="(event, idx) in turn.events" :key="idx" class="event-entry" :class="{ 'combat-expandable': event.type === 'Monster' }" @click="event.type === 'Monster' ? toggleCombat(turn.turn, idx) : undefined">
               <template v-if="event.type === 'Monster'">
-                <span>Encountered <strong>{{ event.combat?.monster_type }}</strong></span>
-                <span :class="['badge', outcomeClass(event.combat?.outcome ?? '')]">
-                  {{ event.combat?.outcome }}
-                </span>
-                <span class="text-muted">{{ event.combat?.hp_lost }} HP lost, +{{ event.combat?.xp_earned }} XP</span>
-                <span v-if="event.treasure" class="text-gold">
-                  Loot: {{ event.treasure.gold }}gp
-                </span>
+                <div class="combat-summary">
+                  <span class="combat-toggle">{{ isCombatExpanded(turn.turn, idx) ? '\u25BC' : '\u25B6' }}</span>
+                  <span>Encountered <strong>{{ (event.combat?.monster_count ?? 1) > 1 ? `${event.combat?.monster_count} ${event.combat?.monster_type}s` : event.combat?.monster_type }}</strong></span>
+                  <span :class="['badge', outcomeClass(event.combat?.outcome ?? '')]">
+                    {{ event.combat?.outcome }}
+                  </span>
+                  <span class="text-muted">{{ event.combat?.hp_lost }} HP lost, +{{ event.combat?.xp_earned }} XP</span>
+                  <span v-if="event.treasure" class="text-gold">
+                    Loot: {{ formatCurrency(event.treasure.gold, event.treasure.silver ?? 0, event.treasure.copper ?? 0) }}
+                  </span>
+                </div>
+                <div v-if="isCombatExpanded(turn.turn, idx)" class="combat-details">
+                  <span>Party rolled <strong>{{ event.combat?.party_roll }}</strong></span>
+                  <span class="text-muted">vs</span>
+                  <span>{{ (event.combat?.monster_count ?? 1) > 1 ? `${event.combat?.monster_count} ${event.combat?.monster_type}s` : event.combat?.monster_type }} rolled <strong>{{ event.combat?.monster_roll }}</strong></span>
+                </div>
               </template>
               <template v-else-if="event.type === 'Trap'">
                 <span class="badge badge-warning">Trap</span>
@@ -278,7 +301,7 @@ function statusClass(result: string): string {
               </template>
               <template v-else-if="event.type === 'Unguarded Treasure'">
                 <span class="badge badge-success">Treasure</span>
-                <span class="text-gold">Found {{ event.treasure?.gold }}gp</span>
+                <span class="text-gold">Found {{ formatCurrency(event.treasure?.gold ?? 0, event.treasure?.silver ?? 0, event.treasure?.copper ?? 0) }}</span>
               </template>
               <template v-else>
                 <span class="badge">{{ event.type }}</span>
@@ -294,10 +317,7 @@ function statusClass(result: string): string {
 
       <!-- Actions -->
       <div class="flex gap-1">
-        <button class="btn btn-primary" @click="router.push('/adventurers')">
-          Examine Roster
-        </button>
-        <button class="btn btn-secondary" @click="router.push('/')">
+        <button class="btn btn-primary" @click="router.push('/')">
           Back to Dashboard
         </button>
       </div>
@@ -387,12 +407,50 @@ function statusClass(result: string): string {
 
 .event-entry {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 0;
   padding: 3px 0;
   border-bottom: 1px solid var(--border-color);
   font-size: 12px;
+}
+
+.event-entry:not(.combat-expandable) {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.combat-expandable {
+  cursor: pointer;
+}
+
+.combat-expandable:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.combat-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.combat-toggle {
+  font-size: 9px;
+  color: var(--text-muted);
+  width: 10px;
+  flex-shrink: 0;
+}
+
+.combat-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0 2px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .death-entry {

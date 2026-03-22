@@ -22,11 +22,9 @@ COPY alembic.ini ./
 # Copy built frontend from first stage
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
-# Create writable data directory for SQLite
-RUN mkdir -p data
-
 # Render sets PORT env var; default to 8000
 ENV PORT=8000
 EXPOSE ${PORT}
 
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
+# Run Alembic migrations then start the server
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}

@@ -1,6 +1,6 @@
 # CLAUDE.md — Venturekeep
 
-Retro RPG party management sim: FastAPI + SQLAlchemy + SQLite backend, Vue 3 + TypeScript + Pinia frontend.
+Retro RPG party management sim: FastAPI + SQLAlchemy + Postgres backend, Vue 3 + TypeScript + Pinia frontend.
 
 ## Quick Reference
 
@@ -15,6 +15,10 @@ python -m app.main
 
 # Frontend dev server (port 5173)
 cd frontend && npm run dev
+
+# Docker dev (Postgres + app)
+docker compose up db             # Postgres only (run app natively)
+docker compose up --build        # full stack in Docker
 
 # Seed data
 python -m app.seed_adventurers
@@ -44,7 +48,7 @@ cd frontend && npx vue-tsc --noEmit
 
 - **Package management**: Use `uv`, not pip.
 - **Schema changes**: Always use Alembic migrations (`alembic revision --autogenerate`). Never delete the database to migrate.
-- **Database**: SQLite at `./data/db.sqlite`. Use SQLAlchemy sessions with FastAPI dependency injection.
+- **Database**: Postgres in production (`DATABASE_URL` env var), SQLite fallback for local dev. Use SQLAlchemy sessions with FastAPI dependency injection.
 - **Virtual environment**: Always activate `.venv` before running Python commands.
 
 ## Git Workflow

@@ -1,16 +1,7 @@
 import random
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
+from app.database import SessionLocal
 from app.models import Adventurer, AdventurerClass
-
-DATABASE_URL = "sqlite:///./data/db.sqlite"
-
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 adventurer_pool = [
     {"name": "Elira Swiftblade", "adventurer_class": AdventurerClass.FIGHTER},

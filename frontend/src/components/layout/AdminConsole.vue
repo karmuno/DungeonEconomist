@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { post } from '../../api/client'
 import { useAuthStore } from '../../stores/auth'
 import { usePlayerStore } from '../../stores/player'
+import eventBus from '../../eventBus'
 
 const auth = useAuthStore()
 const player = usePlayerStore()
@@ -38,8 +39,14 @@ async function execute() {
   submitting.value = true
 
   try {
-    const result = await post<{ ok: boolean; message: string }>('/admin/exec', { command: cmd })
+    const result = await post<{ ok: boolean; message: string; events?: any[] }>('/admin/exec', { command: cmd })
     history.value.push({ cmd, result: result.message, error: false })
+
+    if (result.events && result.events.length > 0) {
+      eventBus.emit('game-events', result.events)
+    }
+    eventBus.emit('refresh-dashboard')
+
     // Refresh treasury display
     await player.fetchPlayer()
   } catch (e: any) {

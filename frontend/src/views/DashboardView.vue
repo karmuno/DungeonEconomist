@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDashboardStats } from '../api/game'
 import * as partiesApi from '../api/parties'
@@ -8,8 +8,8 @@ import type { DashboardStats } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
 import { formatCurrency } from '../utils/currency'
-import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import eventBus from '../eventBus'
 
 const router = useRouter()
 const gameTime = useGameTimeStore()
@@ -35,7 +35,14 @@ async function fetchStats() {
 
 watch(() => gameTime.currentDay, fetchStats)
 watch(() => gameTime.expeditionVersion, fetchStats)
-onMounted(fetchStats)
+onMounted(() => {
+  fetchStats()
+  eventBus.on('refresh-dashboard', fetchStats)
+})
+
+onUnmounted(() => {
+  eventBus.off('refresh-dashboard', fetchStats)
+})
 
 function progressPct(exp: DashboardStats['active_expeditions'][0]): number {
   if (exp.duration_days <= 0) return 100

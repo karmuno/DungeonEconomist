@@ -97,3 +97,23 @@ def get_class_level_bonuses(adventurer_class: AdventurerClass, new_level: int):
                 cumulative_bonuses[bonus_type] = bonus_value * (new_level - 1)
 
     return cumulative_bonuses
+
+
+def apply_level_ups(adv, keep, events):
+    """Check for and apply level ups to an adventurer, adding events."""
+    from app.schemas import GameEvent
+
+    while check_for_level_up(adv.level, adv.xp):
+        old_level = adv.level
+        adv.level += 1
+        hp_gain = calculate_hp_gain(adv.adventurer_class, old_level)
+        adv.hp_max += hp_gain
+        adv.hp_current += hp_gain
+        events.append(GameEvent(
+            type="level_up",
+            message=f"{adv.name} leveled up to {adv.level}! (+{hp_gain} HP)",
+            first_time=adv.level > (keep.highest_level_achieved or 1)
+        ))
+        # Update highest_level_achieved if this adventurer surpassed it
+        if adv.level > (keep.highest_level_achieved or 1):
+            keep.highest_level_achieved = adv.level

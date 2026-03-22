@@ -152,6 +152,8 @@ export interface ExpeditionSummary {
   return_day: number
   result: string
   treasure_total: number
+  treasure_silver: number
+  treasure_copper: number
   xp_earned: number
   started_at: string | null
   finished_at: string | null
@@ -160,6 +162,7 @@ export interface ExpeditionSummary {
 export interface ExpeditionCreate {
   party_id: number
   dungeon_level?: number
+  duration_days?: number
 }
 
 export interface ExpeditionResult {
@@ -173,6 +176,8 @@ export interface ExpeditionResult {
   start_time: string
   end_time?: string | null
   treasure_total: number
+  treasure_silver: number
+  treasure_copper: number
   special_items: string[]
   xp_earned: number
   xp_per_party_member: number
@@ -231,6 +236,7 @@ export interface DashboardStats {
     auto_delve_full: boolean
     auto_decide_events: boolean
     auto_delve_level: number | null
+    on_expedition: boolean
     members: Array<{
       id: number
       name: string
@@ -280,6 +286,8 @@ export interface DashboardStats {
     duration_days: number
     result: string
     treasure_total: number
+    treasure_silver: number
+    treasure_copper: number
     xp_earned: number
   }>
 }

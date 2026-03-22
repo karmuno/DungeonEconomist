@@ -129,7 +129,16 @@ def _handle_give(args: list[str], keep: Keep, db: Session) -> dict:
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid XP amount: {args[2]}") from None
         adv.xp += amount
+
+        from app.progression import apply_level_ups
+        events = []
+        apply_level_ups(adv, keep, events)
+
         db.commit()
-        return {"ok": True, "message": f"Granted {amount} XP to {adv.name} (#{adv.id}). Total: {adv.xp}"}
+        return {
+            "ok": True,
+            "message": f"Granted {amount} XP to {adv.name} (#{adv.id}). Total: {adv.xp}",
+            "events": [e.dict() for e in events],
+        }
 
     raise HTTPException(status_code=400, detail="Unknown give subcommand. Try: give item <id> [level] | give xp <id> <amount>")

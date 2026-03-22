@@ -124,6 +124,7 @@ def _finalize_expedition(
         resolved = expedition.resolved_phases or 0
         partial = calculate_retreat_results(sim_result, resolved)
         effective_result = {**sim_result, **partial}
+        expedition.simulation_data = effective_result
     else:
         effective_result = sim_result
 
@@ -222,7 +223,7 @@ def _finalize_expedition(
         # Deferred upkeep
         missed_cycles = 0
         if expedition.start_day and keep.current_day > expedition.start_day:
-            for day in range(expedition.start_day + 1, keep.current_day):
+            for day in range(expedition.start_day + 1, keep.current_day + 1):
                 if day % 30 == 0:
                     missed_cycles += 1
 
