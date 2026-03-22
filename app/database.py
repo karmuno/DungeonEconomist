@@ -7,10 +7,17 @@ from app.models import Base
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/db.sqlite")
 
-# SQLite needs check_same_thread=False; Postgres does not.
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+_is_sqlite = DATABASE_URL.startswith("sqlite")
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+# SQLite needs check_same_thread=False; Postgres does not.
+connect_args = {"check_same_thread": False} if _is_sqlite else {}
+
+# Postgres (especially serverless like Neon) benefits from connection health checks.
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=not _is_sqlite,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
