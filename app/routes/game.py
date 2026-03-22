@@ -442,7 +442,9 @@ def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
     events = []
     for expedition in awaiting:
         # Skip auto-decide parties — they don't block time
-        if expedition.party and expedition.party.auto_decide_events:
+        # EXCEPT stairs events, which always require player input
+        is_stairs = expedition.pending_event and expedition.pending_event.get("type") == "stairs"
+        if expedition.party and expedition.party.auto_decide_events and not is_stairs:
             continue
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}
