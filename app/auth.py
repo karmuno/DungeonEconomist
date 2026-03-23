@@ -33,15 +33,15 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_access_token(account_id: int) -> str:
+def create_access_token(account_id: int, token_version: int = 0) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": str(account_id), "exp": expire, "type": "access"}
+    payload = {"sub": str(account_id), "exp": expire, "type": "access", "tv": token_version}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def create_refresh_token(account_id: int) -> str:
+def create_refresh_token(account_id: int, token_version: int = 0) -> str:
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {"sub": str(account_id), "exp": expire, "type": "refresh"}
+    payload = {"sub": str(account_id), "exp": expire, "type": "refresh", "tv": token_version}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -76,6 +76,12 @@ def get_current_account(
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         raise HTTPException(status_code=401, detail="Account not found")
+
+    # Reject tokens issued before a password change
+    token_version = payload.get("tv", 0)
+    if token_version != account.token_version:
+        raise HTTPException(status_code=401, detail="Token invalidated by password change")
+
     return account
 
 

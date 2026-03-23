@@ -46,6 +46,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('keepId')
   }
 
+  async function changePassword(currentPassword: string, newPassword: string) {
+    const res = await authApi.changePassword(currentPassword, newPassword)
+    // Replace tokens so this session stays alive
+    token.value = res.access_token
+    localStorage.setItem('token', res.access_token)
+    localStorage.setItem('refreshToken', res.refresh_token)
+  }
+
   async function logout() {
     try {
       await authApi.logout()
@@ -98,6 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchAccount,
     selectKeep,
     clearKeep,
+    changePassword,
     logout,
     tryRestore,
   }

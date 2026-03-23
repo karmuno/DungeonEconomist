@@ -17,6 +17,13 @@ export function logout(): Promise<unknown> {
   return post('/auth/logout')
 }
 
+export function changePassword(currentPassword: string, newPassword: string): Promise<TokenResponse> {
+  return post<TokenResponse>('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  })
+}
+
 export function getMe(): Promise<AccountOut> {
   return get<AccountOut>('/auth/me')
 }

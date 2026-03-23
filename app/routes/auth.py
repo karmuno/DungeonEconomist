@@ -85,8 +85,8 @@ def register(data: RegisterRequest, request: Request, db: Session = Depends(get_
     db.refresh(account)
 
     return TokenResponse(
-        access_token=create_access_token(account.id),
-        refresh_token=create_refresh_token(account.id),
+        access_token=create_access_token(account.id, account.token_version),
+        refresh_token=create_refresh_token(account.id, account.token_version),
     )
 
 
@@ -99,8 +99,8 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     return TokenResponse(
-        access_token=create_access_token(account.id),
-        refresh_token=create_refresh_token(account.id),
+        access_token=create_access_token(account.id, account.token_version),
+        refresh_token=create_refresh_token(account.id, account.token_version),
     )
 
 
@@ -121,12 +121,17 @@ def refresh(data: RefreshRequest, request: Request, db: Session = Depends(get_db
     if not account:
         raise HTTPException(status_code=401, detail="Account not found")
 
+    # Reject refresh tokens issued before a password change
+    token_version = payload.get("tv", 0)
+    if token_version != account.token_version:
+        raise HTTPException(status_code=401, detail="Token invalidated by password change")
+
     # Revoke the old refresh token (one-time use)
     revoke_token(data.refresh_token)
 
     return TokenResponse(
-        access_token=create_access_token(account.id),
-        refresh_token=create_refresh_token(account.id),
+        access_token=create_access_token(account.id, account.token_version),
+        refresh_token=create_refresh_token(account.id, account.token_version),
     )
 
 
@@ -137,6 +142,37 @@ def logout(request: Request, account: Account = Depends(get_current_account)):
     if auth_header.startswith("Bearer "):
         revoke_token(auth_header[7:])
     return {"detail": "Logged out"}
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password", response_model=TokenResponse)
+def change_password(
+    data: ChangePasswordRequest,
+    request: Request,
+    account: Account = Depends(get_current_account),
+    db: Session = Depends(get_db),
+):
+    """Change password and invalidate all existing sessions."""
+    auth_rate_limiter.check(request)
+
+    if not verify_password(data.current_password, account.password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    _validate_password(data.new_password)
+
+    account.password_hash = hash_password(data.new_password)
+    account.token_version += 1
+    db.commit()
+
+    # Return fresh tokens so the current session stays logged in
+    return TokenResponse(
+        access_token=create_access_token(account.id, account.token_version),
+        refresh_token=create_refresh_token(account.id, account.token_version),
+    )
 
 
 @router.get("/me", response_model=AccountOut)

@@ -15,6 +15,7 @@ class Account(Base):
     username = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
+    token_version = Column(Integer, default=0, nullable=False, server_default="0")
     created_at = Column(DateTime, default=datetime.now)
 
     keeps = relationship('Keep', back_populates='account')
