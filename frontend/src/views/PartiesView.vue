@@ -203,7 +203,7 @@ async function deleteParty() {
         <div class="filters-bar mb-2">
           <select v-model="classFilter" class="form-select">
             <option value="">All Classes</option>
-            <option v-for="cls in ['Fighter', 'Cleric', 'Magic-User', 'Elf', 'Dwarf', 'Hobbit']" :key="cls" :value="cls">
+            <option v-for="cls in ['Fighter', 'Cleric', 'Magic-User', 'Elf', 'Dwarf', 'Halfling']" :key="cls" :value="cls">
               {{ cls }}
             </option>
           </select>

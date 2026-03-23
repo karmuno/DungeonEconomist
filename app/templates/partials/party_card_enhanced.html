@@ -45,7 +45,7 @@
                 {% set magic_users = party.members|selectattr('adventurer_class.value', 'equalto', 'Magic-User')|list|length %}
                 {% set elves = party.members|selectattr('adventurer_class.value', 'equalto', 'Elf')|list|length %}
                 {% set dwarves = party.members|selectattr('adventurer_class.value', 'equalto', 'Dwarf')|list|length %}
-                {% set hobbits = party.members|selectattr('adventurer_class.value', 'equalto', 'Hobbit')|list|length %}
+                {% set halflings = party.members|selectattr('adventurer_class.value', 'equalto', 'Halfling')|list|length %}
                 
                 {% set total = party.members|length %}
                 
@@ -65,8 +65,8 @@
                     {% if dwarves > 0 %}
                     <div class="bg-orange-500 h-2.5" style="width: {{ (dwarves / total) * 100 }}%; display: inline-block;"></div> <!-- Dwarf color changed -->
                     {% endif %}
-                    {% if hobbits > 0 %}
-                    <div class="bg-lime-500 h-2.5 rounded-r-full" style="width: {{ (hobbits / total) * 100 }}%; display: inline-block;"></div> <!-- Hobbit color changed -->
+                    {% if halflings > 0 %}
+                    <div class="bg-lime-500 h-2.5 rounded-r-full" style="width: {{ (halflings / total) * 100 }}%; display: inline-block;"></div> <!-- Halfling color -->
                     {% endif %}
                 </div>
             </div>
@@ -88,8 +88,8 @@
                 {% if dwarves > 0 %}
                 <span class="flex items-center mr-2"><span class="w-2 h-2 bg-orange-500 rounded-full mr-1"></span>Dwarves: {{ dwarves }}</span>
                 {% endif %}
-                {% if hobbits > 0 %}
-                <span class="flex items-center mr-2"><span class="w-2 h-2 bg-lime-500 rounded-full mr-1"></span>Hobbits: {{ hobbits }}</span>
+                {% if halflings > 0 %}
+                <span class="flex items-center mr-2"><span class="w-2 h-2 bg-lime-500 rounded-full mr-1"></span>Halflings: {{ halflings }}</span>
                 {% endif %}
             </div>
         </div>
@@ -148,7 +148,7 @@
                                 {% elif member.adventurer_class.value == 'Magic-User' %}bg-purple-700 text-purple-300
                                 {% elif member.adventurer_class.value == 'Elf' %}bg-teal-700 text-teal-300
                                 {% elif member.adventurer_class.value == 'Dwarf' %}bg-orange-700 text-orange-300
-                                {% elif member.adventurer_class.value == 'Hobbit' %}bg-lime-700 text-lime-300
+                                {% elif member.adventurer_class.value == 'Halfling' %}bg-lime-700 text-lime-300
                                 {% endif %}">
                         {{ member.adventurer_class.value|first }}
                     </div>

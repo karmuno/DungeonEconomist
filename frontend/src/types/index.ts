@@ -6,7 +6,7 @@ export enum AdventurerClass {
   MAGIC_USER = 'Magic-User',
   ELF = 'Elf',
   DWARF = 'Dwarf',
-  HOBBIT = 'Hobbit',
+  HALFLING = 'Halfling',
 }
 
 // Auth

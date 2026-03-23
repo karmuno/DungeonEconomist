@@ -55,7 +55,7 @@
     "Okri", "Pyrite", "Quartzin", "Rogni", "Stonilda", "Torunn", "Zamnil", 
     "Goki"
   ],
-  "hobbit": [
+  "halfling": [
     "Milo", "Fira", "Pip", "Rosie", "Tuck", "Bramble",
     "Aldagrim", "Belladonna", "Celandine", "Drogo", "Eglantine", "Folco",
     "Goldenberry", "Hamfast", "Iris", "Jolly", "Kira", "Lobelia",
@@ -108,7 +108,7 @@
     "Blackwood", "Coldharbour", "Duskwalker", "Emberglow", "Frostborn",
     "Goldleaf", "Highcrown", "Ironside", "Jadeheart", "Kindlewood"
   ],
-  "hobbit_surnames": [
+  "halfling_surnames": [
     "Baggins", "Bolger", "Brandybuck", "Burrows", "Chubb",
     "Diggle", "Fairbairn", "Gamgee", "Goodbody", "Greenhill",
     "Hayward", "Hornblower", "Longbottom", "Mugwort", "Noakes",

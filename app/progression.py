@@ -25,7 +25,7 @@ HP_GAIN_BY_CLASS = {
     AdventurerClass.MAGIC_USER: 4,  # d4 average = 2.5, + 1 CON
     AdventurerClass.ELF: 6,     # d6 average = 3.5, + 2 CON
     AdventurerClass.DWARF: 8,   # d8 average = 4.5, + 3 CON
-    AdventurerClass.HOBBIT: 6,  # d6 average = 3.5, + 2 CON
+    AdventurerClass.HALFLING: 6,  # d6 average = 3.5, + 2 CON
 }
 
 # Class-specific bonuses on level up
@@ -45,7 +45,7 @@ CLASS_BONUSES = {
     AdventurerClass.DWARF: {
         "hp_multiplier": 1.05,
     },
-    AdventurerClass.HOBBIT: {
+    AdventurerClass.HALFLING: {
         "hp_multiplier": 0.95,
     }
 }

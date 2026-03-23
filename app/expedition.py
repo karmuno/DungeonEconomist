@@ -15,7 +15,7 @@ PC_HIT_DIE = {
     "Dwarf": 8,
     "Cleric": 6,
     "Elf": 6,
-    "Hobbit": 6,
+    "Halfling": 6,
     "Magic-User": 4,
 }
 
