@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "classes": {
+    "Fighter": {
+      "group": "fighter",
+      "hit_die": 8,
+      "hd_per_level_num": 1,
+      "hd_per_level_den": 1,
+      "to_hit_bonus": 1,
+      "xp_multiplier": 1.0,
+      "thac0": [
+        {"min_level": 1, "max_level": 3, "thac0": 19},
+        {"min_level": 4, "max_level": 6, "thac0": 17},
+        {"min_level": 7, "max_level": 9, "thac0": 14},
+        {"min_level": 10, "max_level": 10, "thac0": 12}
+      ],
+      "abilities": {},
+      "hp_gain_base": 8,
+      "hp_multiplier": 1.1
+    },
+    "Cleric": {
+      "group": "cleric",
+      "hit_die": 6,
+      "hd_per_level_num": 1,
+      "hd_per_level_den": 2,
+      "to_hit_bonus": 0,
+      "xp_multiplier": 1.0,
+      "thac0": [
+        {"min_level": 1, "max_level": 4, "thac0": 19},
+        {"min_level": 5, "max_level": 8, "thac0": 17},
+        {"min_level": 9, "max_level": 10, "thac0": 14}
+      ],
+      "abilities": {
+        "turn_undead": {
+          "description": "Attempt to turn or destroy undead. Replaces attacks for the round unless turning is impossible.",
+          "table": {
+            "1":  {"1": 7, "2": 9, "3": 11},
+            "2":  {"1": 5, "2": 7, "3": 9, "4": 11},
+            "3":  {"1": 3, "2": 5, "3": 7, "4": 9, "5": 11},
+            "4":  {"1": "T", "2": 3, "3": 5, "4": 7, "5": 9, "6": 11},
+            "5":  {"1": "T", "2": "T", "3": 3, "4": 5, "5": 7, "6": 9, "7": 11},
+            "6":  {"1": "D", "2": "T", "3": "T", "4": 3, "5": 5, "6": 7, "7": 9},
+            "7":  {"1": "D", "2": "D", "3": "T", "4": "T", "5": 3, "6": 5, "7": 7},
+            "8":  {"1": "D", "2": "D", "3": "D", "4": "T", "5": "T", "6": 3, "7": 5},
+            "9":  {"1": "D", "2": "D", "3": "D", "4": "D", "5": "T", "6": "T", "7": 3},
+            "10": {"1": "D", "2": "D", "3": "D", "4": "D", "5": "D", "6": "T", "7": "T"}
+          }
+        },
+        "prevent_death": {
+          "description": "Automatically heal an adventurer who would die, restoring 1d6+2 HP.",
+          "min_level": 2,
+          "uses_per_expedition": "level - 1",
+          "heal_dice": "1d6+2"
+        }
+      },
+      "hp_gain_base": 6,
+      "hp_multiplier": 1.0
+    },
+    "Magic-User": {
+      "group": "magic_user",
+      "hit_die": 4,
+      "hd_per_level_num": 1,
+      "hd_per_level_den": 3,
+      "to_hit_bonus": 0,
+      "xp_multiplier": 1.0,
+      "thac0": [
+        {"min_level": 1, "max_level": 5, "thac0": 19},
+        {"min_level": 6, "max_level": 10, "thac0": 17}
+      ],
+      "abilities": {
+        "sleep_spell": {
+          "description": "Instantly kills a group of monsters with HD at or below caster level.",
+          "uses_per_expedition": "level",
+          "effect": "instant_kill_at_or_below_level",
+          "flavor_by_level": {
+            "1": "Sleep",
+            "4": "Fireball",
+            "7": "Lightning Bolt"
+          }
+        }
+      },
+      "hp_gain_base": 4,
+      "hp_multiplier": 0.9
+    },
+    "Dwarf": {
+      "group": "fighter",
+      "hit_die": 8,
+      "hd_per_level_num": 1,
+      "hd_per_level_den": 1,
+      "to_hit_bonus": 1,
+      "xp_multiplier": 1.0,
+      "thac0": [
+        {"min_level": 1, "max_level": 3, "thac0": 19},
+        {"min_level": 4, "max_level": 6, "thac0": 17},
+        {"min_level": 7, "max_level": 9, "thac0": 14},
+        {"min_level": 10, "max_level": 10, "thac0": 12}
+      ],
+      "abilities": {
+        "stair_bonus": {
+          "description": "Each Dwarf in the party increases stair discovery chance.",
+          "chance_per_turn": 0.0005,
+          "stacks": true
+        }
+      },
+      "hp_gain_base": 8,
+      "hp_multiplier": 1.05
+    },
+    "Elf": {
+      "group": "fighter",
+      "hit_die": 6,
+      "hd_per_level_num": 1,
+      "hd_per_level_den": 1,
+      "to_hit_bonus": 1,
+      "xp_multiplier": 2.0,
+      "thac0": [
+        {"min_level": 1, "max_level": 3, "thac0": 19},
+        {"min_level": 4, "max_level": 6, "thac0": 17},
+        {"min_level": 7, "max_level": 9, "thac0": 14},
+        {"min_level": 10, "max_level": 10, "thac0": 12}
+      ],
+      "abilities": {
+        "sleep_spell": {
+          "description": "Same spell progression as Magic-User.",
+          "uses_per_expedition": "level",
+          "effect": "instant_kill_at_or_below_level",
+          "flavor_by_level": {
+            "1": "Sleep",
+            "4": "Fireball",
+            "7": "Lightning Bolt"
+          }
+        }
+      },
+      "hp_gain_base": 6,
+      "hp_multiplier": 1.0
+    },
+    "Halfling": {
+      "group": "fighter",
+      "hit_die": 6,
+      "hd_per_level_num": 1,
+      "hd_per_level_den": 1,
+      "to_hit_bonus": 1,
+      "xp_multiplier": 1.0,
+      "thac0": [
+        {"min_level": 1, "max_level": 3, "thac0": 19},
+        {"min_level": 4, "max_level": 6, "thac0": 17},
+        {"min_level": 7, "max_level": 9, "thac0": 14},
+        {"min_level": 10, "max_level": 10, "thac0": 12}
+      ],
+      "abilities": {
+        "sling_volley": {
+          "description": "Full attack round before combat begins (round 1 only).",
+          "timing": "pre_combat"
+        }
+      },
+      "hp_gain_base": 6,
+      "hp_multiplier": 0.95
+    }
+  },
+  "combat_defaults": {
+    "base_stairs_chance": 0.0015,
+    "party_morale_base": 7,
+    "pc_damage_die": 6,
+    "monster_damage_die": 6
+  }
+}
