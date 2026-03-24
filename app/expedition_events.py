@@ -17,7 +17,8 @@ from app.dungeons import DUNGEON_LEVEL_NAMES
 # Treasure threshold for "big haul" event (gold pieces in a single turn)
 BIG_HAUL_THRESHOLD = 8
 
-BASE_STAIRS_CHANCE = 0.025
+BASE_STAIRS_CHANCE = 0.02   # reduced slightly; Dwarves add bonus
+DWARF_STAIR_BONUS = 0.015  # per Dwarf in party
 
 
 def auto_decide(event_type: str, party: list = None) -> str:
@@ -82,10 +83,12 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
                     "options": ["press_on", "retreat"],
                 })
 
-    # Stairs discovery — 5% chance per turn, only at deepest unlocked level
+    # Stairs discovery — chance per turn, only at deepest unlocked level
+    # Dwarves have a keen sense for finding stairs (increases discovery chance)
     if dungeon_level >= max_dungeon_level and dungeon_level < total_levels:
-        # TODO: add building bonuses to stairs_chance
-        stairs_chance = BASE_STAIRS_CHANCE
+        party_classes = sim_result.get("party_classes", [])
+        dwarf_count = party_classes.count("Dwarf")
+        stairs_chance = BASE_STAIRS_CHANCE + dwarf_count * DWARF_STAIR_BONUS
         for i, turn in enumerate(log):
             if random.random() < stairs_chance:
                 turn_num = turn.get("turn", i + 1)

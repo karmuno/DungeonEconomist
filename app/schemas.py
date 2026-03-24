@@ -20,11 +20,10 @@ class EncounterType(str, Enum):
     TREASURE = "Unguarded Treasure"
 
 class CombatOutcome(str, Enum):
-    CLEAR_VICTORY = "Clear Victory"
     VICTORY = "Victory"
-    TOUGH_FIGHT = "Tough Fight"
-    RETREAT = "Retreat"
-    DISASTER = "Disaster"
+    MONSTERS_FLED = "Monsters Fled"
+    PARTY_FLED = "Party Fled"
+    TPK = "TPK"
 
 class LevelUpResult(BaseModel):
     old_level: int

@@ -52,6 +52,21 @@ def get_monster_treasure_modifier(monster_type: str) -> float:
     return _MONSTERS.get(monster_type, {}).get("treasure_modifier", 1.0)
 
 
+def get_monster_ac(monster_type: str) -> int:
+    """Get descending AC for a monster type. Default 9 (unarmored)."""
+    return _MONSTERS.get(monster_type, {}).get("ac", 9)
+
+
+def get_monster_morale(monster_type: str) -> int:
+    """Get morale rating for a monster type. Default 8."""
+    return _MONSTERS.get(monster_type, {}).get("morale", 8)
+
+
+def is_monster_undead(monster_type: str) -> bool:
+    """Return True if this monster type is undead."""
+    return _MONSTERS.get(monster_type, {}).get("is_undead", False)
+
+
 def roll_monster_hd(monster_type: str, count: int) -> int:
     """Roll HD for a group of monsters. Each monster rolls its HD in d8s, summed."""
     hd = get_monster_hit_dice(monster_type)

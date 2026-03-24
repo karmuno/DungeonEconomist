@@ -97,6 +97,5 @@ def apply_level_ups(adv, keep, events) -> None:
             message=f"{adv.name} leveled up to {adv.level}! (+{hp_gain} HP)",
             first_time=adv.level > (keep.highest_level_achieved or 1),
         ))
-        # Update highest_level_achieved if this adventurer surpassed it
         if adv.level > (keep.highest_level_achieved or 1):
             keep.highest_level_achieved = adv.level
