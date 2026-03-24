@@ -1,95 +1,23 @@
 {
   "monsters": {
-    "Goblin": {
-      "hit_dice": 0.5,
-      "treasure_modifier": 0.5,
-      "number_appearing": "2d4"
-    },
-    "Orc": {
-      "hit_dice": 1.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d6"
-    },
-    "Skeleton": {
-      "hit_dice": 1.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "2d4"
-    },
-    "Hobgoblin": {
-      "hit_dice": 1.5,
-      "treasure_modifier": 1.5,
-      "number_appearing": "1d6"
-    },
-    "Zombie": {
-      "hit_dice": 2.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d6"
-    },
-    "Ghoul": {
-      "hit_dice": 2.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d4"
-    },
-    "Ogre": {
-      "hit_dice": 4.0,
-      "treasure_modifier": 3.0,
-      "number_appearing": "1d3"
-    },
-    "Wight": {
-      "hit_dice": 3.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d4"
-    },
-    "Werewolf": {
-      "hit_dice": 4.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d4"
-    },
-    "Troll": {
-      "hit_dice": 6.0,
-      "treasure_modifier": 4.0,
-      "number_appearing": "1d3"
-    },
-    "Wraith": {
-      "hit_dice": 4.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d3"
-    },
-    "Owlbear": {
-      "hit_dice": 5.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d2"
-    },
-    "Giant": {
-      "hit_dice": 8.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d3"
-    },
-    "Spectre": {
-      "hit_dice": 6.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1d3"
-    },
-    "Chimera": {
-      "hit_dice": 9.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1"
-    },
-    "Dragon": {
-      "hit_dice": 10.0,
-      "treasure_modifier": 8.0,
-      "number_appearing": "1"
-    },
-    "Vampire": {
-      "hit_dice": 8.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1"
-    },
-    "Demon": {
-      "hit_dice": 9.0,
-      "treasure_modifier": 1.0,
-      "number_appearing": "1"
-    }
+    "Goblin":    { "hit_dice": 0.5, "treasure_modifier": 0.5, "number_appearing": "2d4", "ac": 6, "morale": 7,  "is_undead": false },
+    "Orc":       { "hit_dice": 1.0, "treasure_modifier": 1.0, "number_appearing": "1d6", "ac": 6, "morale": 8,  "is_undead": false },
+    "Skeleton":  { "hit_dice": 1.0, "treasure_modifier": 1.0, "number_appearing": "2d4", "ac": 7, "morale": 12, "is_undead": true  },
+    "Hobgoblin": { "hit_dice": 1.5, "treasure_modifier": 1.5, "number_appearing": "1d6", "ac": 6, "morale": 8,  "is_undead": false },
+    "Zombie":    { "hit_dice": 2.0, "treasure_modifier": 1.0, "number_appearing": "1d6", "ac": 8, "morale": 12, "is_undead": true  },
+    "Ghoul":     { "hit_dice": 2.0, "treasure_modifier": 1.0, "number_appearing": "1d4", "ac": 6, "morale": 9,  "is_undead": true  },
+    "Ogre":      { "hit_dice": 4.0, "treasure_modifier": 3.0, "number_appearing": "1d3", "ac": 5, "morale": 9,  "is_undead": false },
+    "Wight":     { "hit_dice": 3.0, "treasure_modifier": 1.0, "number_appearing": "1d4", "ac": 5, "morale": 12, "is_undead": true  },
+    "Werewolf":  { "hit_dice": 4.0, "treasure_modifier": 1.0, "number_appearing": "1d4", "ac": 5, "morale": 8,  "is_undead": false },
+    "Troll":     { "hit_dice": 6.0, "treasure_modifier": 4.0, "number_appearing": "1d3", "ac": 4, "morale": 10, "is_undead": false },
+    "Wraith":    { "hit_dice": 4.0, "treasure_modifier": 1.0, "number_appearing": "1d3", "ac": 3, "morale": 12, "is_undead": true  },
+    "Owlbear":   { "hit_dice": 5.0, "treasure_modifier": 1.0, "number_appearing": "1d2", "ac": 5, "morale": 9,  "is_undead": false },
+    "Giant":     { "hit_dice": 8.0, "treasure_modifier": 1.0, "number_appearing": "1d3", "ac": 4, "morale": 8,  "is_undead": false },
+    "Spectre":   { "hit_dice": 6.0, "treasure_modifier": 1.0, "number_appearing": "1d3", "ac": 2, "morale": 11, "is_undead": true  },
+    "Chimera":   { "hit_dice": 9.0, "treasure_modifier": 1.0, "number_appearing": "1",   "ac": 4, "morale": 9,  "is_undead": false },
+    "Dragon":    { "hit_dice": 10.0,"treasure_modifier": 8.0, "number_appearing": "1",   "ac": 2, "morale": 10, "is_undead": false },
+    "Vampire":   { "hit_dice": 8.0, "treasure_modifier": 1.0, "number_appearing": "1",   "ac": 2, "morale": 11, "is_undead": true  },
+    "Demon":     { "hit_dice": 9.0, "treasure_modifier": 1.0, "number_appearing": "1",   "ac": 0, "morale": 12, "is_undead": false }
   },
   "encounter_tables": {
     "1": ["Goblin", "Orc", "Skeleton"],

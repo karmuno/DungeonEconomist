@@ -196,6 +196,7 @@ class DungeonSimulator:
             "expedition_id": expedition_id,
             "party_id": expedition_data["party_id"],
             "dungeon_level": expedition.dungeon_level,
+            "party_classes": [m.get("character_class", "") for m in expedition.party],
             "turns": expedition_data["turns_completed"],
             "start_time": expedition_data["start_time"],
             "end_time": expedition_data.get("end_time", None),

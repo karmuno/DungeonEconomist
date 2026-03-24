@@ -103,7 +103,7 @@ class AdventurerClass(enum.Enum):
     MAGIC_USER = 'Magic-User'
     ELF = 'Elf'
     DWARF = 'Dwarf'
-    HOBBIT = 'Hobbit'
+    HALFLING = 'Halfling'
 
 class Adventurer(Base):
     __tablename__ = 'adventurers'
