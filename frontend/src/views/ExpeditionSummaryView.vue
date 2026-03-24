@@ -176,17 +176,41 @@ interface TurnLog {
   }>
 }
 
-function summariseRound(r: RoundEntry): string {
-  if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
-  if (r.halfling_pre_round) {
-    const hits = r.halfling_pre_round.filter(a => a.hit)
-    return `Halfling pre-round: ${hits.length}/${r.halfling_pre_round.length} hits`
-  }
-  const attacks = r.attacks ?? []
+const pcNames = computed(() => new Set(summary.value?.member_results.map(m => m.name) ?? []))
+
+function sideAttacks(r: RoundEntry, side: 'party' | 'monsters'): AttackEntry[] {
+  const all = r.halfling_pre_round ?? r.attacks ?? []
+  return all.filter(a => side === 'party' ? pcNames.value.has(a.attacker) : !pcNames.value.has(a.attacker))
+}
+
+function sideSummary(attacks: AttackEntry[]): string {
+  if (!attacks.length) return '—'
   const hits = attacks.filter(a => a.hit)
-  const dmg = attacks.reduce((s, a) => s + a.damage, 0)
+  const dmg = hits.reduce((s, a) => s + a.damage, 0)
+  return `${hits.length}/${attacks.length} · ${dmg} dmg`
+}
+
+function roundLabel(r: RoundEntry): string {
+  if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
+  if (r.halfling_pre_round) return `Halflings pre-round`
   const label = r.initiative === 'party' ? 'party first' : r.initiative === 'monsters' ? 'monsters first' : 'simultaneous'
-  return `Round ${r.round} (${label}): ${hits.length}/${attacks.length} hits, ${dmg} dmg`
+  return `Round ${r.round} (${label})`
+}
+
+const expandedRounds = ref<Set<string>>(new Set())
+
+function toggleRound(turnNum: number, eventIdx: number, roundIdx: number, e: Event) {
+  e.stopPropagation()
+  const key = `${turnNum}-${eventIdx}-${roundIdx}`
+  if (expandedRounds.value.has(key)) {
+    expandedRounds.value.delete(key)
+  } else {
+    expandedRounds.value.add(key)
+  }
+}
+
+function isRoundExpanded(turnNum: number, eventIdx: number, roundIdx: number): boolean {
+  return expandedRounds.value.has(`${turnNum}-${eventIdx}-${roundIdx}`)
 }
 
 const turnsWithActivity = computed(() => {
@@ -349,24 +373,62 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                 </div>
                 <div v-if="isCombatExpanded(turn.turn, idx)" class="combat-details">
                   <template v-if="event.combat?.mu_spell_used">
-                    <div class="round-line">
+                    <div class="round-row">
                       <span class="text-muted">Spell:</span>
                       <span>{{ event.combat.mu_spell_used }} ended the fight instantly</span>
                     </div>
                   </template>
                   <template v-else-if="event.combat?.cleric_turned">
-                    <div class="round-line">
+                    <div class="round-row">
                       <span class="text-muted">Turn Undead:</span>
                       <span>Cleric drove off the monsters</span>
                     </div>
                   </template>
                   <template v-else-if="event.combat?.round_log?.length">
-                    <div v-for="(r, ri) in event.combat.round_log" :key="ri" class="round-line">
-                      <span class="text-muted">{{ summariseRound(r) }}</span>
-                      <template v-if="r.morale_checks?.length">
-                        <span v-for="(mc, mi) in r.morale_checks" :key="mi" :class="mc.passed ? 'text-muted' : 'text-danger'">
-                          · {{ mc.side }} morale {{ mc.passed ? 'holds' : 'breaks' }} ({{ mc.roll }}/{{ mc.morale }})
-                        </span>
+                    <div v-for="(r, ri) in event.combat.round_log" :key="ri" class="round-block">
+                      <!-- Round header row -->
+                      <div class="round-row round-expandable" @click="toggleRound(turn.turn, idx, ri, $event)">
+                        <span class="round-toggle">{{ isRoundExpanded(turn.turn, idx, ri) ? '▼' : '▶' }}</span>
+                        <span class="round-label">{{ roundLabel(r) }}</span>
+                        <template v-if="!r.event && !r.halfling_pre_round">
+                          <span class="side-pill party">Party: {{ sideSummary(sideAttacks(r, 'party')) }}</span>
+                          <span class="side-pill monsters">Monsters: {{ sideSummary(sideAttacks(r, 'monsters')) }}</span>
+                        </template>
+                        <template v-if="r.morale_checks?.length">
+                          <span v-for="(mc, mi) in r.morale_checks" :key="mi" :class="['morale-tag', mc.passed ? '' : 'morale-break']">
+                            {{ mc.side }} morale {{ mc.passed ? 'holds' : 'breaks' }}
+                          </span>
+                        </template>
+                      </div>
+                      <!-- Round expanded: attacks by side -->
+                      <template v-if="isRoundExpanded(turn.turn, idx, ri)">
+                        <template v-if="r.event === 'spell'">
+                          <div class="attack-line">{{ r.caster }} casts {{ r.spell }} — {{ r.monsters_destroyed }} destroyed</div>
+                        </template>
+                        <template v-else>
+                          <!-- Party attacks -->
+                          <template v-if="sideAttacks(r, 'party').length">
+                            <div class="side-header">Party</div>
+                            <div v-for="(atk, ai) in sideAttacks(r, 'party')" :key="'p'+ai" class="attack-line" :class="{ 'attack-miss': !atk.hit }">
+                              <span class="atk-name">{{ atk.attacker }}</span>
+                              <span class="atk-arrow">→</span>
+                              <span class="atk-target">{{ atk.target }}</span>
+                              <span v-if="atk.hit" class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
+                              <span v-else class="atk-miss">miss</span>
+                            </div>
+                          </template>
+                          <!-- Monster attacks -->
+                          <template v-if="sideAttacks(r, 'monsters').length">
+                            <div class="side-header">Monsters</div>
+                            <div v-for="(atk, ai) in sideAttacks(r, 'monsters')" :key="'m'+ai" class="attack-line" :class="{ 'attack-miss': !atk.hit }">
+                              <span class="atk-name">{{ atk.attacker }}</span>
+                              <span class="atk-arrow">→</span>
+                              <span class="atk-target">{{ atk.target }}</span>
+                              <span v-if="atk.hit" class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
+                              <span v-else class="atk-miss">miss</span>
+                            </div>
+                          </template>
+                        </template>
                       </template>
                     </div>
                   </template>
@@ -526,18 +588,111 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
 .combat-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   padding: 4px 0 2px 16px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-secondary);
 }
 
-.round-line {
+.round-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.round-row {
   display: flex;
   align-items: baseline;
   gap: 6px;
   flex-wrap: wrap;
+  padding: 2px 0;
+}
+
+.round-expandable {
+  cursor: pointer;
+}
+
+.round-expandable:hover {
+  color: var(--text-primary);
+}
+
+.round-toggle {
+  font-size: 8px;
+  color: var(--text-muted);
+  width: 8px;
+  flex-shrink: 0;
+}
+
+.round-label {
+  color: var(--text-secondary);
+}
+
+.side-pill {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.side-pill.party {
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+}
+
+.side-pill.monsters {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
+
+.morale-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.morale-break {
+  color: #f1c40f;
+}
+
+.side-header {
+  padding: 2px 0 0 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.attack-line {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 0 1px 12px;
+  color: var(--text-secondary);
+}
+
+.attack-miss {
+  opacity: 0.5;
+}
+
+.atk-name {
+  color: var(--text-primary);
+  min-width: 80px;
+}
+
+.atk-arrow {
+  color: var(--text-muted);
+}
+
+.atk-target {
+  color: var(--text-secondary);
+  min-width: 70px;
+}
+
+.atk-dmg {
+  color: #e74c3c;
+}
+
+.atk-miss {
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .death-entry {
