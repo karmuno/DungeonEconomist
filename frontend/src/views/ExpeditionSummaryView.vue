@@ -409,23 +409,21 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                           <!-- Party attacks -->
                           <template v-if="sideAttacks(r, 'party').length">
                             <div class="side-header">Party</div>
-                            <div v-for="(atk, ai) in sideAttacks(r, 'party')" :key="'p'+ai" class="attack-line" :class="{ 'attack-miss': !atk.hit }">
+                            <div v-for="(atk, ai) in sideAttacks(r, 'party').filter(a => a.hit)" :key="'p'+ai" class="attack-line">
                               <span class="atk-name">{{ atk.attacker }}</span>
                               <span class="atk-arrow">→</span>
                               <span class="atk-target">{{ atk.target }}</span>
-                              <span v-if="atk.hit" class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
-                              <span v-else class="atk-miss">miss</span>
+                              <span class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
                             </div>
                           </template>
                           <!-- Monster attacks -->
                           <template v-if="sideAttacks(r, 'monsters').length">
                             <div class="side-header">Monsters</div>
-                            <div v-for="(atk, ai) in sideAttacks(r, 'monsters')" :key="'m'+ai" class="attack-line" :class="{ 'attack-miss': !atk.hit }">
+                            <div v-for="(atk, ai) in sideAttacks(r, 'monsters').filter(a => a.hit)" :key="'m'+ai" class="attack-line">
                               <span class="atk-name">{{ atk.attacker }}</span>
                               <span class="atk-arrow">→</span>
                               <span class="atk-target">{{ atk.target }}</span>
-                              <span v-if="atk.hit" class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
-                              <span v-else class="atk-miss">miss</span>
+                              <span class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
                             </div>
                           </template>
                         </template>
@@ -668,10 +666,6 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
   color: var(--text-secondary);
 }
 
-.attack-miss {
-  opacity: 0.5;
-}
-
 .atk-name {
   color: var(--text-primary);
   min-width: 80px;
@@ -688,11 +682,6 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
 
 .atk-dmg {
   color: #e74c3c;
-}
-
-.atk-miss {
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 .death-entry {
