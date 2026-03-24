@@ -14,14 +14,14 @@ const notifications = useNotificationsStore()
 
 const expeditions = ref<ExpeditionSummary[]>([])
 const loading = ref(false)
-const activeTab = ref<'active' | 'completed'>('active')
+const activeTab = ref<'active' | 'completed'>('completed')
 
 const activeExpeditions = computed(() =>
   expeditions.value.filter((e) => e.result === 'in_progress' || e.result === 'awaiting_choice')
 )
 
 const completedExpeditions = computed(() =>
-  expeditions.value.filter((e) => e.result === 'completed')
+  expeditions.value.filter((e) => e.result === 'completed').sort((a, b) => b.id - a.id)
 )
 
 async function fetchExpeditions() {
