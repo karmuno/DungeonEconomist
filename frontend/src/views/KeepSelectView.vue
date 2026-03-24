@@ -140,6 +140,8 @@ async function handleDelete(keep: KeepOut) {
   flex-direction: column;
   gap: 8px;
   text-align: left;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .keep-item {
