@@ -167,6 +167,9 @@ interface TurnLog {
       rounds_fought?: number
       hp_lost: number
       xp_earned: number
+      monsters_killed?: number
+      monsters_fled?: number
+      party_fled?: boolean
       mu_spell_used?: string | null
       cleric_turned?: boolean
       round_log?: RoundEntry[]
@@ -367,6 +370,9 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                     {{ event.combat?.outcome }}
                   </span>
                   <span class="text-muted">{{ event.combat?.hp_lost }} HP lost, +{{ event.combat?.xp_earned }} XP</span>
+                  <span v-if="event.combat?.monsters_killed" class="monster-fate killed">{{ event.combat.monsters_killed }} killed</span>
+                  <span v-if="event.combat?.monsters_fled" class="monster-fate fled">{{ event.combat.monsters_fled }} fled</span>
+                  <span v-if="event.combat?.party_fled" class="monster-fate fled">party fled</span>
                   <span v-if="event.treasure" class="text-gold">
                     Loot: {{ formatCurrency(event.treasure.gold, event.treasure.silver ?? 0, event.treasure.copper ?? 0) }}
                   </span>
@@ -686,5 +692,21 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
 
 .death-entry {
   color: var(--accent-red, #e74c3c);
+}
+
+.monster-fate {
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.monster-fate.killed {
+  background: rgba(231, 76, 60, 0.12);
+  color: #e74c3c;
+}
+
+.monster-fate.fled {
+  background: rgba(241, 196, 15, 0.12);
+  color: #f1c40f;
 }
 </style>
