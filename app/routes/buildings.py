@@ -6,11 +6,15 @@ from app.auth import get_current_keep
 from app.buildings import (
     BUILDING_CONFIG,
     BUILDING_TYPES,
+    can_assign_new,
+    get_all_building_bonuses,
+    get_allowed_classes,
     get_building_class,
     get_building_name,
     get_max_assigned,
     get_max_building_level,
     get_min_level_for_assignment,
+    get_tier_slots,
     get_upgrade_cost,
     has_recruitment_bonus,
 )
@@ -26,19 +30,37 @@ def _building_response(building: Building) -> dict:
     config = BUILDING_CONFIG.get(btype, {})
     assigned_count = len(building.assigned_adventurers)
     cls = get_building_class(btype)
+    allowed = get_allowed_classes(btype)
 
-    # Compute current effects
+    # Compute current effects from all unlocked tiers
     effects = []
     if has_recruitment_bonus(btype):
         effects.append(f"2x {cls} recruitment")
     if assigned_count > 0:
-        bonuses = config.get("level_bonuses", {}).get(str(building.level), {})
+        bonuses = get_all_building_bonuses(btype, building.level)
         if "healing_per_assigned" in bonuses:
             effects.append(f"+{assigned_count * bonuses['healing_per_assigned']} HP/day healing")
-        if "combat_bonus_per_assigned" in bonuses:
-            effects.append(f"+{assigned_count * bonuses['combat_bonus_per_assigned']} combat strength")
-        if "magic_item_chance_per_assigned" in bonuses:
-            effects.append(f"+{assigned_count * bonuses['magic_item_chance_per_assigned']}% magic item chance")
+        if "to_hit_per_assigned" in bonuses:
+            effects.append(f"+{assigned_count * bonuses['to_hit_per_assigned']} to-hit")
+        if "damage_per_assigned" in bonuses:
+            effects.append(f"+{assigned_count * bonuses['damage_per_assigned']} damage")
+        if "monster_morale_penalty" in bonuses:
+            effects.append(f"Monster morale {bonuses['monster_morale_penalty']}")
+        if "healing_potion_chance_per_cleric" in bonuses:
+            effects.append("Healing Potion crafting")
+        if "resurrect_highest_dead" in bonuses:
+            effects.append("Resurrection on return")
+        if "magic_item_discovery_per_assigned" in bonuses:
+            pct = assigned_count * bonuses['magic_item_discovery_per_assigned'] * 100
+            effects.append(f"+{pct:.0f}% magic item discovery")
+        if "scroll_craft_chance_per_mu" in bonuses:
+            effects.append("Scroll crafting")
+        if "craft_artifact_cost" in bonuses:
+            effects.append(f"Artifact crafting ({bonuses['craft_artifact_cost']}gp)")
+        if "craft_weapon_slot" in bonuses or "craft_armor_slot" in bonuses:
+            effects.append("Weapon/Armor crafting")
+        if "masterwork_chance" in bonuses:
+            effects.append(f"Masterwork chance ({bonuses['masterwork_chance'] * 100:.0f}%)")
 
     return {
         "id": building.id,
@@ -47,10 +69,15 @@ def _building_response(building: Building) -> dict:
         "level": building.level,
         "max_level": get_max_building_level(btype),
         "adventurer_class": cls,
+        "allowed_classes": allowed,
         "description": config.get("description", ""),
         "assigned_bonus_desc": config.get("assigned_bonus_desc", ""),
         "effects": effects,
         "max_assigned": get_max_assigned(btype, building.level),
+        "tier_slots": [
+            {"tier": t, "slots": s, "min_level": ml}
+            for t, s, ml in get_tier_slots(btype, building.level)
+        ],
         "min_adventurer_level": get_min_level_for_assignment(btype, building.level),
         "assigned_adventurers": [
             {
@@ -203,21 +230,23 @@ def assign_adventurer(
     if not adv:
         raise HTTPException(status_code=404, detail="Adventurer not found")
 
-    # Validations
-    required_class = get_building_class(building.building_type)
-    if adv.adventurer_class.value != required_class:
-        raise HTTPException(status_code=400, detail=f"Only {required_class}s can be assigned here")
+    # Validations — use allowed_classes for cross-class support
+    allowed = get_allowed_classes(building.building_type)
+    if adv.adventurer_class.value not in allowed:
+        allowed_str = ", ".join(allowed)
+        raise HTTPException(status_code=400, detail=f"Only {allowed_str} can be assigned here")
 
-    min_level = get_min_level_for_assignment(building.building_type, building.level)
-    if adv.level < min_level:
-        raise HTTPException(status_code=400, detail=f"Adventurer must be at least level {min_level}")
+    tier_slots = get_tier_slots(building.building_type, building.level)
+    min_entry_level = min(ml for _, _, ml in tier_slots) if tier_slots else 1
+    if adv.level < min_entry_level:
+        raise HTTPException(status_code=400, detail=f"Adventurer must be at least level {min_entry_level}")
 
     if adv.is_dead or adv.is_bankrupt or adv.on_expedition or adv.is_assigned:
         raise HTTPException(status_code=400, detail="Adventurer is not available for assignment")
 
-    max_slots = get_max_assigned(building.building_type, building.level)
-    if len(building.assigned_adventurers) >= max_slots:
-        raise HTTPException(status_code=400, detail=f"Building is full ({max_slots} slots)")
+    current_levels = [a.level for a in building.assigned_adventurers]
+    if not can_assign_new(building.building_type, building.level, current_levels, adv.level):
+        raise HTTPException(status_code=400, detail="No slot available for this adventurer's level")
 
     # Assign
     building.assigned_adventurers.append(adv)

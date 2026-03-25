@@ -4,7 +4,7 @@ import ProgressBar from '../shared/ProgressBar.vue'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
 import { formatCurrency } from '../../utils/currency'
-import { displayStatus } from '../../utils/adventurer'
+import { displayStatus, itemEmoji, itemBonusLabel } from '../../utils/adventurer'
 
 const props = defineProps<{
   adventurers: AdventurerOut[]
@@ -46,7 +46,7 @@ function partyDisplay(adv: AdventurerOut): string {
       >
         <td>{{ adv.name }}</td>
         <td>
-          <span v-for="item in (adv.magic_items || [])" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
+          <span v-for="item in (adv.magic_items || [])" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
         </td>
         <td>{{ adv.adventurer_class }}</td>
         <td>{{ adv.level }}</td>

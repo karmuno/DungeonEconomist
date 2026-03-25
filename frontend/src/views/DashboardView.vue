@@ -9,6 +9,7 @@ import type { DashboardStats, AdventurerOut } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
 import { formatCurrency } from '../utils/currency'
+import { itemEmoji, itemBonusLabel } from '../utils/adventurer'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import ModalDialog from '../components/shared/ModalDialog.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
@@ -212,6 +213,12 @@ async function togglePartySetting(partyId: number, field: 'healed' | 'full' | 'a
   }
 }
 
+function avgPartyLevel(members: Array<{ level: number }>): string {
+  if (members.length === 0) return '—'
+  const sum = members.reduce((acc, m) => acc + m.level, 0)
+  return (sum / 6).toFixed(1)
+}
+
 async function setAutoDelveLevel(partyId: number, level: number | null) {
   const party = stats.value?.parties.find(p => p.id === partyId)
   if (!party) return
@@ -290,7 +297,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
           >
             <span class="drag-handle">&#x2630;</span>
             <span class="unassigned-name">{{ a.name }}</span>
-            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
+            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
             <span class="badge">{{ a.adventurer_class }}</span>
             <span class="stat">Lv {{ a.level }}</span>
             <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
@@ -320,6 +327,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
               <span class="party-expand">{{ expandedPartyId === p.id ? '&#9660;' : '&#9654;' }}</span>
               <span class="party-name">{{ p.name }}</span>
               <span class="party-size">{{ p.member_count }}/6</span>
+              <span class="party-avg-level">avg Lv {{ avgPartyLevel(p.members) }}</span>
               <span class="badge" :class="partyStatusClass(p.status)">{{ p.status }}</span>
             </div>
             <div v-if="expandedPartyId === p.id" class="party-members">
@@ -332,8 +340,8 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 @click.stop="openDetail(m.id)"
               >
                 <span class="drag-handle">&#x2630;</span>
-                <span class="member-name">{{ m.name }}</span>
-                <span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
+                <span :class="['member-name', { 'text-dead': m.hp_current <= 0 }]">{{ m.name }}</span>
+                <span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
                 <span class="badge">{{ m.adventurer_class }}</span>
                 <span class="stat">Lv {{ m.level }}</span>
                 <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
@@ -424,7 +432,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 >
                   <span class="drag-handle">&#x2630;</span>
                   <span class="member-name">{{ a.name }}</span>
-                  <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
+                  <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
                   <span class="badge">{{ a.adventurer_class }}</span>
                   <span class="stat">Lv {{ a.level }}</span>
                   <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
@@ -472,6 +480,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
   color: var(--accent-blue, #60a5fa); font-size: 13px;
 }
 .text-green { color: var(--accent-green); }
+.text-dead { color: var(--accent-red, #e74c3c); }
 
 .dash-card { padding: 12px 16px; }
 .parties-unassigned-grid {
@@ -501,6 +510,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .party-expand { font-size: 10px; color: var(--text-muted); width: 14px; }
 .party-name { font-weight: 600; font-size: 13px; flex: 1; }
 .party-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+.party-avg-level { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
 
 .party-members { padding: 4px 0 8px 22px; }
 .party-member-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer; }
