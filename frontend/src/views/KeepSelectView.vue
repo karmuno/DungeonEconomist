@@ -32,6 +32,7 @@ async function createKeep() {
   try {
     const keep = await keepsApi.create(newKeepName.value.trim())
     auth.selectKeep(keep)
+    player.loadFromKeep()
     player.fetchPlayer()
     await gameTime.fetchTime()
     router.push('/form-party')
@@ -42,6 +43,7 @@ async function createKeep() {
 
 async function selectKeep(keep: KeepOut) {
   auth.selectKeep(keep)
+  player.loadFromKeep()
   player.fetchPlayer()
   await gameTime.fetchTime()
   router.push('/')
