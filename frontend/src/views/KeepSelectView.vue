@@ -75,14 +75,17 @@ async function handleDelete(keep: KeepOut) {
             @click="confirmDeleteId === keep.id ? null : selectKeep(keep)"
           >
             <div class="keep-info">
-              <div class="keep-name">{{ keep.name }}</div>
+              <div class="keep-name-row">
+                <span class="keep-name">{{ keep.name }}</span>
+                <span v-if="keep.dungeon_name" class="keep-vs">vs.</span>
+                <span v-if="keep.dungeon_name" class="keep-dungeon">{{ keep.dungeon_name }}</span>
+              </div>
               <div class="keep-meta">
                 Day {{ keep.current_day }}
                 &middot; {{ keep.treasury_gold }}gp
                 <template v-if="keep.building_types.length">
                   &middot; {{ keep.building_types.join(', ') }}
                 </template>
-                <span v-if="keep.dungeon_name" class="keep-dungeon">&middot; {{ keep.dungeon_name }}</span>
               </div>
             </div>
             <div class="keep-actions" @click.stop>
@@ -178,9 +181,27 @@ async function handleDelete(keep: KeepOut) {
   border-color: var(--accent-green);
 }
 
+.keep-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .keep-name {
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.keep-vs {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.keep-dungeon {
+  font-weight: 700;
+  color: var(--accent-red, #e74c3c);
 }
 
 .keep-meta {
@@ -190,11 +211,7 @@ async function handleDelete(keep: KeepOut) {
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-}
-
-.keep-dungeon {
-  color: var(--accent-green);
-  font-style: italic;
+  margin-top: 2px;
 }
 
 .keep-actions {
