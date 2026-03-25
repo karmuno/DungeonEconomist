@@ -17,8 +17,6 @@ from app.dungeons import DUNGEON_LEVEL_NAMES
 # Treasure threshold for "big haul" event (gold pieces in a single turn)
 BIG_HAUL_THRESHOLD = 8
 
-BASE_STAIRS_CHANCE = 0.02   # reduced slightly; Dwarves add bonus
-DWARF_STAIR_BONUS = 0.015  # per Dwarf in party
 
 
 def auto_decide(event_type: str, party: list = None) -> str:
@@ -83,26 +81,30 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
                     "options": ["press_on", "retreat"],
                 })
 
-    # Stairs discovery — chance per turn, only at deepest unlocked level
-    # Dwarves have a keen sense for finding stairs (increases discovery chance)
-    if dungeon_level >= max_dungeon_level and dungeon_level < total_levels:
+    # Stairs discovery — guaranteed at the deepest unlocked level.
+    # Dwarves find stairs earlier in the expedition (weighted toward earlier turns).
+    if dungeon_level >= max_dungeon_level and dungeon_level < total_levels and log:
         party_classes = sim_result.get("party_classes", [])
         dwarf_count = party_classes.count("Dwarf")
-        stairs_chance = BASE_STAIRS_CHANCE + dwarf_count * DWARF_STAIR_BONUS
-        for i, turn in enumerate(log):
-            if random.random() < stairs_chance:
-                turn_num = turn.get("turn", i + 1)
-                next_level = dungeon_level + 1
-                next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "unknown depths"
-                decision_points.append({
-                    "after_turn": turn_num,
-                    "type": "stairs",
-                    "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
-                    "new_level": next_level,
-                    "new_level_name": next_name,
-                    "options": ["press_on_same", "press_on_next", "retreat"],
-                })
-                break  # Only one stairs discovery per expedition
+        # Weight turns so Dwarves find stairs earlier; without Dwarves, uniform.
+        n = len(log)
+        if dwarf_count > 0:
+            weights = [n - i + dwarf_count * 2 for i in range(n)]
+        else:
+            weights = [1] * n
+        chosen_i = random.choices(range(n), weights=weights, k=1)[0]
+        turn = log[chosen_i]
+        turn_num = turn.get("turn", chosen_i + 1)
+        next_level = dungeon_level + 1
+        next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "unknown depths"
+        decision_points.append({
+            "after_turn": turn_num,
+            "type": "stairs",
+            "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
+            "new_level": next_level,
+            "new_level_name": next_name,
+            "options": ["press_on_same", "press_on_next", "retreat"],
+        })
 
     # Sort by turn order
     decision_points.sort(key=lambda dp: dp["after_turn"])

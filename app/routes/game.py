@@ -305,6 +305,19 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     for expedition in awaiting:
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}
+
+        # Never auto-resolve stairs — always require player input.
+        # _check_pending_decisions should block us from reaching this, but
+        # guard here as a failsafe so stairs are never silently swallowed.
+        if dp.get("type") == "stairs":
+            events.append(GameEvent(
+                type="expedition_choice",
+                message=f"Party '{party_name}': {dp.get('message', 'A decision awaits')}",
+                expedition_id=expedition.id,
+                event_subtype="stairs",
+            ))
+            continue
+
         is_silent = expedition.party and expedition.party.auto_decide_events
         choice = auto_decide(dp.get("type", ""), expedition.party.members if expedition.party else [])
 

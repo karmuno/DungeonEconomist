@@ -97,8 +97,8 @@
       ],
       "abilities": {
         "stair_bonus": {
-          "description": "Each Dwarf in the party increases stair discovery chance.",
-          "chance_per_turn": 0.0005,
+          "description": "Each Dwarf in the party finds stairs earlier in the expedition.",
+          "weight_bonus_per_dwarf": 2,
           "stacks": true
         }
       },
@@ -157,8 +157,7 @@
     }
   },
   "combat_defaults": {
-    "base_stairs_chance": 0.0015,
-    "party_morale_base": 7,
+"party_morale_base": 7,
     "pc_damage_die": 6,
     "monster_damage_die": 6
   }
