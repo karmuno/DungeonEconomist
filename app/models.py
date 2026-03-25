@@ -46,9 +46,10 @@ class Keep(Base):
     buildings = relationship('Building', back_populates='keep')
 
     @property
-    def buildings_count(self) -> int:
-        """Number of buildings constructed in this keep."""
-        return len(self.buildings)
+    def building_types(self) -> list[str]:
+        """Display names of all buildings in this keep."""
+        from app.buildings import get_building_name
+        return [get_building_name(b.building_type, b.level) for b in self.buildings]
 
     @property
     def treasury(self) -> int:

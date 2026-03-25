@@ -79,7 +79,9 @@ async function handleDelete(keep: KeepOut) {
               <div class="keep-meta">
                 Day {{ keep.current_day }}
                 &middot; {{ keep.treasury_gold }}gp
-                &middot; {{ keep.buildings_count }} building{{ keep.buildings_count !== 1 ? 's' : '' }}
+                <template v-if="keep.building_types.length">
+                  &middot; {{ keep.building_types.join(', ') }}
+                </template>
                 <span v-if="keep.dungeon_name" class="keep-dungeon">&middot; {{ keep.dungeon_name }}</span>
               </div>
             </div>

@@ -38,7 +38,7 @@ export interface KeepOut {
   created_at: string
   dungeon_name: string | null
   max_dungeon_level: number
-  buildings_count: number
+  building_types: string[]
 }
 
 // Adventurers
