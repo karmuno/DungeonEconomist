@@ -25,7 +25,7 @@ function logout() {
 
 <template>
   <header class="app-header">
-    <router-link to="/" class="logo">{{ player.name || 'VentureKeep' }}</router-link>
+    <router-link to="/" class="logo">VentureKeep</router-link>
     <nav>
       <router-link to="/" :class="{ active: route.path === '/' }">{{ player.name || 'Keep' }}</router-link>
       <router-link to="/village" :class="{ active: route.path === '/village' }">Village</router-link>
