@@ -539,8 +539,8 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
   padding: 3px 0; border-bottom: 1px solid var(--border-color); font-size: 12px;
   cursor: pointer;
 }
-.unassigned-row.draggable { cursor: grab; }
-.unassigned-row.draggable:active { cursor: grabbing; }
+.unassigned-row.draggable { cursor: pointer; }
+.unassigned-row.draggable:active { cursor: pointer; }
 .drag-handle { color: var(--text-muted); font-size: 12px; }
 .unassigned-name { font-weight: 600; flex: 1; font-size: 13px; }
 
@@ -584,6 +584,10 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .remove-btn:hover { color: var(--accent-red, #e74c3c); opacity: 1; }
 .draggable { cursor: grab; }
 .draggable:active { cursor: grabbing; }
+.party-member-row.draggable,
+.building-assigned-row.draggable { cursor: pointer; }
+.party-member-row.draggable:active,
+.building-assigned-row.draggable:active { cursor: pointer; }
 .drop-hover { background: rgba(74, 222, 128, 0.08) !important; border-color: var(--accent-green) !important; }
 
 .item-tag {
