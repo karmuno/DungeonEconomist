@@ -506,7 +506,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .dash-card { padding: 12px 16px; }
 .parties-unassigned-grid {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
   align-items: start;
 }
