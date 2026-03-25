@@ -529,12 +529,12 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .party-block.drop-hover { background: rgba(74, 222, 128, 0.08); border-color: var(--accent-green); }
 .party-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 12px; }
 .party-expand { font-size: 10px; color: var(--text-muted); width: 14px; }
-.party-name { font-weight: 600; font-size: 13px; flex: 1; }
+.party-name { font-weight: 600; font-size: 12px; flex: 1; }
 .party-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
 
 .party-members { padding: 4px 0 8px 22px; }
 .party-member-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer; }
-.member-name { font-weight: 600; flex: 1; font-size: 13px; }
+.member-name { font-weight: 600; flex: 1; font-size: 12px; }
 .stat { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); }
 .party-actions { display: flex; gap: 6px; margin-top: 6px; }
 
@@ -553,7 +553,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .unassigned-row.draggable { cursor: pointer; }
 .unassigned-row.draggable:active { cursor: pointer; }
 .drag-handle { color: var(--text-muted); font-size: 12px; }
-.unassigned-name { font-weight: 600; flex: 1; font-size: 13px; }
+.unassigned-name { font-weight: 600; flex: 1; font-size: 12px; }
 
 /* Buildings */
 .buildings-list { display: flex; flex-direction: column; gap: 2px; }
