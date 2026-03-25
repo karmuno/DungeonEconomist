@@ -4,11 +4,14 @@ import { useRouter } from 'vue-router'
 import { getDashboardStats } from '../api/game'
 import * as partiesApi from '../api/parties'
 import * as buildingsApi from '../api/buildings'
-import type { DashboardStats } from '../types'
+import * as adventurersApi from '../api/adventurers'
+import type { DashboardStats, AdventurerOut } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
 import { formatCurrency } from '../utils/currency'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import ModalDialog from '../components/shared/ModalDialog.vue'
+import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
 import eventBus from '../eventBus'
 
 const router = useRouter()
@@ -16,6 +19,21 @@ const gameTime = useGameTimeStore()
 const notifications = useNotificationsStore()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(true)
+
+// Adventurer detail modal
+const selectedAdventurer = ref<AdventurerOut | null>(null)
+
+async function openDetail(id: number) {
+  selectedAdventurer.value = await adventurersApi.getById(id)
+}
+
+async function handleLevelUp() {
+  if (!selectedAdventurer.value) return
+  const result = await adventurersApi.levelUp(selectedAdventurer.value.id)
+  notifications.add(`${selectedAdventurer.value.name} leveled up to ${result.new_level}! (+${result.hp_gained} HP)`, 'success')
+  selectedAdventurer.value = await adventurersApi.getById(selectedAdventurer.value.id)
+  await fetchStats()
+}
 
 // Expand state
 const expandedPartyId = ref<number | null>(null)
@@ -294,6 +312,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 class="party-member-row draggable"
                 draggable="true"
                 @dragstart="onDragStart($event, m.id, m.name, `party:${p.id}`)"
+                @click.stop="openDetail(m.id)"
               >
                 <span class="drag-handle">&#x2630;</span>
                 <span class="member-name">{{ m.name }}</span>
@@ -368,6 +387,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
             class="unassigned-row draggable"
             draggable="true"
             @dragstart="onDragStart($event, a.id, a.name, 'unassigned')"
+            @click.stop="openDetail(a.id)"
           >
             <span class="drag-handle">&#x2630;</span>
             <span class="unassigned-name">{{ a.name }}</span>
@@ -414,6 +434,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                   class="building-assigned-row draggable"
                   draggable="true"
                   @dragstart="onDragStart($event, a.id, a.name, `building:${b.id}`)"
+                  @click.stop="openDetail(a.id)"
                 >
                   <span class="drag-handle">&#x2630;</span>
                   <span class="member-name">{{ a.name }}</span>
@@ -437,6 +458,20 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
       </div>
     </template>
   </div>
+
+  <!-- Adventurer detail modal -->
+  <ModalDialog
+    :is-open="!!selectedAdventurer"
+    :title="selectedAdventurer?.name ?? ''"
+    @close="selectedAdventurer = null"
+  >
+    <AdventurerDetail
+      v-if="selectedAdventurer"
+      :adventurer="selectedAdventurer"
+      @close="selectedAdventurer = null"
+      @level-up="handleLevelUp"
+    />
+  </ModalDialog>
 </template>
 
 <style scoped>
