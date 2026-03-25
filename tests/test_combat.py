@@ -281,7 +281,8 @@ def test_cleric_turn_attempt_destroys_skeleton():
         # Initiative is rolled first (A), then cleric turn undead
         mock_rng.randint.side_effect = [
             4, 2,       # initiative: party 4, monsters 2 (party wins)
-            4, 3,       # cleric turn 2d6: 4+3 = 7 → exactly meets threshold → turned
+            4, 3,       # cleric turn 2d6: 4+3 = 7 → exactly meets threshold → success
+            3, 3,       # HD affected 2d6: 3+3 = 6 HD → enough to destroy skeleton
             # cleric is in turned_clerics → no attacks; monster_snapshot=[] → no retaliation
         ]
         mock_rng.choice.side_effect = lambda seq: seq[0]
@@ -542,15 +543,28 @@ def test_expedition_dead_list_updated():
 
 def test_elf_xp_double():
     from app.models import AdventurerClass
-    from app.progression import XP_THRESHOLDS, calculate_xp_for_next_level, check_for_level_up
+    from app.progression import calculate_xp_for_next_level, check_for_level_up
 
-    # A normal Fighter levels up at 2000 XP
+    # OSE XP tables: Fighter L2=2000, Cleric L2=1500, MU L2=2500, Elf L2=4000, Dwarf L2=2200
     assert check_for_level_up(1, 2000, AdventurerClass.FIGHTER) is True
-    # An Elf needs 4000 XP (2× multiplier via class_config)
-    assert check_for_level_up(1, 2000, AdventurerClass.ELF) is False
+    assert check_for_level_up(1, 1999, AdventurerClass.FIGHTER) is False
+    assert check_for_level_up(1, 1500, AdventurerClass.CLERIC) is True
+    assert check_for_level_up(1, 1499, AdventurerClass.CLERIC) is False
+    assert check_for_level_up(1, 2500, AdventurerClass.MAGIC_USER) is True
+    assert check_for_level_up(1, 2499, AdventurerClass.MAGIC_USER) is False
     assert check_for_level_up(1, 4000, AdventurerClass.ELF) is True
+    assert check_for_level_up(1, 2000, AdventurerClass.ELF) is False
+    assert check_for_level_up(1, 2200, AdventurerClass.DWARF) is True
+    assert check_for_level_up(1, 2199, AdventurerClass.DWARF) is False
 
-    assert calculate_xp_for_next_level(1, AdventurerClass.ELF) == XP_THRESHOLDS[2] * 2
+    assert calculate_xp_for_next_level(1, AdventurerClass.ELF) == 4000
+    assert calculate_xp_for_next_level(1, AdventurerClass.FIGHTER) == 2000
+    assert calculate_xp_for_next_level(1, AdventurerClass.CLERIC) == 1500
+    assert calculate_xp_for_next_level(1, AdventurerClass.MAGIC_USER) == 2500
+
+    # Halfling caps at level 8
+    assert calculate_xp_for_next_level(8, AdventurerClass.HALFLING) is None
+    assert check_for_level_up(8, 999999, AdventurerClass.HALFLING) is False
 
 
 # ─── Cleric heal ──────────────────────────────────────────────────────────────
@@ -644,6 +658,6 @@ def test_cleric_heal_charges_scale_with_level():
          "hit_points": 10, "hp_current": 10},
     ]
     exp = Expedition(party, dungeon_level=1)
-    assert exp.party[0]["heals_remaining"] == 1   # max(1, 1//2) = 1
-    assert exp.party[1]["heals_remaining"] == 2   # max(1, 4//2) = 2
-    assert exp.party[2]["heals_remaining"] == 3   # max(1, 6//2) = 3
+    assert exp.party[0]["heals_remaining"] == 0   # 1 // 2 = 0
+    assert exp.party[1]["heals_remaining"] == 2   # 4 // 2 = 2
+    assert exp.party[2]["heals_remaining"] == 3   # 6 // 2 = 3

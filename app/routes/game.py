@@ -540,7 +540,7 @@ def _adv_summary(m) -> dict:
         "hp_current": m.hp_current,
         "hp_max": m.hp_max,
         "xp": m.xp,
-        "next_level_xp": calculate_xp_for_next_level(m.level),
+        "next_level_xp": calculate_xp_for_next_level(m.level, m.adventurer_class),
         "gold": m.gold,
         "silver": m.silver,
         "copper": m.copper,
@@ -554,6 +554,41 @@ def _adv_summary(m) -> dict:
 @router.get("/dashboard/stats")
 def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
     """Get aggregated dashboard stats for the home page."""
+    # Pre-calculate current HP for all adventurers on active expeditions
+    from app.routes.expeditions import _build_active_summary
+    active_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+        Party.keep_id == keep.id,
+        Expedition.result.in_(["in_progress", "awaiting_choice"]),
+    ).all()
+
+    current_hps = {} # (adventurer_name) -> hp
+    for exp in active_expeditions:
+        summary = _build_active_summary(exp, exp.party, keep)
+        for mr in summary.get("member_results", []):
+            current_hps[mr["name"]] = mr["hp_current"]
+
+    def _adv_summary_local(m) -> dict:
+        """Compact adventurer summary for dashboard with real-time HP."""
+        from app.progression import calculate_xp_for_next_level
+        hp_now = current_hps.get(m.name, m.hp_current)
+        return {
+            "id": m.id,
+            "name": m.name,
+            "adventurer_class": m.adventurer_class.value,
+            "level": m.level,
+            "hp_current": hp_now,
+            "hp_max": m.hp_max,
+            "xp": m.xp,
+            "next_level_xp": calculate_xp_for_next_level(m.level, m.adventurer_class),
+            "gold": m.gold,
+            "silver": m.silver,
+            "copper": m.copper,
+            "magic_items": [
+                {"id": i.id, "name": i.name, "item_type": i.item_type, "bonus": i.bonus or 0}
+                for i in m.magic_items
+            ] if m.magic_items else [],
+        }
+
     adventurer_count = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
@@ -571,10 +606,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         Adventurer.is_bankrupt == True,
     ).count()
 
-    active_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
-        Party.keep_id == keep.id,
-        Expedition.result.in_(["in_progress", "awaiting_choice"]),
-    ).all()
     recent_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
         Party.keep_id == keep.id,
         Expedition.result == "completed",
@@ -618,7 +649,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "adventurer_class": cls,
             "assigned_count": assigned_count,
             "effects": effects,
-            "assigned_adventurers": [_adv_summary(a) for a in b.assigned_adventurers],
+            "assigned_adventurers": [_adv_summary_local(a) for a in b.assigned_adventurers],
         })
 
     # Parties with status
@@ -650,7 +681,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "auto_decide_events": p.auto_decide_events,
             "auto_delve_level": p.auto_delve_level,
             "members": [
-                _adv_summary(m)
+                _adv_summary_local(m)
                 for m in p.members
             ],
         })
@@ -665,7 +696,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         Adventurer.on_expedition == False,
         ~Adventurer.id.in_(in_party_ids),
     ).all()
-    unassigned_summary = [_adv_summary(a) for a in unassigned]
+    unassigned_summary = [_adv_summary_local(a) for a in unassigned]
 
     # Hint for new players
     hint = None

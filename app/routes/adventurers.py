@@ -3,18 +3,37 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_keep
 from app.database import get_db
-from app.models import Adventurer, Keep
+from app.models import Adventurer, Expedition, Keep, Party
 from app.progression import calculate_hp_gain, calculate_xp_for_next_level, check_for_level_up, get_class_level_bonuses
 from app.schemas import AdventurerCreate, AdventurerOut, LevelUpResult
 
 router = APIRouter()
 
 
-def add_progression_data(adventurer):
-    next_level_xp = calculate_xp_for_next_level(adventurer.level)
+def _get_active_expedition_hps(keep: Keep, db: Session) -> dict[str, int]:
+    """Pre-calculate current HP for all adventurers on active expeditions."""
+    from app.routes.expeditions import _build_active_summary
+    active_expeditions = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
+        Party.keep_id == keep.id,
+        Expedition.result.in_(["in_progress", "awaiting_choice"]),
+    ).all()
+
+    current_hps = {} # (adventurer_name) -> hp
+    for exp in active_expeditions:
+        summary = _build_active_summary(exp, exp.party, keep)
+        for mr in summary.get("member_results", []):
+            current_hps[mr["name"]] = mr["hp_current"]
+    return current_hps
+
+
+def add_progression_data(adventurer, current_hps=None):
+    if current_hps and adventurer.name in current_hps:
+        adventurer.hp_current = current_hps[adventurer.name]
+
+    next_level_xp = calculate_xp_for_next_level(adventurer.level, adventurer.adventurer_class)
 
     if next_level_xp:
-        current_level_xp = calculate_xp_for_next_level(adventurer.level - 1) or 0
+        current_level_xp = calculate_xp_for_next_level(adventurer.level - 1, adventurer.adventurer_class) or 0
         xp_for_current_level = adventurer.xp - current_level_xp
         xp_needed_for_next = next_level_xp - current_level_xp
         progress = (xp_for_current_level / xp_needed_for_next) * 100 if xp_needed_for_next > 0 else 100
@@ -64,7 +83,8 @@ def list_adventurers(
             Adventurer.is_bankrupt == False,
         )
     adventurers = query.offset(skip).limit(limit).all()
-    return [add_progression_data(adv) for adv in adventurers]
+    current_hps = _get_active_expedition_hps(keep, db)
+    return [add_progression_data(adv, current_hps) for adv in adventurers]
 
 
 @router.get("/adventurers/graveyard", response_model=list[AdventurerOut])
@@ -100,7 +120,8 @@ def get_adventurer(
     ).first()
     if not adventurer:
         raise HTTPException(status_code=404, detail="Adventurer not found")
-    return add_progression_data(adventurer)
+    current_hps = _get_active_expedition_hps(keep, db)
+    return add_progression_data(adventurer, current_hps)
 
 
 @router.post("/adventurers/{adventurer_id}/level-up", response_model=LevelUpResult)
@@ -123,7 +144,7 @@ def level_up_adventurer(
             detail="Cannot level up an adventurer while they are on an expedition"
         )
 
-    if not check_for_level_up(adventurer.level, adventurer.xp):
+    if not check_for_level_up(adventurer.level, adventurer.xp, adventurer.adventurer_class):
         raise HTTPException(status_code=400, detail="Not enough XP to level up")
 
     old_level = adventurer.level
@@ -138,7 +159,7 @@ def level_up_adventurer(
     db.commit()
     db.refresh(adventurer)
 
-    next_level_xp = calculate_xp_for_next_level(adventurer.level)
+    next_level_xp = calculate_xp_for_next_level(adventurer.level, adventurer.adventurer_class)
 
     return {
         "old_level": old_level,

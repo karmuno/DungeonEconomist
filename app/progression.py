@@ -1,24 +1,31 @@
 """Character progression and level-up system for Venturekeep.
 
 Class-specific HP and XP values are driven by app/data/classes.json
-via the class_config module. XP thresholds are universal (not class-specific).
+via the class_config module. XP thresholds are per-class per OSE tables.
 """
 
-from app.class_config import get_hp_config, get_xp_multiplier
+from app.class_config import get_hp_config
 from app.models import AdventurerClass
 
-# XP thresholds for each level (universal base — multiplied by class XP multiplier)
-XP_THRESHOLDS = {
-    1: 0,
-    2: 2000,
-    3: 4000,
-    4: 8000,
-    5: 16000,
-    6: 32000,
-    7: 64000,
-    8: 120000,
-    9: 240000,
-    10: 360000,
+# OSE XP tables per class. Index = level (1-based); table[level] = XP required.
+# Levels beyond the class max return None from calculate_xp_for_next_level.
+_XP_TABLES: dict[str, list[int]] = {
+    "Fighter":    [0, 0, 2000,  4000,  8000,  16000,  32000,  64000, 120000, 240000, 360000],
+    "Cleric":     [0, 0, 1500,  3000,  6000,  12000,  25000,  50000, 100000, 200000, 300000],
+    "Magic-User": [0, 0, 2500,  5000, 10000,  20000,  40000,  80000, 150000, 300000, 450000],
+    "Elf":        [0, 0, 4000,  8000, 16000,  32000,  64000, 120000, 250000, 400000, 600000],
+    "Dwarf":      [0, 0, 2200,  4400,  8800,  17000,  35000,  70000, 140000, 270000, 400000],
+    "Halfling":   [0, 0, 2000,  4000,  8000,  16000,  32000,  64000, 120000],  # OSE max level 8
+}
+
+# Per-class level caps (OSE maximums, capped at game max of 10)
+_MAX_CLASS_LEVEL: dict[str, int] = {
+    "Fighter":    10,
+    "Cleric":     10,
+    "Magic-User": 10,
+    "Elf":        10,
+    "Dwarf":      10,
+    "Halfling":   8,
 }
 
 MAX_LEVEL = 10
@@ -31,18 +38,33 @@ def _class_name(adventurer_class: AdventurerClass | str) -> str:
     return adventurer_class
 
 
+def _get_xp_table(adventurer_class: AdventurerClass | str | None) -> list[int]:
+    """Return the XP table for the given class, defaulting to Fighter."""
+    if adventurer_class is None:
+        return _XP_TABLES["Fighter"]
+    return _XP_TABLES.get(_class_name(adventurer_class), _XP_TABLES["Fighter"])
+
+
+def _get_max_level(adventurer_class: AdventurerClass | str | None) -> int:
+    """Return the level cap for the given class."""
+    if adventurer_class is None:
+        return MAX_LEVEL
+    return _MAX_CLASS_LEVEL.get(_class_name(adventurer_class), MAX_LEVEL)
+
+
 def calculate_xp_for_next_level(
     current_level: int,
     adventurer_class: AdventurerClass | str | None = None,
 ) -> int | None:
-    """Calculate the XP needed for the next level, accounting for class XP multiplier."""
-    if current_level >= MAX_LEVEL:
+    """Return the XP threshold for the next level, or None if already at class max."""
+    max_level = _get_max_level(adventurer_class)
+    if current_level >= max_level:
         return None
-    base = XP_THRESHOLDS[current_level + 1]
-    if adventurer_class is not None:
-        multiplier = get_xp_multiplier(_class_name(adventurer_class))
-        return int(base * multiplier)
-    return base
+    table = _get_xp_table(adventurer_class)
+    next_level = current_level + 1
+    if next_level >= len(table):
+        return None
+    return table[next_level]
 
 
 def check_for_level_up(
@@ -50,14 +72,10 @@ def check_for_level_up(
     current_xp: int,
     adventurer_class: AdventurerClass | str | None = None,
 ) -> bool:
-    """Check if an adventurer has enough XP to level up."""
-    next_level = current_level + 1
-    if next_level > MAX_LEVEL:
+    """Return True if the adventurer has enough XP to advance to the next level."""
+    threshold = calculate_xp_for_next_level(current_level, adventurer_class)
+    if threshold is None:
         return False
-    threshold = XP_THRESHOLDS[next_level]
-    if adventurer_class is not None:
-        multiplier = get_xp_multiplier(_class_name(adventurer_class))
-        threshold = int(threshold * multiplier)
     return current_xp >= threshold
 
 

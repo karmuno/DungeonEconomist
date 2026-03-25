@@ -45,8 +45,8 @@ const canLevelUp = computed(() => {
       <span class="bar-label">XP: {{ adventurer.xp }}<template v-if="adventurer.next_level_xp != null"> / {{ adventurer.next_level_xp }}</template></span>
       <ProgressBar
         v-if="adventurer.next_level_xp != null"
-        :value="adventurer.xp"
-        :max="adventurer.next_level_xp!"
+        :value="adventurer.xp_progress ?? 0"
+        :max="100"
         color="var(--accent-blue)"
       />
     </div>

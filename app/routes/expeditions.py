@@ -40,28 +40,86 @@ def _make_json_safe(obj):
 simulator = DungeonSimulator()
 
 
-def _get_combat_bonus(keep: Keep, db: Session) -> int:
-    """Get party strength bonus from Training Grounds (1 per assigned Fighter)."""
+def _get_building_bonuses(keep: Keep, db: Session) -> dict:
+    """Gather all building-derived bonuses for expedition launch and return."""
+    from app.buildings import get_all_building_bonuses
     from app.models import Building
-    tg = db.query(Building).filter(
-        Building.keep_id == keep.id,
-        Building.building_type == "training_grounds",
-    ).first()
-    if not tg:
-        return 0
-    return len(tg.assigned_adventurers)
+
+    bonuses = {
+        "to_hit_bonus": 0,
+        "damage_bonus": 0,
+        "morale_penalty": 0,
+        "magic_item_discovery_chance": 0.0,
+        "healing_potion_chance": 0.0,
+        "resurrect_on_return": False,
+        "scroll_craft_chance": 0.0,
+        "has_artifact_crafting": False,
+        "craft_artifact_cost": 0,
+        "smithy_craft_chance": 0.0,
+        "smithy_craft_slots": 0,
+        "masterwork_chance": 0.0,
+    }
+
+    buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
+    for b in buildings:
+        btype = b.building_type
+        level = b.level
+        assigned_count = len(b.assigned_adventurers)
+        merged = get_all_building_bonuses(btype, level)
+
+        # Training Grounds
+        if "to_hit_per_assigned" in merged:
+            tier1_count = sum(1 for a in b.assigned_adventurers if a.level >= 2)
+            bonuses["to_hit_bonus"] += tier1_count * merged["to_hit_per_assigned"]
+        if "damage_per_assigned" in merged:
+            tier2_count = sum(1 for a in b.assigned_adventurers if a.level >= 6)
+            bonuses["damage_bonus"] += tier2_count * merged["damage_per_assigned"]
+        if "monster_morale_penalty" in merged:
+            tier3_count = sum(1 for a in b.assigned_adventurers if a.level >= 9)
+            if tier3_count > 0:
+                bonuses["morale_penalty"] += merged["monster_morale_penalty"]
+
+        # Temple
+        if "healing_potion_chance_per_cleric" in merged:
+            tier2_clerics = sum(1 for a in b.assigned_adventurers if a.level >= 6)
+            bonuses["healing_potion_chance"] = tier2_clerics * merged["healing_potion_chance_per_cleric"]
+        if "resurrect_highest_dead" in merged:
+            tier3_clerics = sum(1 for a in b.assigned_adventurers if a.level >= 9)
+            if tier3_clerics > 0:
+                bonuses["resurrect_on_return"] = True
+
+        # Library
+        if "magic_item_discovery_per_assigned" in merged:
+            bonuses["magic_item_discovery_chance"] = assigned_count * merged["magic_item_discovery_per_assigned"]
+        if "scroll_craft_chance_per_mu" in merged:
+            tier2_mus = sum(1 for a in b.assigned_adventurers if a.level >= 6)
+            bonuses["scroll_craft_chance"] = tier2_mus * merged["scroll_craft_chance_per_mu"]
+        if "craft_artifact_cost" in merged:
+            tier3_mus = sum(1 for a in b.assigned_adventurers if a.level >= 9)
+            if tier3_mus > 0:
+                bonuses["has_artifact_crafting"] = True
+                bonuses["craft_artifact_cost"] = merged["craft_artifact_cost"]
+
+        # Smithy
+        if "craft_weapon_slot" in merged or "craft_armor_slot" in merged:
+            bonuses["smithy_craft_slots"] = assigned_count
+            bonuses["smithy_craft_chance"] = merged.get("craft_chance", 0.10)
+        if "masterwork_chance" in merged:
+            tier2_dwarves = sum(1 for a in b.assigned_adventurers if a.level >= 6)
+            if tier2_dwarves > 0:
+                bonuses["masterwork_chance"] = merged["masterwork_chance"]
+
+    return bonuses
+
+
+def _get_combat_bonus(keep: Keep, db: Session) -> int:
+    """Legacy: Get party to-hit bonus from Training Grounds."""
+    return _get_building_bonuses(keep, db)["to_hit_bonus"]
 
 
 def _get_magic_item_chance(keep: Keep, db: Session) -> float:
-    """Get magic item discovery chance from Library (1% per assigned Magic-User)."""
-    from app.models import Building
-    lib = db.query(Building).filter(
-        Building.keep_id == keep.id,
-        Building.building_type == "library",
-    ).first()
-    if not lib:
-        return 0.0
-    return len(lib.assigned_adventurers) * 0.01
+    """Legacy: Get magic item discovery chance from Library."""
+    return _get_building_bonuses(keep, db)["magic_item_discovery_chance"]
 
 
 def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
@@ -270,31 +328,159 @@ def _finalize_expedition(
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
-    # Magic item discovery (Library bonus)
+    # Magic item discovery (Library Tier I + general discovery)
     if living_members:
-        magic_chance = _get_magic_item_chance(keep, db)
-        if magic_chance > 0 and _random.random() < magic_chance:
-            from app.magic_items import can_equip, generate_magic_item
+        building_bonuses = _get_building_bonuses(keep, db)
+        magic_chance = building_bonuses["magic_item_discovery_chance"]
+        dungeon_lvl = expedition.dungeon_level or 1
+
+        # Per-member class-appropriate discovery
+        if magic_chance > 0:
+            from app.magic_items import can_equip, generate_class_magic_item
             from app.models import MagicItem
-            dungeon_lvl = expedition.dungeon_level or 1
-            item = generate_magic_item(dungeon_lvl)
-            # Find a recipient who has a free slot for this item type
-            eligible = [m for m in living_members if can_equip(m, item["item_type"])]
-            if eligible:
-                recipient = _random.choice(eligible)
-                magic_item = MagicItem(
-                    adventurer_id=recipient.id,
-                    name=item["name"],
-                    item_type=item["item_type"],
-                    bonus=item["bonus"],
-                    found_day=keep.current_day,
-                    found_expedition_id=expedition.id,
-                )
-                db.add(magic_item)
+            for member in living_members:
+                if _random.random() < magic_chance:
+                    item = generate_class_magic_item(dungeon_lvl, member.adventurer_class.value)
+                    if can_equip(member, item["item_type"]):
+                        magic_item = MagicItem(
+                            adventurer_id=member.id,
+                            name=item["name"],
+                            item_type=item["item_type"],
+                            bonus=item.get("bonus", 0),
+                            consumable=item.get("consumable", False),
+                            found_day=keep.current_day,
+                            found_expedition_id=expedition.id,
+                        )
+                        db.add(magic_item)
+                        events.append({
+                            "type": "loot",
+                            "message": f"{member.name} found a magic item: {item['name']}!",
+                        })
+
+        # ── Temple Tier III: Resurrect highest-level dead on return ──
+        if building_bonuses["resurrect_on_return"] and dead_names:
+            # Find highest-level dead member (from this party)
+            dead_members = [m for m in party.members if m.name in dead_names]
+            if dead_members:
+                highest = max(dead_members, key=lambda m: m.level)
+                highest.is_dead = False
+                highest.death_day = None
+                highest.death_party_name = None
+                highest.hp_current = max(1, highest.hp_max // 2)
+                highest.is_available = True
+                dead_names.discard(highest.name)
+                living_members.append(highest)
                 events.append({
-                    "type": "loot",
-                    "message": f"{recipient.name} found a magic item: {item['name']}!",
+                    "type": "resurrection",
+                    "message": f"{highest.name} was resurrected by the Cathedral at half HP!",
                 })
+
+        # ── Temple Tier II: Healing Potion purchase chance ──
+        healing_potion_chance = building_bonuses["healing_potion_chance"]
+        if healing_potion_chance > 0:
+            from app.magic_items import can_equip
+            from app.models import MagicItem
+            potion_cost_copper = 100 * 100  # 100gp in copper
+            for member in living_members:
+                if _random.random() < healing_potion_chance and can_equip(member, "potion") and member.total_copper() >= potion_cost_copper:
+                        member.subtract_currency(potion_cost_copper)
+                        potion = MagicItem(
+                            adventurer_id=member.id,
+                            name="Healing Potion",
+                            item_type="potion",
+                            bonus=0,
+                            consumable=True,
+                            found_day=keep.current_day,
+                        )
+                        db.add(potion)
+                        events.append({
+                            "type": "crafting",
+                            "message": f"{member.name} purchased a Healing Potion for 100gp.",
+                        })
+
+        # ── Library Tier II: Scroll purchase chance ──
+        scroll_chance = building_bonuses["scroll_craft_chance"]
+        if scroll_chance > 0:
+            from app.models import MagicItem
+            scroll_cost_copper = 100 * 100  # 100gp in copper
+            for member in living_members:
+                if member.adventurer_class.value in ("Magic-User", "Elf") and _random.random() < scroll_chance and member.total_copper() >= scroll_cost_copper:
+                        member.subtract_currency(scroll_cost_copper)
+                        scroll = MagicItem(
+                            adventurer_id=member.id,
+                            name="Arcane Scroll",
+                            item_type="scroll",
+                            bonus=0,
+                            consumable=True,
+                            found_day=keep.current_day,
+                        )
+                        db.add(scroll)
+                        events.append({
+                            "type": "crafting",
+                            "message": f"{member.name} purchased an Arcane Scroll for 100gp.",
+                        })
+
+        # ── Smithy: Weapon/Armor crafting on return ──
+        smithy_slots = building_bonuses["smithy_craft_slots"]
+        smithy_chance = building_bonuses["smithy_craft_chance"]
+        masterwork_chance = building_bonuses["masterwork_chance"]
+        if smithy_slots > 0 and living_members:
+            from app.magic_items import can_equip
+            from app.models import MagicItem
+            craft_types = ["weapon", "armor"]
+            for slot_idx in range(smithy_slots):
+                if _random.random() < smithy_chance:
+                    item_type = craft_types[slot_idx % len(craft_types)]
+                    bonus = 1
+                    if masterwork_chance > 0 and _random.random() < masterwork_chance:
+                        bonus = _random.choice([2, 3])
+                    eligible = [m for m in living_members if can_equip(m, item_type)]
+                    if eligible:
+                        recipient = _random.choice(eligible)
+                        from app.magic_items import generate_magic_item
+                        base_item = generate_magic_item(bonus)
+                        # Force the correct type
+                        base_item["item_type"] = item_type
+                        magic_item = MagicItem(
+                            adventurer_id=recipient.id,
+                            name=base_item["name"],
+                            item_type=item_type,
+                            bonus=bonus,
+                            found_day=keep.current_day,
+                        )
+                        db.add(magic_item)
+                        quality = "Masterwork " if bonus > 1 else ""
+                        events.append({
+                            "type": "crafting",
+                            "message": f"The Smithy crafted a {quality}{base_item['name']} for {recipient.name}!",
+                        })
+
+        # ── Consume potions used during expedition ──
+        if effective_result.get("potion_consumed_names"):
+            from app.models import MagicItem
+            for name in effective_result["potion_consumed_names"]:
+                member = next((m for m in party.members if m.name == name), None)
+                if member:
+                    for item in list(member.magic_items):
+                        if item.item_type == "potion":
+                            db.delete(item)
+                            events.append({
+                                "type": "item_consumed",
+                                "message": f"{name}'s Healing Potion was consumed to save them!",
+                            })
+                            break
+
+        # ── Consume scrolls used during expedition ──
+        if effective_result.get("scrolls_consumed"):
+            from app.models import MagicItem
+            for name, count in effective_result["scrolls_consumed"].items():
+                member = next((m for m in party.members if m.name == name), None)
+                if member:
+                    consumed = 0
+                    for item in list(member.magic_items):
+                        if item.item_type == "scroll" and consumed < count:
+                            db.delete(item)
+                            consumed += 1
 
     # Apply stairs discovery — finding stairs always unlocks the next level,
     # regardless of whether the party pressed on or retreated.
@@ -329,23 +515,36 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
     if dungeon_level is None:
         dungeon_level = keep.max_dungeon_level or 1
     dungeon_level = min(dungeon_level, keep.max_dungeon_level or 1)
-    combat_bonus = _get_combat_bonus(keep, db)
+
+    from app.magic_items import get_scroll_count, get_spell_multiplier, has_potion
+    building_bonuses = _get_building_bonuses(keep, db)
+    combat_bonus = building_bonuses["to_hit_bonus"]
 
     party_members = []
     for member in party.members:
         weapon_bonus = get_weapon_bonus(member)
         armor_bonus = get_armor_bonus(member)
-        party_members.append({
+        member_dict = {
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level + weapon_bonus + combat_bonus,
-            "base_level": member.level,
+            "level": member.level + weapon_bonus + combat_bonus,  # effective level for combat
+            "base_level": member.level,  # actual level for XP etc.
             "hit_points": member.hp_max,
-            "current_hp": member.hp_current + armor_bonus,
-            "armor_buffer": armor_bonus,
+            "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
+            "armor_buffer": armor_bonus,  # track buffer separately
             "xp": member.xp,
-        })
+            "to_hit_bonus": building_bonuses["to_hit_bonus"],
+            "damage_bonus": building_bonuses["damage_bonus"],
+            "has_potion": has_potion(member),
+        }
+        # Add scroll/artifact spell bonuses for casters
+        if member.adventurer_class.value in ("Magic-User", "Elf"):
+            scrolls = get_scroll_count(member)
+            multiplier = get_spell_multiplier(member)
+            member_dict["scroll_count"] = scrolls
+            member_dict["spell_multiplier"] = multiplier
+        party_members.append(member_dict)
 
     simulator_party_idx = simulator.add_party(party_members)
     expedition_id_sim = simulator.start_expedition(simulator_party_idx, dungeon_level=dungeon_level)
@@ -442,14 +641,15 @@ def launch_expedition(
             )
 
     # Convert party to simulator format
-    from app.magic_items import get_armor_bonus, get_weapon_bonus
-    combat_bonus = _get_combat_bonus(keep, db)  # Training Grounds bonus
+    from app.magic_items import get_armor_bonus, get_scroll_count, get_spell_multiplier, get_weapon_bonus, has_potion
+    building_bonuses = _get_building_bonuses(keep, db)
+    combat_bonus = building_bonuses["to_hit_bonus"]
 
     party_members = []
     for member in party.members:
         weapon_bonus = get_weapon_bonus(member)
         armor_bonus = get_armor_bonus(member)
-        party_members.append({
+        member_dict = {
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
@@ -459,7 +659,17 @@ def launch_expedition(
             "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
             "armor_buffer": armor_bonus,  # track buffer separately
             "xp": member.xp,
-        })
+            "to_hit_bonus": building_bonuses["to_hit_bonus"],
+            "damage_bonus": building_bonuses["damage_bonus"],
+            "has_potion": has_potion(member),
+        }
+        # Add scroll/artifact spell bonuses for casters
+        if member.adventurer_class.value in ("Magic-User", "Elf"):
+            scrolls = get_scroll_count(member)
+            multiplier = get_spell_multiplier(member)
+            member_dict["scroll_count"] = scrolls
+            member_dict["spell_multiplier"] = multiplier
+        party_members.append(member_dict)
 
     # Add party to simulator
     simulator_party_idx = None
@@ -668,7 +878,7 @@ def get_expedition_results(
             if party:
                 members_ready = []
                 for member in party.members:
-                    if check_for_level_up(member.level, member.xp):
+                    if check_for_level_up(member.level, member.xp, member.adventurer_class):
                         members_ready.append({
                             "id": member.id,
                             "name": member.name,
@@ -708,7 +918,7 @@ def get_expedition_results(
         members_ready_for_level_up = []
         if party:
             for member in party.members:
-                if check_for_level_up(member.level, member.xp):
+                if check_for_level_up(member.level, member.xp, member.adventurer_class):
                     members_ready_for_level_up.append({
                         "id": member.id,
                         "name": member.name,
@@ -794,6 +1004,9 @@ def get_expedition_summary(
 def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp: dict = None) -> dict:
     """Replay simulation turns to reconstruct per-member HP.
 
+    Uses exact per-attack round_log data when available. Falls back to even
+    distribution for old expeditions that lack round_log.
+
     Args:
         starting_hp: {name: hp} snapshot from expedition launch. Falls back
                      to live DB hp_current if not available (old expeditions).
@@ -802,28 +1015,46 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
     """
     hp = {}
     alive = {}
+    member_names: set[str] = set()
     for m in party_members:
-        if starting_hp and m.name in starting_hp:
-            hp[m.name] = starting_hp[m.name]
-        else:
-            hp[m.name] = m.hp_current
-        alive[m.name] = True
+        name = m.name
+        hp[name] = starting_hp[name] if (starting_hp and name in starting_hp) else m.hp_current
+        alive[name] = True
+        member_names.add(name)
 
     for turn in events_log:
         for event in turn.get("events", []):
-            # Combat damage distributed evenly among alive members
             combat = event.get("combat")
             if combat:
-                hp_lost = combat.get("hp_lost", 0)
-                alive_names = [n for n, a in alive.items() if a]
-                if alive_names and hp_lost > 0:
-                    per_member = hp_lost // len(alive_names)
-                    remainder = hp_lost % len(alive_names)
-                    for i, name in enumerate(alive_names):
-                        loss = per_member + (1 if i < remainder else 0)
-                        hp[name] = max(0, hp[name] - loss)
+                round_log = combat.get("round_log")
+                if round_log:
+                    # Exact replay: apply damage from each attack that targets a PC
+                    for round_entry in round_log:
+                        for atk in round_entry.get("attacks", []):
+                            target = atk.get("target")
+                            if target in member_names and atk.get("hit") and atk.get("damage", 0) > 0:
+                                hp[target] = max(0, hp.get(target, 0) - atk["damage"])
+                    # Post-combat revivals (cleric L2+): set to 1 HP
+                    for revived_name in combat.get("revived_adventurers", []):
+                        if revived_name in member_names:
+                            hp[revived_name] = 1
+                    # Post-combat healing: healed["hp"] is the actual amount healed
+                    for healed in combat.get("healed_adventurers", []):
+                        name = healed.get("name")
+                        if name in member_names:
+                            hp[name] = hp.get(name, 0) + healed.get("hp", 0)
+                else:
+                    # Fallback for old expeditions without round_log: distribute evenly
+                    hp_lost = combat.get("hp_lost", 0)
+                    alive_names = [n for n, a in alive.items() if a]
+                    if alive_names and hp_lost > 0:
+                        per_member = hp_lost // len(alive_names)
+                        remainder = hp_lost % len(alive_names)
+                        for i, name in enumerate(alive_names):
+                            loss = per_member + (1 if i < remainder else 0)
+                            hp[name] = max(0, hp[name] - loss)
 
-            # Trap damage distributed evenly
+            # Trap damage: simulator distributes evenly so replay matches exactly
             trap_dmg = event.get("trap_damage")
             if trap_dmg:
                 alive_names = [n for n, a in alive.items() if a]
@@ -916,6 +1147,8 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "events_log": events_log,
         "estimated_readiness_day": None,
         "pending_event": pending_event,
+        "spells_left": sim.get("spells_left", 0),
+        "heals_left": sim.get("heals_left", 0),
     }
 
 
@@ -997,6 +1230,8 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "events_log": events_log,
         "estimated_readiness_day": estimated_readiness_day,
         "pending_event": None,
+        "spells_left": sim.get("spells_left", 0),
+        "heals_left": sim.get("heals_left", 0),
     }
 
 
