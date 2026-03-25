@@ -239,8 +239,10 @@ class MagicItem(Base):
     id = Column(Integer, primary_key=True)
     adventurer_id = Column(Integer, ForeignKey('adventurers.id'), nullable=False)
     name = Column(String, nullable=False)
-    item_type = Column(String, nullable=False)  # 'weapon' or 'armor'
+    item_type = Column(String, nullable=False)  # 'weapon', 'armor', 'potion', 'scroll', 'artifact'
     bonus = Column(Integer, default=1)  # +N bonus, equals dungeon level where found
+    consumable = Column(Boolean, default=False, nullable=False)  # potions/scrolls consumed on use
+    spell_multiplier = Column(Integer, default=0, nullable=False)  # artifacts: multiplier for spell uses
     found_day = Column(Integer, nullable=True)
     found_expedition_id = Column(Integer, nullable=True)
 

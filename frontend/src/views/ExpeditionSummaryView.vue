@@ -43,6 +43,8 @@ interface SummaryData {
   events_log: unknown[]
   estimated_readiness_day: number | null
   pending_event?: PendingEvent | null
+  spells_left?: number
+  heals_left?: number
 }
 
 const summary = ref<SummaryData | null>(null)
@@ -143,6 +145,13 @@ interface AttackEntry {
   target_died: boolean
 }
 
+interface TurnUndeadEntry {
+  monster: string
+  result: 'destroyed' | 'turned' | 'resisted'
+  roll?: number
+  needed?: number
+}
+
 interface RoundEntry {
   round: number
   event?: string
@@ -151,8 +160,11 @@ interface RoundEntry {
   monsters_destroyed?: number
   halfling_pre_round?: AttackEntry[]
   initiative?: string
+  initiative_winner?: string
   attacks?: AttackEntry[]
   morale_checks?: Array<{ side: string; roll: number; morale: number; passed: boolean }>
+  cleric_turn?: { cleric: string; turn_log: TurnUndeadEntry[] }
+  cleric_turns?: Array<{ cleric: string; turn_log: TurnUndeadEntry[] }>
 }
 
 interface TurnLog {
@@ -197,8 +209,21 @@ function sideSummary(attacks: AttackEntry[]): string {
 function roundLabel(r: RoundEntry): string {
   if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
   if (r.halfling_pre_round) return `Halflings pre-round`
-  const label = r.initiative === 'party' ? 'party first' : r.initiative === 'monsters' ? 'monsters first' : 'simultaneous'
+  const initiative = r.initiative_winner ?? r.initiative
+  const label = initiative === 'party' ? 'party first' : initiative === 'monsters' ? 'monsters first' : 'simultaneous'
   return `Round ${r.round} (${label})`
+}
+
+function turnUndeadSummary(ct: RoundEntry['cleric_turns']): string {
+  if (!ct || ct.length === 0) return ''
+  return ct.map(c => {
+    const destroyed = c.turn_log.filter(e => e.result !== 'resisted').length
+    const resisted = c.turn_log.filter(e => e.result === 'resisted').length
+    const parts: string[] = []
+    if (destroyed > 0) parts.push(`${destroyed} turned`)
+    if (resisted > 0) parts.push(`${resisted} resisted`)
+    return `${c.cleric}: ${parts.join(', ') || 'failed'}`
+  }).join('; ')
 }
 
 const expandedRounds = ref<Set<string>>(new Set())
@@ -278,6 +303,8 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
         <div class="summary-stats">
           <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
           <span>XP: {{ summary.total_xp }}</span>
+          <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
+          <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
           <template v-if="summary.estimated_readiness_day">
             <span class="text-muted">Ready by: {{ formatGameDayShort(summary.estimated_readiness_day) }}</span>
           </template>
@@ -382,13 +409,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                   <template v-if="event.combat?.mu_spell_used">
                     <div class="round-row">
                       <span class="text-muted">Spell:</span>
-                      <span>{{ event.combat.mu_spell_used }} ended the fight instantly</span>
-                    </div>
-                  </template>
-                  <template v-else-if="event.combat?.cleric_turned">
-                    <div class="round-row">
-                      <span class="text-muted">Turn Undead:</span>
-                      <span>Cleric drove off the monsters</span>
+                      <span><strong>{{ event.combat.mu_caster || 'A caster' }}</strong> cast <strong>{{ event.combat.mu_spell_used }}</strong> and ended the fight instantly</span>
                     </div>
                   </template>
                   <template v-else-if="event.combat?.round_log?.length">
@@ -400,6 +421,9 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                         <template v-if="!r.event && !r.halfling_pre_round">
                           <span class="side-pill party">Party: {{ sideSummary(sideAttacks(r, 'party')) }}</span>
                           <span class="side-pill monsters">Monsters: {{ sideSummary(sideAttacks(r, 'monsters')) }}</span>
+                        </template>
+                        <template v-if="r.cleric_turns?.length">
+                          <span class="side-pill party">Turn Undead: {{ turnUndeadSummary(r.cleric_turns) }}</span>
                         </template>
                         <template v-if="r.morale_checks?.length">
                           <span v-for="(mc, mi) in r.morale_checks" :key="mi" :class="['morale-tag', mc.passed ? '' : 'morale-break']">
@@ -413,6 +437,18 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                           <div class="attack-line">{{ r.caster }} casts {{ r.spell }} — {{ r.monsters_destroyed }} destroyed</div>
                         </template>
                         <template v-else>
+                          <!-- Turn Undead details -->
+                          <template v-if="r.cleric_turns?.length">
+                            <div v-for="(ct, cti) in r.cleric_turns" :key="'ct'+cti" class="side-header">
+                              {{ ct.cleric }} Turn Attempt
+                              <div v-for="(tl, tli) in ct.turn_log" :key="'tl'+tli" class="attack-line" style="padding-left: 20px;">
+                                <span class="atk-name">{{ tl.monster }}</span>
+                                <span class="atk-arrow">→</span>
+                                <span :class="tl.result === 'resisted' ? 'text-muted' : 'text-success'">{{ tl.result }}</span>
+                                <span v-if="tl.roll" class="text-muted" style="font-size: 0.8em"> (rolled {{ tl.roll }} vs {{ tl.needed }})</span>
+                              </div>
+                            </div>
+                          </template>
                           <!-- Party attacks -->
                           <template v-if="sideAttacks(r, 'party').length">
                             <div class="side-header">Party</div>
@@ -437,7 +473,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                       </template>
                     </div>
                   </template>
-                  <template v-else>
+                  <template v-else-if="!event.combat?.mu_spell_used">
                     <span class="text-muted">{{ event.combat?.rounds_fought ?? 0 }} round(s) fought</span>
                   </template>
                   <template v-if="event.combat?.healed_adventurers?.length">
@@ -448,7 +484,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                   </template>
                 </div>
               </template>
-              <template v-else-if="event.type === 'Trap'">
+              <template v-else-if="event.type === 'Trap' || event.type === 'Trap/Hazard'">
                 <span class="badge badge-warning">Trap</span>
                 <span>{{ event.trap_damage }} damage dealt to party</span>
               </template>
