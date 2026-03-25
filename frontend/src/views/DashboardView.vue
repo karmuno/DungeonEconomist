@@ -522,7 +522,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .party-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
 
 .party-members { padding: 4px 0 8px 22px; }
-.party-member-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.party-member-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer; }
 .member-name { font-weight: 600; flex: 1; font-size: 13px; }
 .stat { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); }
 .party-actions { display: flex; gap: 6px; margin-top: 6px; }
@@ -537,6 +537,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .unassigned-row {
   display: flex; align-items: center; gap: 8px;
   padding: 3px 0; border-bottom: 1px solid var(--border-color); font-size: 12px;
+  cursor: pointer;
 }
 .unassigned-row.draggable { cursor: grab; }
 .unassigned-row.draggable:active { cursor: grabbing; }
@@ -573,7 +574,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 
 /* Building assigned list */
 .building-assigned { display: flex; flex-direction: column; gap: 2px; }
-.building-assigned-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; }
+.building-assigned-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; cursor: pointer; }
 
 /* Remove/drag controls */
 .remove-btn {
