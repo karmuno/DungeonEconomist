@@ -14,3 +14,9 @@ globs: ["app/**/*.py", "tests/**/*.py"]
 - Use Python `enum.Enum` for enumerations.
 - Docstrings: `"""triple quotes"""` for classes and public functions.
 - Max line length: 120 characters.
+
+## Schema Changes
+
+- Always use Alembic migrations for any model change: `alembic revision --autogenerate -m "description"`, then `alembic upgrade head`.
+- Never delete the database or manually edit schema to migrate.
+- Commit migration files alongside the model changes that require them.
