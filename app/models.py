@@ -46,6 +46,11 @@ class Keep(Base):
     buildings = relationship('Building', back_populates='keep')
 
     @property
+    def buildings_count(self) -> int:
+        """Number of buildings constructed in this keep."""
+        return len(self.buildings)
+
+    @property
     def treasury(self) -> int:
         """Legacy accessor: total treasury in gold pieces (floored)."""
         return self.treasury_total_copper() // 100

@@ -31,6 +31,7 @@ class KeepOut(BaseModel):
     created_at: datetime
     dungeon_name: str | None = None
     max_dungeon_level: int = 1
+    buildings_count: int = 0
 
     @field_validator('max_dungeon_level', mode='before')
     @classmethod
