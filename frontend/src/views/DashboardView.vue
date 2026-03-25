@@ -283,8 +283,44 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         </div>
       </div>
 
-      <!-- Parties (expandable, drop target) -->
-      <div class="card dash-card mb-2">
+      <!-- Parties + Unassigned side-by-side -->
+      <div class="parties-unassigned-grid mb-2">
+
+      <!-- Unassigned Adventurers (left) -->
+      <div
+        class="card dash-card"
+        :class="{ 'drop-hover': dragOverUnassigned }"
+        @dragover="onUnassignedDragOver"
+        @dragleave="onUnassignedDragLeave"
+        @drop="onUnassignedDrop"
+      >
+        <h3 class="mb-1">Unassigned Adventurers</h3>
+        <div v-if="stats.unassigned_adventurers.length === 0" class="text-muted" style="font-size: 12px">
+          Drag adventurers here to unassign them
+        </div>
+        <div class="unassigned-list">
+          <div
+            v-for="a in stats.unassigned_adventurers"
+            :key="a.id"
+            class="unassigned-row draggable"
+            draggable="true"
+            @dragstart="onDragStart($event, a.id, a.name, 'unassigned')"
+            @click.stop="openDetail(a.id)"
+          >
+            <span class="drag-handle">&#x2630;</span>
+            <span class="unassigned-name">{{ a.name }}</span>
+            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
+            <span class="badge">{{ a.adventurer_class }}</span>
+            <span class="stat">Lv {{ a.level }}</span>
+            <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
+            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+            <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parties (right, expandable, drop target) -->
+      <div class="card dash-card">
         <div class="flex flex-between mb-1">
           <h3>Parties</h3>
           <button class="btn btn-sm btn-primary" @click="router.push('/form-party')">+ New Party</button>
@@ -368,38 +404,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         </div>
       </div>
 
-      <!-- Unassigned Adventurers (draggable + drop zone for unassigning) -->
-      <div
-        class="card dash-card mb-2"
-        :class="{ 'drop-hover': dragOverUnassigned }"
-        @dragover="onUnassignedDragOver"
-        @dragleave="onUnassignedDragLeave"
-        @drop="onUnassignedDrop"
-      >
-        <h3 class="mb-1">Unassigned Adventurers</h3>
-        <div v-if="stats.unassigned_adventurers.length === 0" class="text-muted" style="font-size: 12px">
-          Drag adventurers here to unassign them
-        </div>
-        <div class="unassigned-list">
-          <div
-            v-for="a in stats.unassigned_adventurers"
-            :key="a.id"
-            class="unassigned-row draggable"
-            draggable="true"
-            @dragstart="onDragStart($event, a.id, a.name, 'unassigned')"
-            @click.stop="openDetail(a.id)"
-          >
-            <span class="drag-handle">&#x2630;</span>
-            <span class="unassigned-name">{{ a.name }}</span>
-            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ item.item_type === 'weapon' ? '\u2694\uFE0F' : '\uD83D\uDEE1\uFE0F' }}+{{ item.bonus }}</span>
-            <span class="badge">{{ a.adventurer_class }}</span>
-            <span class="stat">Lv {{ a.level }}</span>
-            <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
-            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
-            <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
-          </div>
-        </div>
-      </div>
+      </div> <!-- end parties-unassigned-grid -->
 
       <!-- Village (expandable, drop target for buildings) -->
       <div v-if="stats.buildings.length > 0" class="card dash-card mb-2">
@@ -499,6 +504,12 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .text-green { color: var(--accent-green); }
 
 .dash-card { padding: 12px 16px; }
+.parties-unassigned-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 12px;
+  align-items: start;
+}
 
 /* Active expeditions */
 .active-list { display: flex; flex-direction: column; gap: 6px; }
