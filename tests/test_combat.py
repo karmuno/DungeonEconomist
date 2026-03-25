@@ -18,13 +18,14 @@ from app.expedition import (
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def make_pc(name="Hero", cls="Fighter", level=1, hp=20,
-            turns=None, spells=None, revivals=None) -> dict:
+            turns=None, spells=None, revivals=None, heals=None) -> dict:
     hd = get_pc_hd(cls, level)
     pc = {
         "name": name,
         "character_class": cls,
         "level": level,
         "current_hp": hp,
+        "hit_points": hp,
         "ac": PC_AC,
         "hd": hd,
         "thac0": get_pc_thac0(cls, level),
@@ -35,6 +36,8 @@ def make_pc(name="Hero", cls="Fighter", level=1, hp=20,
         pc["spells_remaining"] = spells
     if revivals is not None:
         pc["revivals_remaining"] = revivals
+    if heals is not None:
+        pc["heals_remaining"] = heals
     return pc
 
 
@@ -548,3 +551,99 @@ def test_elf_xp_double():
     assert check_for_level_up(1, 4000, AdventurerClass.ELF) is True
 
     assert calculate_xp_for_next_level(1, AdventurerClass.ELF) == XP_THRESHOLDS[2] * 2
+
+
+# ─── Cleric heal ──────────────────────────────────────────────────────────────
+
+def test_cleric_heals_wounded_ally():
+    """Cleric uses a heal charge to restore HP to a wounded fighter post-combat.
+
+    randint call order (party-first initiative):
+      (1,6)=6  party initiative
+      (1,6)=1  monster initiative  → party wins
+      (1,20)=20 cleric attack roll → hit (needed 19-6=13)
+      (1,6)=6  cleric damage       → goblin dies
+      (1,20)=1 goblin retaliation  → miss (needed 20-7=13)
+      (1,6)=4  heal roll           → 4+1=5 HP healed
+    """
+    cleric = make_pc("Edric", cls="Cleric", level=2, hp=20, heals=1)
+    fighter = make_pc("Kira", cls="Fighter", level=1, hp=5)
+    fighter["hit_points"] = 20  # max HP; current_hp=5 means wounded
+
+    with patch("app.expedition.random.randint", side_effect=[6, 1, 20, 6, 1, 4]):
+        result = resolve_combat_rounds([cleric, fighter], [make_monster("Goblin", hp=1)])
+
+    assert len(result["healed_adventurers"]) == 1
+    healed = result["healed_adventurers"][0]
+    assert healed["name"] == "Kira"
+    assert healed["hp"] == 5   # 4+1
+    assert fighter["current_hp"] == 10  # 5 + 5
+    assert cleric["heals_remaining"] == 0
+
+
+def test_cleric_does_not_heal_when_no_wounded():
+    """Cleric skips healing if everyone is at full HP.
+
+    randint call order:
+      (1,6)=6  party initiative
+      (1,6)=1  monster initiative
+      (1,20)=20 cleric attack → hit
+      (1,6)=6  damage         → goblin dies
+      (1,20)=1 goblin retaliates → miss
+      [no heal roll — no wounded targets]
+    """
+    cleric = make_pc("Edric", cls="Cleric", level=2, hp=20, heals=1)
+    fighter = make_pc("Kira", cls="Fighter", level=1, hp=20)
+    # hit_points == current_hp (from make_pc), so fighter is at full HP
+
+    with patch("app.expedition.random.randint", side_effect=[6, 1, 20, 6, 1]):
+        result = resolve_combat_rounds([cleric, fighter], [make_monster("Goblin", hp=1)])
+
+    assert result["healed_adventurers"] == []
+    assert cleric["heals_remaining"] == 1  # charge preserved
+
+
+def test_cleric_heals_most_wounded_first():
+    """Cleric with 2 charges heals the most injured ally first each time.
+
+    randint call order (party-first initiative, cleric L4 has hd=2 attacks):
+      (1,6)=6  party initiative
+      (1,6)=1  monster initiative
+      (1,20)=20 cleric attack 1 → hit → (1,6)=6 damage → goblin dies
+      [cleric attack 2 & fighter attacks: no targets left]
+      (1,20)=1 goblin retaliation → miss
+      (1,6)=5  first heal  → 5+1=6 HP to Zane (3/20=15% ratio, most wounded)
+      (1,6)=3  second heal → 3+1=4 HP to Kira (8/20=40%, Zane now 9/20=45%)
+    """
+    cleric = make_pc("Edric", cls="Cleric", level=4, hp=20, heals=2)
+    kira = make_pc("Kira", cls="Fighter", level=1, hp=8)
+    kira["hit_points"] = 20
+    zane = make_pc("Zane", cls="Fighter", level=1, hp=3)
+    zane["hit_points"] = 20
+
+    with patch("app.expedition.random.randint", side_effect=[6, 1, 20, 6, 1, 5, 3]):
+        result = resolve_combat_rounds([cleric, kira, zane], [make_monster("Goblin", hp=1)])
+
+    assert len(result["healed_adventurers"]) == 2
+    assert result["healed_adventurers"][0] == {"name": "Zane", "hp": 6}
+    assert result["healed_adventurers"][1] == {"name": "Kira", "hp": 4}
+    assert zane["current_hp"] == 9   # 3 + 6
+    assert kira["current_hp"] == 12  # 8 + 4
+    assert cleric["heals_remaining"] == 0
+
+
+def test_cleric_heal_charges_scale_with_level():
+    """heals_remaining initialises to max(1, level // 2) in Expedition.__init__."""
+    from app.expedition import Expedition
+    party = [
+        {"name": "Healing Holly", "character_class": "Cleric", "level": 1,
+         "hit_points": 10, "hp_current": 10},
+        {"name": "Healing Harry", "character_class": "Cleric", "level": 4,
+         "hit_points": 10, "hp_current": 10},
+        {"name": "Healing Hera", "character_class": "Cleric", "level": 6,
+         "hit_points": 10, "hp_current": 10},
+    ]
+    exp = Expedition(party, dungeon_level=1)
+    assert exp.party[0]["heals_remaining"] == 1   # max(1, 1//2) = 1
+    assert exp.party[1]["heals_remaining"] == 2   # max(1, 4//2) = 2
+    assert exp.party[2]["heals_remaining"] == 3   # max(1, 6//2) = 3

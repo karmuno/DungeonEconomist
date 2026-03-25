@@ -172,6 +172,7 @@ interface TurnLog {
       party_fled?: boolean
       mu_spell_used?: string | null
       cleric_turned?: boolean
+      healed_adventurers?: Array<{ name: string; hp: number }>
       round_log?: RoundEntry[]
     }
     treasure?: { gold: number; silver: number; copper: number; xp_value: number; name: string }
@@ -439,6 +440,12 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                   <template v-else>
                     <span class="text-muted">{{ event.combat?.rounds_fought ?? 0 }} round(s) fought</span>
                   </template>
+                  <template v-if="event.combat?.healed_adventurers?.length">
+                    <div v-for="(h, hi) in event.combat.healed_adventurers" :key="hi" class="round-row heal-row">
+                      <span class="heal-icon">✚</span>
+                      <span>{{ h.name }} healed for <strong>{{ h.hp }}</strong> HP</span>
+                    </div>
+                  </template>
                 </div>
               </template>
               <template v-else-if="event.type === 'Trap'">
@@ -688,6 +695,16 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
 
 .atk-dmg {
   color: #e74c3c;
+}
+
+.heal-row {
+  color: #4ade80;
+}
+
+.heal-icon {
+  font-size: 10px;
+  width: 8px;
+  flex-shrink: 0;
 }
 
 .death-entry {

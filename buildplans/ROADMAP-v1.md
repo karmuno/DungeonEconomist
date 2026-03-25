@@ -16,7 +16,6 @@ Security for real users and class identity that makes adventurers feel distinct.
 - Session invalidation on password change
 
 ### Simplified Class Abilities
-- **Fighter**: cleave (bonus attack on kill)
 - **Cleric**: heal (restore HP to party members mid-expedition)
 - **Magic-User**: cast (area damage or utility effect)
 - NOT full spell slots — one signature ability per class, usable per expedition

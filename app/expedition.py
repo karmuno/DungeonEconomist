@@ -463,6 +463,31 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
                 capacity -= 1
             pc["revivals_remaining"] = capacity
 
+    # ── Post-combat: Cleric heal ──────────────────────────────────────────────
+    healed_adventurers: list[dict] = []
+    if not party_fled:
+        for pc in party:
+            if pc.get("character_class") != "Cleric":
+                continue
+            if pc["current_hp"] <= 0:
+                continue
+            charges = pc.get("heals_remaining", 0)
+            while charges > 0:
+                wounded = [
+                    m for m in party
+                    if m["current_hp"] > 0 and m["current_hp"] < m.get("hit_points", m["current_hp"])
+                ]
+                if not wounded:
+                    break
+                target = min(wounded, key=lambda m: m["current_hp"] / m.get("hit_points", 1))
+                amount = random.randint(1, 6) + 1
+                old_hp = target["current_hp"]
+                target["current_hp"] = min(target.get("hit_points", old_hp + amount), old_hp + amount)
+                healed = target["current_hp"] - old_hp
+                healed_adventurers.append({"name": target["name"], "hp": healed})
+                charges -= 1
+            pc["heals_remaining"] = charges
+
     # ── Determine outcome ─────────────────────────────────────────────────────
     if party_fled:
         outcome = "Party Fled"
@@ -489,6 +514,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
         "cleric_turned": cleric_turned,
         "monsters_turned": monsters_turned,
         "revived_adventurers": revived_adventurers,
+        "healed_adventurers": healed_adventurers,
         "hp_lost": hp_lost_party,
         "xp_earned": xp,
         "monsters_killed": monsters_killed,
@@ -520,6 +546,7 @@ class Expedition:
             if cls == "Cleric":
                 member.setdefault("turn_attempts_remaining", level)
                 member.setdefault("revivals_remaining", level // 2)
+                member.setdefault("heals_remaining", max(1, level // 2))
             if cls in ("Magic-User", "Elf"):
                 member.setdefault("spells_remaining", level)
 
