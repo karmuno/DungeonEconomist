@@ -238,25 +238,6 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
       <!-- Hint -->
       <div v-if="stats.hint && stats.hint !== 'launch_expedition'" class="hint-bar mb-2">{{ stats.hint }}</div>
 
-      <!-- Stat cards -->
-      <div class="stat-row mb-2">
-        <div class="stat-card clickable" @click="router.push('/adventurers')">
-          <div class="stat-value">{{ stats.adventurer_count }}</div>
-          <div class="stat-label">Adventurers</div>
-        </div>
-        <div class="stat-card clickable" @click="router.push('/parties')">
-          <div class="stat-value">{{ stats.party_count }}</div>
-          <div class="stat-label">Parties</div>
-        </div>
-        <div class="stat-card clickable" @click="router.push('/expeditions')">
-          <div class="stat-value">{{ stats.expedition_count }}</div>
-          <div class="stat-label">Expeditions</div>
-        </div>
-        <div class="stat-card clickable" @click="router.push('/village')">
-          <div class="stat-value">{{ stats.buildings.length }}</div>
-          <div class="stat-label">Buildings</div>
-        </div>
-      </div>
 
       <!-- Active Expeditions -->
       <div v-if="stats.active_expeditions.length > 0" class="card dash-card mb-2">
@@ -490,17 +471,6 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
   border: 1px solid rgba(96, 165, 250, 0.2); border-radius: var(--border-radius);
   color: var(--accent-blue, #60a5fa); font-size: 13px;
 }
-
-.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
-
-.stat-card {
-  background: var(--bg-secondary); border: 1px solid var(--border-color);
-  border-radius: var(--border-radius); padding: 10px 12px; text-align: center;
-}
-.stat-card.clickable { cursor: pointer; transition: border-color 0.15s; }
-.stat-card.clickable:hover { border-color: var(--accent-green); }
-.stat-value { font-family: var(--font-mono); font-size: 1.2rem; font-weight: 700; white-space: nowrap; }
-.stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-top: 2px; }
 .text-green { color: var(--accent-green); }
 
 .dash-card { padding: 12px 16px; }
