@@ -109,22 +109,52 @@ def _do_turn_attempt(cleric: dict, monsters: list[dict]) -> tuple[list[dict], di
     destroyed = []
     log_entries = []
 
-    for monster in monsters:
-        result = _turn_result(cleric_level, monster["hd"])
-        if result is None:
-            continue
-        if result in ("T", "D"):
-            destroyed.append(monster)
-            log_entries.append({"monster": monster["name"], "result": "destroyed"})
+    # OSE: First roll 2d6 to see if any are turned
+    # However, since monsters may have different HD, we check against the LOWEST HD first
+    # to see if a turn is even possible.
+    sorted_monsters = sorted(monsters, key=lambda m: m["hd"])
+    lowest_hd = sorted_monsters[0]["hd"]
+    result = _turn_result(cleric_level, lowest_hd)
+
+    if result is None:
+        return [], {"cleric": cleric["name"], "turn_log": [], "message": "Undead too powerful"}
+
+    turn_success = False
+    roll_to_turn = 0
+    if result in ("T", "D"):
+        turn_success = True
+    else:
+        roll_to_turn = random.randint(1, 6) + random.randint(1, 6)
+        if roll_to_turn >= result:
+            turn_success = True
         else:
-            roll = random.randint(1, 6) + random.randint(1, 6)
-            if roll >= result:
-                destroyed.append(monster)
-                log_entries.append({"monster": monster["name"], "result": "turned",
-                                     "roll": roll, "needed": result})
-            else:
-                log_entries.append({"monster": monster["name"], "result": "resisted",
-                                     "roll": roll, "needed": result})
+            log_entries.append({"monster": "all", "result": "resisted",
+                                 "roll": roll_to_turn, "needed": result})
+
+    if turn_success:
+        # Roll 2d6 for total HD affected
+        hd_affected = random.randint(1, 6) + random.randint(1, 6)
+        remaining_hd = hd_affected
+
+        for monster in sorted_monsters:
+            if remaining_hd <= 0:
+                break
+
+            # Re-check result for THIS monster's HD
+            m_result = _turn_result(cleric_level, monster["hd"])
+            if m_result is None:
+                continue # this specific monster too powerful
+
+            # If the roll_to_turn was used, it must also beat this monster's needed value
+            if isinstance(m_result, int) and result not in ("T", "D") and roll_to_turn < m_result:
+                continue
+
+            destroyed.append(monster)
+            outcome = "destroyed" if m_result == "D" else "turned"
+            log_entries.append({"monster": monster["name"], "result": outcome,
+                                 "roll": roll_to_turn if isinstance(m_result, int) else None,
+                                 "needed": m_result if isinstance(m_result, int) else None})
+            remaining_hd -= monster["hd"]
 
     cleric["turn_attempts_remaining"] = max(0, cleric.get("turn_attempts_remaining", 0) - 1)
     return destroyed, {"cleric": cleric["name"], "turn_log": log_entries}
@@ -148,13 +178,16 @@ def _do_attack(attacker: dict, target: dict) -> dict:
     # Fighter L1 only: +1 to-hit (lower THAC0 = easier to hit)
     if attacker.get("character_class") == "Fighter" and attacker.get("level", 1) == 1:
         thac0 -= 1
+    # Building bonus: to_hit_bonus lowers THAC0 (Training Grounds Tier I)
+    thac0 -= attacker.get("to_hit_bonus", 0)
     needed = thac0 - target["ac"]
     roll = random.randint(1, 20)
     hit = roll >= needed
     damage = 0
     target_died = False
     if hit:
-        damage = random.randint(1, 6)
+        damage = random.randint(1, 6) + attacker.get("damage_bonus", 0)
+        damage = max(1, damage)  # minimum 1 damage on a hit
         target["current_hp"] -= damage
         if target["current_hp"] <= 0:
             target["current_hp"] = 0
@@ -170,20 +203,23 @@ def _do_attack(attacker: dict, target: dict) -> dict:
     }
 
 
-def _morale_check(side_name: str, morale: int) -> dict:
-    """2d6 morale check. Pass if roll <= morale rating."""
+def _morale_check(side_name: str, morale: int, penalty: int = 0) -> dict:
+    """2d6 morale check. Pass if roll <= morale rating (adjusted by penalty)."""
+    effective_morale = morale + penalty  # penalty is negative for monsters
     roll = random.randint(1, 6) + random.randint(1, 6)
-    return {"side": side_name, "roll": roll, "morale": morale, "passed": roll <= morale}
+    return {"side": side_name, "roll": roll, "morale": effective_morale, "passed": roll <= effective_morale}
 
 
 # ─── Core combat engine ───────────────────────────────────────────────────────
 
-def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
+def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalty: int = 0) -> dict:
     """Run full round-based combat.
 
     party: PC combatant dicts (name, character_class, level, current_hp, ac, hd, thac0,
-           turn_attempts_remaining, spells_remaining, revivals_remaining)
+           turn_attempts_remaining, spells_remaining, revivals_remaining,
+           to_hit_bonus, damage_bonus, has_potion)
     monsters: monster combatant dicts (name, type, hd, ac, morale, is_undead, current_hp, thac0)
+    morale_penalty: penalty applied to monster morale checks (e.g. -2 from Castle)
 
     Mutates current_hp on both sides. Returns combat result dict.
     """
@@ -218,36 +254,44 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
         if random.randint(1, 6) >= 4:
             spell_name = get_spell_name(caster["level"])
             mu_spell_used = spell_name
-            xp_from_spell = sum(max(1, int(m["hd"])) * 100 for m in living_monsters())
-            monsters_killed = len(living_monsters())
-            for m in living_monsters():
-                m["current_hp"] = 0
-            caster["spells_remaining"] -= 1
-            round_log.append({
-                "round": 0,
-                "event": "spell",
-                "caster": caster["name"],
-                "spell": spell_name,
-                "monsters_destroyed": monsters_killed,
-            })
-            return {
-                "outcome": "Victory",
-                "monster_type": monsters[0]["type"] if monsters else "Unknown",
-                "monster_count": len(monsters),
-                "rounds_fought": 0,
-                "mu_spell_used": mu_spell_used,
-                "cleric_turned": False,
-                "monsters_turned": 0,
-                "revived_adventurers": [],
-                "hp_lost": 0,
-                "xp_earned": xp_from_spell,
-                "monsters_killed": monsters_killed,
-                "monsters_fled": 0,
-                "party_fled": False,
-                "round_log": round_log,
-            }
-        # If roll < 4, this caster doesn't cast; next caster may still try
-        # (break here if you want only one attempt per combat; keep looping for multi-caster parties)
+
+            monsters_affected = living_monsters()
+
+            if monsters_affected:
+                num_affected = len(monsters_affected)
+                xp_from_spell = sum(max(1, int(m["hd"])) * 100 for m in monsters_affected)
+                for m in monsters_affected:
+                    m["current_hp"] = 0
+                monsters_killed += num_affected
+                caster["spells_remaining"] -= 1
+                round_log.append({
+                    "round": 0,
+                    "event": "spell",
+                    "caster": caster["name"],
+                    "spell": spell_name,
+                    "monsters_destroyed": num_affected,
+                })
+
+                # If all monsters are gone, combat ends
+                if not living_monsters():
+                    return {
+                        "outcome": "Victory",
+                        "monster_type": monsters[0]["type"] if monsters else "Unknown",
+                        "monster_count": len(monsters),
+                        "rounds_fought": 0,
+                        "mu_spell_used": mu_spell_used,
+                        "mu_caster": casters[0]["name"] if mu_spell_used and casters else None,
+                        "cleric_turned": False,
+                        "monsters_turned": 0,
+                        "revived_adventurers": [],
+                        "hp_lost": 0,
+                        "xp_earned": xp_from_spell,
+                        "monsters_killed": monsters_killed,
+                        "monsters_fled": 0,
+                        "party_fled": False,
+                        "round_log": round_log,
+                    }
+        # If no monsters affected or roll < 4, this caster doesn't cast; next caster may still try
 
     # ── Round 0: Halfling pre-round ───────────────────────────────────────────
     halflings = [m for m in living_party() if m.get("character_class") == "Halfling"]
@@ -314,6 +358,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
         monster_deaths_in_round = 0
         party_deaths_in_round = 0
         turned_clerics: set[str] = set()
+        cleric_turns = []
         for pc in party_snapshot:
             if pc["current_hp"] <= 0:
                 continue
@@ -330,7 +375,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
             destroyed, turn_log = _do_turn_attempt(pc, turnable)
             cleric_turned = True
             turned_clerics.add(pc["name"])
-            round_entry["cleric_turn"] = turn_log
+            cleric_turns.append(turn_log)
             for m in destroyed:
                 if m["current_hp"] > 0:
                     m["current_hp"] = 0
@@ -338,6 +383,8 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
                     monster_deaths_total += 1
                     monsters_turned += 1
                     monster_deaths_in_round += 1
+        if cleric_turns:
+            round_entry["cleric_turns"] = cleric_turns
 
         # Monster snapshot AFTER turning — turned/destroyed monsters don't retaliate
         monster_snapshot = list(living_monsters())
@@ -401,7 +448,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
         if monster_deaths_in_round > 0 and living_monsters() and not monsters_fled_flag:
             if "first" not in monster_morale_done:
                 monster_morale_done.add("first")
-                check = _morale_check("monsters", monster_morale_val)
+                check = _morale_check("monsters", monster_morale_val, morale_penalty)
                 round_entry["morale_checks"].append(check)
                 if not check["passed"]:
                     monsters_fled_flag = True
@@ -413,7 +460,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
                     and "half" not in monster_morale_done
                     and monster_deaths_total >= len(monsters) / 2):
                 monster_morale_done.add("half")
-                check = _morale_check("monsters", monster_morale_val)
+                check = _morale_check("monsters", monster_morale_val, morale_penalty)
                 round_entry["morale_checks"].append(check)
                 if not check["passed"]:
                     monsters_fled_flag = True
@@ -442,6 +489,17 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
 
         if party_fled or monsters_fled_flag:
             break
+
+    # ── Post-combat: Potion auto-revive ────────────────────────────────────────
+    potion_revived = []
+    if not party_fled:
+        for pc in party:
+            if pc["current_hp"] <= 0 and pc.get("has_potion") and pc["name"] not in revived_adventurers:
+                pc["current_hp"] = 1
+                pc["has_potion"] = False
+                pc["potion_consumed"] = True
+                potion_revived.append(pc["name"])
+                revived_adventurers.append(pc["name"])
 
     # ── Post-combat: Cleric revival ───────────────────────────────────────────
     if not party_fled:
@@ -511,6 +569,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict]) -> dict:
         "monster_count": len(monsters),
         "rounds_fought": round_num,
         "mu_spell_used": mu_spell_used,
+        "mu_caster": casters[0]["name"] if mu_spell_used and casters else None,
         "cleric_turned": cleric_turned,
         "monsters_turned": monsters_turned,
         "revived_adventurers": revived_adventurers,
@@ -546,9 +605,12 @@ class Expedition:
             if cls == "Cleric":
                 member.setdefault("turn_attempts_remaining", level)
                 member.setdefault("revivals_remaining", level // 2)
-                member.setdefault("heals_remaining", max(1, level // 2))
+                member.setdefault("heals_remaining", level // 2)
             if cls in ("Magic-User", "Elf"):
-                member.setdefault("spells_remaining", level)
+                base_spells = level * member.get("spell_multiplier", 1)
+                scrolls = member.get("scroll_count", 0)
+                member["base_spells"] = base_spells
+                member.setdefault("spells_remaining", base_spells + scrolls)
 
         self.party = party
         self.dungeon_level = dungeon_level
@@ -604,7 +666,8 @@ class Expedition:
                 "thac0": monster_thac0,
             })
 
-        result = resolve_combat_rounds(alive_members, monsters)
+        morale_penalty = self.party[0].get("morale_penalty", 0) if self.party else 0
+        result = resolve_combat_rounds(alive_members, monsters, morale_penalty=morale_penalty)
 
         self.resources_used["hp_lost"] += result["hp_lost"]
 
@@ -678,6 +741,8 @@ class Expedition:
             "resources_used": self.resources_used,
             "dead": [member["name"] for member in self.dead],
             "log": expedition_log,
+            "spells_left": sum(m.get("spells_remaining", 0) for m in self.party),
+            "heals_left": sum(m.get("heals_remaining", 0) for m in self.party),
         }
 
     def _get_random_monster(self) -> str:

@@ -518,7 +518,6 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
 
     from app.magic_items import get_scroll_count, get_spell_multiplier, has_potion
     building_bonuses = _get_building_bonuses(keep, db)
-    combat_bonus = building_bonuses["to_hit_bonus"]
 
     party_members = []
     for member in party.members:
@@ -528,7 +527,7 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level + weapon_bonus + combat_bonus,  # effective level for combat
+            "level": member.level + weapon_bonus,  # weapon bonus scales effective combat level
             "base_level": member.level,  # actual level for XP etc.
             "hit_points": member.hp_max,
             "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
@@ -536,6 +535,7 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             "xp": member.xp,
             "to_hit_bonus": building_bonuses["to_hit_bonus"],
             "damage_bonus": building_bonuses["damage_bonus"],
+            "morale_penalty": building_bonuses["morale_penalty"],
             "has_potion": has_potion(member),
         }
         # Add scroll/artifact spell bonuses for casters
@@ -643,7 +643,6 @@ def launch_expedition(
     # Convert party to simulator format
     from app.magic_items import get_armor_bonus, get_scroll_count, get_spell_multiplier, get_weapon_bonus, has_potion
     building_bonuses = _get_building_bonuses(keep, db)
-    combat_bonus = building_bonuses["to_hit_bonus"]
 
     party_members = []
     for member in party.members:
@@ -653,7 +652,7 @@ def launch_expedition(
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level + weapon_bonus + combat_bonus,  # effective level for combat
+            "level": member.level + weapon_bonus,  # weapon bonus scales effective combat level
             "base_level": member.level,  # actual level for XP etc.
             "hit_points": member.hp_max,
             "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
@@ -661,6 +660,7 @@ def launch_expedition(
             "xp": member.xp,
             "to_hit_bonus": building_bonuses["to_hit_bonus"],
             "damage_bonus": building_bonuses["damage_bonus"],
+            "morale_penalty": building_bonuses["morale_penalty"],
             "has_potion": has_potion(member),
         }
         # Add scroll/artifact spell bonuses for casters
