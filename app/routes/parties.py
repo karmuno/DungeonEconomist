@@ -148,7 +148,7 @@ def add_adventurer_to_party(
     return party
 
 
-@router.post("/parties/remove-member/", response_model=PartyOut)
+@router.post("/parties/remove-member/")
 def remove_adventurer_from_party(
     operation: PartyMemberOperation,
     keep: Keep = Depends(get_current_keep),
@@ -174,7 +174,27 @@ def remove_adventurer_from_party(
     if adventurer not in party.members:
         raise HTTPException(status_code=400, detail="Adventurer is not a member of this party")
 
+    party_id = party.id
     party.members.remove(adventurer)
+    db.flush()
+
+    if len(party.members) == 0:
+        # Party is now empty — delete it automatically
+        from app.models import Expedition, ExpeditionLog, ExpeditionNodeResult
+        party.current_expedition_id = None
+        db.flush()
+        expeditions = db.query(Expedition).filter(Expedition.party_id == party_id).all()
+        for exp in expeditions:
+            db.query(ExpeditionNodeResult).filter(ExpeditionNodeResult.expedition_id == exp.id).delete()
+            db.query(ExpeditionLog).filter(ExpeditionLog.expedition_id == exp.id).delete()
+        db.flush()
+        for exp in expeditions:
+            db.delete(exp)
+        db.flush()
+        db.delete(party)
+        db.commit()
+        return {"deleted": True, "party_id": party_id}
+
     db.commit()
     db.refresh(party)
     return party

@@ -26,8 +26,8 @@ export function addMember(data: PartyMemberOperation): Promise<PartyOut> {
   return post<PartyOut>('/parties/add-member/', data)
 }
 
-export function removeMember(data: PartyMemberOperation): Promise<PartyOut> {
-  return post<PartyOut>('/parties/remove-member/', data)
+export function removeMember(data: PartyMemberOperation): Promise<PartyOut | { deleted: true; party_id: number }> {
+  return post('/parties/remove-member/', data)
 }
 
 export function deleteParty(id: number): Promise<{ ok: boolean }> {
