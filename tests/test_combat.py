@@ -221,18 +221,22 @@ def test_halfling_kills_all_in_round_0():
 # ─── MU spell ─────────────────────────────────────────────────────────────────
 
 def test_mu_spell_destroys_all_monsters():
-    """MU casts Sleep → all monsters destroyed, 0 rounds fought, correct XP."""
+    """MU casts Sleep on party initiative → all monsters destroyed in round 1."""
     mu = make_pc("Thalia", "Magic-User", level=1, hp=5, spells=1)
     monsters = [make_monster("Goblin #1", hd=0.5, hp=3),
                 make_monster("Goblin #2", hd=0.5, hp=3)]
 
-    # Force d6 roll = 6 (>= 4) → MU casts
+    # party init 6 > monster init 1 → party wins; spell check 6 (>= 4) → MU casts
     with patch("app.expedition.random") as mock_rng:
-        mock_rng.randint.return_value = 6
+        mock_rng.randint.side_effect = [
+            6, 1,   # initiative: party 6, monsters 1 → party wins
+            6,      # spell check: 6 >= 4 → MU casts, all goblins die
+        ]
+        mock_rng.choice.side_effect = lambda seq: seq[0]
 
         result = resolve_combat_rounds([mu], monsters)
 
-    assert result["rounds_fought"] == 0
+    assert result["rounds_fought"] == 1
     assert result["mu_spell_used"] == "Sleep"
     assert result["monsters_killed"] == 2
     assert result["xp_earned"] == 2 * 100  # 2 goblins × floor(0.5)→1 HD × 100
@@ -244,16 +248,19 @@ def test_mu_no_cast_on_low_roll():
     mu = make_pc("Thalia", "Magic-User", level=1, hp=20, spells=1)
     monsters = [make_monster("Goblin #1", hd=0.5, hp=1)]
 
-    # Force cast-check roll = 3 (< 4), then force attack miss (roll 1)
+    # Round 1: tie initiative, spell check fails (3), MU misses, goblin misses
+    # Round 2: tie initiative, spell check fails (3), MU hits, goblin retaliates from snapshot
     with patch("app.expedition.random") as mock_rng:
         mock_rng.randint.side_effect = [
-            3,          # spell check: 3 < 4, no cast
-            6, 6,       # initiative: party 6, monsters 6 (tie)
-            1,          # MU attack roll: miss
-            1,          # goblin attack roll: miss (snapshot)
-            6, 6,       # round 2 initiative: tie
-            20, 1,      # MU attack: hit, 1 damage (kills goblin with 1 hp)
-            1,          # goblin retaliates from snapshot (dead, still acts in C): miss
+            6, 6,   # round 1 initiative: tie
+            3,      # spell check: 3 < 4, no cast
+            1,      # MU attack roll: miss
+            1,      # goblin attack roll: miss (snapshot)
+            6, 6,   # round 2 initiative: tie
+            3,      # spell check: 3 < 4, no cast
+            20,     # MU attack: hit (to-hit roll)
+            1,      # MU damage: 1 (kills goblin with 1 hp)
+            1,      # goblin retaliates from snapshot (dead, still acts): miss
         ]
         mock_rng.choice.side_effect = lambda seq: seq[0]
 
@@ -447,16 +454,21 @@ def test_elf_has_fighter_thac0():
 
 
 def test_elf_can_cast_spell():
-    """Elf with spells uses MU spell mechanic."""
+    """Elf with spells uses MU spell mechanic — fires on party initiative turn."""
     elf = make_pc("Elindra", "Elf", level=2, hp=12, spells=2)
     goblin = make_monster("Goblin #1", hd=0.5, hp=3)
 
+    # party init 6 > monster init 1 → party wins; spell check 6 (>= 4) → Elf casts
     with patch("app.expedition.random") as mock_rng:
-        mock_rng.randint.return_value = 6  # cast check >= 4
+        mock_rng.randint.side_effect = [
+            6, 1,   # initiative: party wins
+            6,      # spell check: 6 >= 4 → Elf casts, goblin dies
+        ]
+        mock_rng.choice.side_effect = lambda seq: seq[0]
         result = resolve_combat_rounds([elf], [goblin])
 
     assert result["mu_spell_used"] is not None
-    assert result["rounds_fought"] == 0
+    assert result["rounds_fought"] == 1
     assert elf["spells_remaining"] == 1
 
 
