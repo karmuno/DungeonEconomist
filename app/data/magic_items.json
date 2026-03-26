@@ -1,22 +1,70 @@
 {
   "prefixes": [
-    "Gleaming", "Ancient", "Enchanted", "Cursed", "Blessed",
-    "Shimmering", "Runed", "Eldritch", "Frostbound", "Flameforged",
-    "Shadow", "Moonlit", "Thunderstruck", "Venomous", "Radiant",
-    "Spectral", "Ironbound", "Crystalline", "Whispering", "Bloodforged"
+    "Gleaming", "Ancient", "Enchanted", "Blessed", "Shimmering",
+    "Runed", "Eldritch", "Frostbound", "Flameforged", "Shadowforged",
+    "Moonlit", "Thunderstruck", "Radiant", "Spectral", "Ironbound",
+    "Crystalline", "Whispering", "Bloodforged", "Dwarven", "Elven",
+    "Gnomish", "Orcish", "Draconic", "Celestial", "Abyssal",
+    "Verdant", "Sundering", "Obsidian", "Silver", "Golden"
   ],
   "weapons": [
-    "Sword", "Axe", "Mace", "Dagger", "Spear",
-    "Warhammer", "Bow", "Staff", "Flail", "Halberd"
+    "Sword", "Longsword", "Shortsword", "Broadsword",
+    "Battle Axe", "Hand Axe",
+    "Dagger", "Dirk",
+    "Mace", "Flail", "Morning Star",
+    "Spear", "Trident",
+    "Warhammer",
+    "Staff", "Quarterstaff",
+    "Bow", "Crossbow",
+    "Halberd", "Polearm"
   ],
   "armor": [
-    "Shield", "Helm", "Chainmail", "Plate Armor", "Bracers",
-    "Gauntlets", "Boots", "Cloak", "Amulet", "Ring"
+    "Shield",
+    "Leather Armor", "Chain Mail", "Plate Armor",
+    "Helm", "Great Helm",
+    "Bracers", "Gauntlets",
+    "Cloak", "Mantle"
   ],
-  "suffixes": [
-    "of Power", "of Protection", "of Swiftness", "of the Bear", "of the Eagle",
-    "of Flame", "of Frost", "of Lightning", "of Shadows", "of Light",
-    "of the Ancients", "of Valor", "of Cunning", "of Fortitude", "of the Deep",
-    "+1", "+2", "+3"
+  "rings": [
+    "Ring of Protection",
+    "Ring of Fire Resistance",
+    "Ring of Regeneration",
+    "Ring of Feather Falling",
+    "Ring of Free Action",
+    "Ring of Spell Turning",
+    "Ring of Invisibility",
+    "Ring of Warmth"
+  ],
+  "scrolls": [
+    "Scroll of Fireball",
+    "Scroll of Lightning Bolt",
+    "Scroll of Sleep",
+    "Scroll of Hold Monster",
+    "Scroll of Charm Monster",
+    "Scroll of Confusion",
+    "Scroll of Cloudkill",
+    "Scroll of Disintegrate",
+    "Scroll of Ice Storm",
+    "Scroll of Magic Missile",
+    "Scroll of Slow",
+    "Scroll of Web",
+    "Scroll of Phantasmal Force",
+    "Scroll of Mirror Image",
+    "Scroll of Haste",
+    "Scroll of Protection from Evil",
+    "Scroll of Protection from Normal Missiles",
+    "Scroll of Polymorph Other",
+    "Scroll of Fly",
+    "Scroll of Telekinesis"
+  ],
+  "potions": [
+    "Potion of Giant Strength",
+    "Potion of Heroism",
+    "Potion of Invulnerability",
+    "Potion of Fire Resistance",
+    "Potion of Speed",
+    "Potion of Growth",
+    "Potion of Diminution",
+    "Potion of Gaseous Form"
   ]
 }

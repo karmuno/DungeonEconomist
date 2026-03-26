@@ -3,6 +3,8 @@ import type { AdventurerOut } from '../types'
 export function itemEmoji(itemType: string): string {
   if (itemType === 'weapon') return '\u2694\uFE0F'   // ⚔️
   if (itemType === 'scroll') return '\uD83D\uDCDC'   // 📜
+  if (itemType === 'ring')   return '\uD83D\uDC8D'   // 💍
+  if (itemType === 'potion') return '\u2697\uFE0F'   // ⚗️
   return '\uD83D\uDEE1\uFE0F'                        // 🛡️
 }
 

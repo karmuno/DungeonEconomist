@@ -10,55 +10,96 @@ with open(_DATA_PATH) as f:
     _ITEM_DATA = json.load(f)
 
 
-def generate_magic_item(dungeon_level: int = 1) -> dict:
-    """Generate a random magic item. Returns {name, item_type, bonus}."""
-    item_type = random.choice(["weapon", "armor"])
+def _weapon_item(dungeon_level: int) -> dict:
     prefix = random.choice(_ITEM_DATA["prefixes"])
-    base = random.choice(_ITEM_DATA["weapons"] if item_type == "weapon" else _ITEM_DATA["armor"])
+    base = random.choice(_ITEM_DATA["weapons"])
     bonus = dungeon_level
-    name = f"{prefix} {base} +{bonus}"
-    return {"name": name, "item_type": item_type, "bonus": bonus}
+    return {"name": f"{prefix} {base} +{bonus}", "item_type": "weapon", "bonus": bonus}
+
+
+def _armor_item(dungeon_level: int) -> dict:
+    prefix = random.choice(_ITEM_DATA["prefixes"])
+    base = random.choice(_ITEM_DATA["armor"])
+    bonus = dungeon_level
+    return {"name": f"{prefix} {base} +{bonus}", "item_type": "armor", "bonus": bonus}
+
+
+def _ring_item(dungeon_level: int) -> dict:
+    base = random.choice(_ITEM_DATA["rings"])
+    bonus = dungeon_level
+    return {"name": f"{base} +{bonus}", "item_type": "ring", "bonus": bonus}
+
+
+def _scroll_item() -> dict:
+    name = random.choice(_ITEM_DATA["scrolls"])
+    return {"name": name, "item_type": "scroll", "bonus": 0, "consumable": True}
+
+
+def _potion_item(healing: bool = False) -> dict:
+    if healing:
+        return {"name": "Potion of Healing", "item_type": "potion", "bonus": 0, "consumable": True}
+    name = random.choice(_ITEM_DATA["potions"])
+    return {"name": name, "item_type": "potion", "bonus": 0, "consumable": True}
+
+
+def generate_magic_item(dungeon_level: int = 1) -> dict:
+    """Generate a random magic item appropriate for the dungeon level.
+
+    Distribution: 35% weapon, 30% armor, 20% ring, 10% scroll, 5% potion.
+    """
+    roll = random.random()
+    if roll < 0.35:
+        return _weapon_item(dungeon_level)
+    elif roll < 0.65:
+        return _armor_item(dungeon_level)
+    elif roll < 0.85:
+        return _ring_item(dungeon_level)
+    elif roll < 0.95:
+        return _scroll_item()
+    else:
+        return _potion_item(healing=True)
 
 
 def generate_class_magic_item(dungeon_level: int, adventurer_class: str) -> dict:
-    """Generate a class-appropriate magic item for Library Tier I discovery.
-
-    Fighters -> weapons & armor, Clerics -> armor & potions,
-    M-Us -> scrolls, Elves -> weapons or scrolls, Dwarves -> weapons & armor,
-    Halflings -> weapons & armor.
-    """
-    prefix = random.choice(_ITEM_DATA["prefixes"])
-    bonus = dungeon_level
-
+    """Generate a class-appropriate magic item for Library Tier I discovery."""
     if adventurer_class in ("Fighter", "Dwarf", "Halfling"):
-        item_type = random.choice(["weapon", "armor"])
-        base = random.choice(_ITEM_DATA["weapons"] if item_type == "weapon" else _ITEM_DATA["armor"])
-        name = f"{prefix} {base} +{bonus}"
-        return {"name": name, "item_type": item_type, "bonus": bonus}
+        roll = random.random()
+        if roll < 0.40:
+            return _weapon_item(dungeon_level)
+        elif roll < 0.70:
+            return _armor_item(dungeon_level)
+        else:
+            return _ring_item(dungeon_level)
     elif adventurer_class == "Cleric":
-        roll = random.choice(["armor", "potion"])
-        if roll == "potion":
-            return {"name": "Healing Potion", "item_type": "potion", "bonus": 0, "consumable": True}
-        base = random.choice(_ITEM_DATA["armor"])
-        name = f"{prefix} {base} +{bonus}"
-        return {"name": name, "item_type": "armor", "bonus": bonus}
+        roll = random.random()
+        if roll < 0.40:
+            return _potion_item(healing=True)
+        elif roll < 0.70:
+            return _armor_item(dungeon_level)
+        else:
+            return _ring_item(dungeon_level)
     elif adventurer_class in ("Magic-User", "Elf"):
-        return {"name": "Arcane Scroll", "item_type": "scroll", "bonus": 0, "consumable": True}
+        roll = random.random()
+        if roll < 0.60:
+            return _scroll_item()
+        elif roll < 0.80:
+            return _weapon_item(dungeon_level)
+        else:
+            return _ring_item(dungeon_level)
     else:
-        item_type = random.choice(["weapon", "armor"])
-        base = random.choice(_ITEM_DATA["weapons"] if item_type == "weapon" else _ITEM_DATA["armor"])
-        name = f"{prefix} {base} +{bonus}"
-        return {"name": name, "item_type": item_type, "bonus": bonus}
+        return generate_magic_item(dungeon_level)
 
 
 def can_equip(adventurer, item_type: str) -> bool:
     """Check if an adventurer has a free slot for this item type.
-    Cap: 1 weapon + 1 armor. Potions: 1 max. Scrolls/artifacts: unlimited."""
+
+    Slots: 1 weapon, 1 armor, 1 ring. Potions: 1 max. Scrolls/artifacts: unlimited.
+    """
     if item_type in ("scroll", "artifact"):
-        return True  # no limit
+        return True
     existing_types = [item.item_type for item in adventurer.magic_items]
     if item_type == "potion":
-        return "potion" not in existing_types  # max 1 potion
+        return "potion" not in existing_types
     return item_type not in existing_types
 
 
@@ -71,11 +112,12 @@ def get_weapon_bonus(adventurer) -> int:
 
 
 def get_armor_bonus(adventurer) -> int:
-    """Total armor bonus for an adventurer (0 if no armor). This is an HP buffer."""
+    """Total defensive bonus for an adventurer: armor + ring (both act as HP buffer)."""
+    total = 0
     for item in adventurer.magic_items:
-        if item.item_type == "armor":
-            return item.bonus or 0
-    return 0
+        if item.item_type in ("armor", "ring"):
+            total += item.bonus or 0
+    return total
 
 
 def has_potion(adventurer) -> bool:
@@ -89,10 +131,6 @@ def get_scroll_count(adventurer) -> int:
 
 
 def get_spell_multiplier(adventurer) -> int:
-    """Get the total spell multiplier from artifacts. Stacks multiplicatively.
-
-    Each artifact doubles spell uses; multiple artifacts: 2^N.
-    Returns the multiplier (1 if no artifacts).
-    """
+    """Get the total spell multiplier from artifacts (2^N, minimum 1)."""
     artifact_count = sum(1 for item in adventurer.magic_items if item.item_type == "artifact")
     return 2 ** artifact_count if artifact_count > 0 else 1
