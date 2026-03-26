@@ -149,7 +149,7 @@ PORT=8000
 
 Key points:
 - The `DATABASE_URL` host is `venturekeep-db` — the container name on the shared Docker network. Not `localhost`, not `172.17.0.1`.
-- Update `CORS_ORIGINS` with your actual domain. For initial testing without a domain, set it to `*`.
+- Update `CORS_ORIGINS` with your actual domain (e.g. `https://yourdomain.com` or `https://game.yourdomain.com` for a subdomain). For initial testing without a domain, set it to `*`.
 - The DB password here must match what you used in Step 3.
 
 ---
@@ -201,7 +201,11 @@ Create the site config:
 sudo tee /etc/nginx/sites-available/venturekeep << 'EOF'
 server {
     listen 80;
+
+    # For a root domain:
     server_name yourdomain.com www.yourdomain.com;
+    # For a subdomain (replace the line above):
+    # server_name game.yourdomain.com;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -232,24 +236,30 @@ sudo systemctl restart nginx
 
 ## Step 8: Point Your Domain to the Server
 
-Go to your domain registrar (Namecheap, Cloudflare, GoDaddy, Porkbun, etc.) and set DNS records:
+Go to your domain registrar (Namecheap, Cloudflare, GoDaddy, Porkbun, etc.) and set DNS records.
+
+**For a root domain** (`yourdomain.com`):
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
 | A | @ | YOUR_SERVER_IP | 300 |
 | A | www | YOUR_SERVER_IP | 300 |
 
-If your registrar offers it, you can also use a CNAME for `www`:
+(Or use a CNAME for `www` → `yourdomain.com` if your registrar supports it.)
+
+**For a subdomain** (`game.yourdomain.com`):
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
-| A | @ | YOUR_SERVER_IP | 300 |
-| CNAME | www | yourdomain.com | 300 |
+| A | game | YOUR_SERVER_IP | 300 |
+
+No `www` record needed for subdomains.
 
 DNS propagation takes anywhere from 5 minutes to 48 hours. Check with:
 
 ```bash
-dig yourdomain.com +short
+dig yourdomain.com +short        # root domain
+dig game.yourdomain.com +short   # subdomain
 # Should return YOUR_SERVER_IP
 ```
 
@@ -262,7 +272,11 @@ Wait until this resolves before proceeding to the next step.
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
 
+# For a root domain:
 sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+
+# For a subdomain:
+# sudo certbot --nginx -d game.yourdomain.com
 ```
 
 Certbot will:
