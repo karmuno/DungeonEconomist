@@ -6,10 +6,10 @@ From brand-new Ubuntu VPS to production instance with custom domain and HTTPS.
 
 ## Prerequisites
 
-- A VPS running Ubuntu 22.04+ (DigitalOcean, Linode, Hetzner, etc.)
+- A VPS running Ubuntu 22.04+ (DigitalOcean, Linode, Hetzner, RackNerd, etc.)
 - SSH access as root (or a sudo-capable user)
 - A domain name (e.g. `venturekeep.com`) purchased from any registrar
-- The VentureKeep repo cloned locally or accessible via GitHub
+- The VentureKeep repo accessible via GitHub
 
 ---
 
@@ -72,27 +72,37 @@ docker compose version
 
 ---
 
-## Step 3: Install and Configure PostgreSQL
+## Step 3: Create Docker Network and Start PostgreSQL
 
-You can use Dockerized Postgres or a managed database. Dockerized is simpler for a single VPS:
+Both containers must share a Docker network so they can reach each other by name. Do **not** rely on `172.17.0.1` or `host.docker.internal` — those are unreliable across Linux Docker configurations.
 
 ```bash
+# Create a shared network
+docker network create venturekeep-net
+
 # Create a directory for persistent data
 mkdir -p ~/venturekeep-data
 
-# Run Postgres
+# Run Postgres on the shared network
 docker run -d \
   --name venturekeep-db \
   --restart unless-stopped \
+  --network venturekeep-net \
   -e POSTGRES_USER=venturekeep \
   -e POSTGRES_PASSWORD=CHANGE_THIS_TO_A_REAL_PASSWORD \
   -e POSTGRES_DB=venturekeep \
   -v ~/venturekeep-data/pgdata:/var/lib/postgresql/data \
-  -p 127.0.0.1:5432:5432 \
   postgres:16-alpine
 ```
 
-Note: binding to `127.0.0.1` keeps Postgres off the public internet.
+Verify Postgres is running:
+
+```bash
+docker exec venturekeep-db pg_isready -U venturekeep
+# Should print: accepting connections
+```
+
+Note: no `-p` flag needed — the app container reaches Postgres over the Docker network, not via host ports. Postgres is never exposed to the public internet.
 
 ---
 
@@ -110,38 +120,37 @@ Build the Docker image:
 docker build -t venturekeep:latest .
 ```
 
-This runs a multi-stage build: Node 20 compiles the Vue frontend, then Python 3.11 bundles everything into one image. Alembic migrations run automatically on startup.
+This runs a multi-stage build: Node 20 compiles the Vue frontend (`vue-tsc` type-check + `vite build`), then Python 3.11 bundles everything into one image. Alembic migrations run automatically on container startup.
 
 ---
 
 ## Step 5: Configure Environment
 
-Create the env file:
-
-```bash
-cat > ~/venturekeep/.env.production << 'EOF'
-DATABASE_URL=postgresql://venturekeep:CHANGE_THIS_TO_A_REAL_PASSWORD@host.docker.internal:5432/venturekeep
-VENTUREKEEP_SECRET_KEY=GENERATE_ME
-CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
-PORT=8000
-EOF
-```
-
-Generate a real secret key:
+Generate a secret key first:
 
 ```bash
 python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
 
-Paste the output into the `.env.production` file, replacing `GENERATE_ME`.
+Create the env file (paste your generated secret key and real DB password):
 
-Update `CORS_ORIGINS` with your actual domain.
+```bash
+nano ~/venturekeep/.env.production
+```
 
-**Note on Docker networking:** If Postgres runs as a separate container (not in the same compose network), use the host's IP. On Linux with default Docker, use `172.17.0.1` instead of `host.docker.internal`:
+Contents:
 
 ```
-DATABASE_URL=postgresql://venturekeep:PASSWORD@172.17.0.1:5432/venturekeep
+DATABASE_URL=postgresql://venturekeep:CHANGE_THIS_TO_A_REAL_PASSWORD@venturekeep-db:5432/venturekeep
+VENTUREKEEP_SECRET_KEY=PASTE_YOUR_GENERATED_KEY_HERE
+CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+PORT=8000
 ```
+
+Key points:
+- The `DATABASE_URL` host is `venturekeep-db` — the container name on the shared Docker network. Not `localhost`, not `172.17.0.1`.
+- Update `CORS_ORIGINS` with your actual domain. For initial testing without a domain, set it to `*`.
+- The DB password here must match what you used in Step 3.
 
 ---
 
@@ -151,24 +160,32 @@ DATABASE_URL=postgresql://venturekeep:PASSWORD@172.17.0.1:5432/venturekeep
 docker run -d \
   --name venturekeep-app \
   --restart unless-stopped \
+  --network venturekeep-net \
   --env-file ~/venturekeep/.env.production \
   -p 127.0.0.1:8000:8000 \
   venturekeep:latest
 ```
 
-Verify it started:
+Wait a few seconds for migrations, then verify:
 
 ```bash
+# Check container is running (not restarting)
+docker ps --filter name=venturekeep-app
+
+# Check logs — should show Alembic migrations then Uvicorn startup
 docker logs venturekeep-app
-# Should show Alembic migrations running, then Uvicorn starting
-```
 
-Test locally:
-
-```bash
+# Test the app responds
 curl http://localhost:8000/
 # Should return HTML
 ```
+
+If `docker ps` shows the container was created a while ago but "Up" for only a few seconds, it's crash-looping. Check `docker logs venturekeep-app` for the error.
+
+**Common issues at this stage:**
+
+- **"Connection timed out" to database**: The app container isn't on the `venturekeep-net` network, or the `DATABASE_URL` host isn't `venturekeep-db`. Verify with: `docker network inspect venturekeep-net --format '{{range .Containers}}{{.Name}} {{end}}'` — both containers should be listed.
+- **Alembic migration error (enum types)**: Postgres has strict enum types unlike SQLite. If a migration fails with `invalid input value for enum`, the migration needs fixing upstream — check the repo for updates.
 
 ---
 
@@ -185,9 +202,6 @@ sudo tee /etc/nginx/sites-available/venturekeep << 'EOF'
 server {
     listen 80;
     server_name yourdomain.com www.yourdomain.com;
-
-    # Redirect all HTTP to HTTPS (Certbot will handle this after Step 9,
-    # but we need a working HTTP config first for the ACME challenge)
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -254,7 +268,7 @@ sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 Certbot will:
 1. Verify you own the domain via HTTP challenge
 2. Obtain a free TLS certificate
-3. Automatically modify your Nginx config to redirect HTTP → HTTPS
+3. Automatically modify your Nginx config to redirect HTTP -> HTTPS
 4. Set up auto-renewal (runs via systemd timer)
 
 Verify auto-renewal works:
@@ -275,6 +289,9 @@ docker ps
 
 # Postgres healthy?
 docker exec venturekeep-db pg_isready -U venturekeep
+
+# Both containers on the network?
+docker network inspect venturekeep-net --format '{{range .Containers}}{{.Name}} {{end}}'
 
 # Nginx serving?
 curl -I https://yourdomain.com
@@ -297,6 +314,7 @@ docker stop venturekeep-app && docker rm venturekeep-app
 docker run -d \
   --name venturekeep-app \
   --restart unless-stopped \
+  --network venturekeep-net \
   --env-file ~/venturekeep/.env.production \
   -p 127.0.0.1:8000:8000 \
   venturekeep:latest
@@ -314,10 +332,8 @@ Set up a daily cron job:
 mkdir -p ~/venturekeep-data/backups
 
 crontab -e
-# Add this line:
+# Add these lines:
 0 3 * * * docker exec venturekeep-db pg_dump -U venturekeep venturekeep | gzip > ~/venturekeep-data/backups/venturekeep-$(date +\%Y\%m\%d).sql.gz
-
-# Clean up backups older than 30 days:
 0 4 * * * find ~/venturekeep-data/backups -name "*.sql.gz" -mtime +30 -delete
 ```
 
@@ -332,12 +348,14 @@ gunzip -c ~/venturekeep-data/backups/venturekeep-20260326.sql.gz | \
 
 ## Troubleshooting
 
-**App won't start:** Check `docker logs venturekeep-app`. Usually a bad `DATABASE_URL`.
+**Container crash-looping (created X ago, up for Y seconds):** Run `docker logs venturekeep-app` — the error is usually a database connection failure or migration error.
 
-**502 Bad Gateway:** Nginx can't reach the app. Check `docker ps` — is the container running? Check it's bound to port 8000.
+**"Connection timed out" / "Connection refused" to database:** The containers aren't on the same Docker network. Verify both are on `venturekeep-net`: `docker network inspect venturekeep-net`. The DATABASE_URL host must be `venturekeep-db` (the container name), not `localhost` or `172.17.0.1`.
 
-**Certbot fails:** DNS hasn't propagated yet. Wait and retry. Check `dig yourdomain.com`.
+**502 Bad Gateway from Nginx:** The app container isn't running or isn't bound to port 8000. Check `docker ps` and `docker logs venturekeep-app`.
 
-**Database connection refused:** Make sure Postgres is running and the `DATABASE_URL` host is correct (`172.17.0.1` on Linux, not `localhost` — the app container can't reach the host's loopback).
+**Certbot fails:** DNS hasn't propagated yet. Wait and retry. Check with `dig yourdomain.com`.
 
-**Migrations fail:** Check `docker logs venturekeep-app` for the Alembic error. You may need to run migrations manually: `docker exec venturekeep-app alembic upgrade head`.
+**Alembic migration fails:** Check `docker logs venturekeep-app` for the specific error. Postgres enum types are stricter than SQLite — migrations that work locally may need fixes for production. To retry migrations after a code fix: rebuild the image and restart the container.
+
+**Empty `docker logs` output:** The container may be restarting too fast. Use `docker logs -f venturekeep-app` to follow in real time, or `docker run --rm -it --network venturekeep-net --env-file ~/venturekeep/.env.production venturekeep:latest bash` to get a shell inside the image and debug manually.
