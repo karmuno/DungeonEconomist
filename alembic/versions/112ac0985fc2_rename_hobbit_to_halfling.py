@@ -18,6 +18,8 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Rename Hobbit class to Halfling in adventurers table."""
+    op.execute("ALTER TYPE adventurerclass ADD VALUE IF NOT EXISTS 'Halfling'")
+    op.execute("COMMIT")
     op.execute("UPDATE adventurers SET adventurer_class = 'Halfling' WHERE adventurer_class = 'Hobbit'")
 
 

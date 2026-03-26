@@ -15,6 +15,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Postgres enums need the new value added before it can be used
+    op.execute("ALTER TYPE adventurerclass ADD VALUE IF NOT EXISTS 'Halfling'")
+    # Must commit the ADD VALUE before using it in DML
+    op.execute("COMMIT")
     op.execute("UPDATE adventurers SET adventurer_class = 'Halfling' WHERE adventurer_class = 'Hobbit'")
 
 
