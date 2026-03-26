@@ -152,6 +152,12 @@ interface TurnUndeadEntry {
   needed?: number
 }
 
+interface SpellCastEntry {
+  caster: string
+  spell: string
+  monsters_destroyed: number
+}
+
 interface RoundEntry {
   round: number
   event?: string
@@ -165,6 +171,7 @@ interface RoundEntry {
   morale_checks?: Array<{ side: string; roll: number; morale: number; passed: boolean }>
   cleric_turn?: { cleric: string; turn_log: TurnUndeadEntry[] }
   cleric_turns?: Array<{ cleric: string; turn_log: TurnUndeadEntry[] }>
+  spell_casts?: SpellCastEntry[]
 }
 
 interface TurnLog {
@@ -211,7 +218,12 @@ function roundLabel(r: RoundEntry): string {
   if (r.halfling_pre_round) return `Halflings pre-round`
   const initiative = r.initiative_winner ?? r.initiative
   const label = initiative === 'party' ? 'party first' : initiative === 'monsters' ? 'monsters first' : 'simultaneous'
-  return `Round ${r.round} (${label})`
+  const base = `Round ${r.round} (${label})`
+  if (r.spell_casts?.length) {
+    const s = r.spell_casts[0]
+    return `${base} — ${s.caster} casts ${s.spell}`
+  }
+  return base
 }
 
 function turnUndeadSummary(ct: RoundEntry['cleric_turns']): string {
@@ -406,19 +418,13 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                   </span>
                 </div>
                 <div v-if="isCombatExpanded(turn.turn, idx)" class="combat-details">
-                  <template v-if="event.combat?.mu_spell_used">
-                    <div class="round-row">
-                      <span class="text-muted">Spell:</span>
-                      <span><strong>{{ event.combat.mu_caster || 'A caster' }}</strong> cast <strong>{{ event.combat.mu_spell_used }}</strong> and ended the fight instantly</span>
-                    </div>
-                  </template>
-                  <template v-else-if="event.combat?.round_log?.length">
+                  <template v-if="event.combat?.round_log?.length">
                     <div v-for="(r, ri) in event.combat.round_log" :key="ri" class="round-block">
                       <!-- Round header row -->
                       <div class="round-row round-expandable" @click="toggleRound(turn.turn, idx, ri, $event)">
                         <span class="round-toggle">{{ isRoundExpanded(turn.turn, idx, ri) ? '▼' : '▶' }}</span>
                         <span class="round-label">{{ roundLabel(r) }}</span>
-                        <template v-if="!r.event && !r.halfling_pre_round">
+                        <template v-if="!r.event && !r.halfling_pre_round && !r.spell_casts?.length">
                           <span class="side-pill party">Party: {{ sideSummary(sideAttacks(r, 'party')) }}</span>
                           <span class="side-pill monsters">Monsters: {{ sideSummary(sideAttacks(r, 'monsters')) }}</span>
                         </template>
@@ -437,6 +443,16 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                           <div class="attack-line">{{ r.caster }} casts {{ r.spell }} — {{ r.monsters_destroyed }} destroyed</div>
                         </template>
                         <template v-else>
+                          <!-- Spell casts within round -->
+                          <template v-if="r.spell_casts?.length">
+                            <div class="side-header">Spell</div>
+                            <div v-for="(sc, si) in r.spell_casts" :key="'sc'+si" class="attack-line">
+                              <span class="atk-name">{{ sc.caster }}</span>
+                              <span class="atk-arrow">→</span>
+                              <span class="atk-target">{{ sc.spell }}</span>
+                              <span class="atk-dmg">{{ sc.monsters_destroyed }} destroyed</span>
+                            </div>
+                          </template>
                           <!-- Turn Undead details -->
                           <template v-if="r.cleric_turns?.length">
                             <div v-for="(ct, cti) in r.cleric_turns" :key="'ct'+cti" class="side-header">
@@ -473,7 +489,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                       </template>
                     </div>
                   </template>
-                  <template v-else-if="!event.combat?.mu_spell_used">
+                  <template v-else>
                     <span class="text-muted">{{ event.combat?.rounds_fought ?? 0 }} round(s) fought</span>
                   </template>
                   <template v-if="event.combat?.healed_adventurers?.length">
