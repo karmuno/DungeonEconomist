@@ -24,6 +24,8 @@ HELP_TEXT = """Available commands:
   add gp|sp|cp <amount>          — Add currency to treasury
   give item <adv_id> [level]     — Give a random magic item to adventurer (level defaults to 1)
   give xp <adv_id> <amount>      — Grant XP to an adventurer
+  test stairs                    — Force a stairs popup on the active expedition
+  metrics                        — Toggle the metrics panel (client-side)
   help                           — Show this help"""
 
 
@@ -49,6 +51,9 @@ def execute_command(
 
     if cmd == "give" and len(parts) >= 3:
         return _handle_give(parts[1:], keep, db)
+
+    if cmd == "test" and len(parts) >= 2 and parts[1] == "stairs":
+        return _handle_test_stairs(keep, db)
 
     raise HTTPException(status_code=400, detail="Unknown command. Type 'help' for available commands.")
 
@@ -142,3 +147,57 @@ def _handle_give(args: list[str], keep: Keep, db: Session) -> dict:
         }
 
     raise HTTPException(status_code=400, detail="Unknown give subcommand. Try: give item <id> [level] | give xp <id> <amount>")
+
+
+def _handle_test_stairs(keep: Keep, db: Session) -> dict:
+    """Force a stairs event on the current active expedition for testing."""
+    from app.dungeons import DUNGEON_LEVEL_NAMES
+    from app.models import Expedition, Party
+
+    active = (
+        db.query(Expedition)
+        .join(Party, Expedition.party_id == Party.id)
+        .filter(
+            Party.keep_id == keep.id,
+            Expedition.result.in_(["in_progress", "awaiting_choice"]),
+        )
+        .first()
+    )
+
+    if not active:
+        raise HTTPException(status_code=400, detail="No active expedition found. Launch a party first.")
+
+    dungeon_level = active.dungeon_level or 1
+    total_levels = len(DUNGEON_LEVEL_NAMES)
+    next_level = dungeon_level + 1
+
+    if next_level > total_levels:
+        raise HTTPException(status_code=400, detail="Party is at max dungeon level — no stairs possible.")
+
+    next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "the unknown depths"
+
+    stairs_event = {
+        "type": "stairs",
+        "message": f"Your party discovered stairs down to {next_name}! (Level {next_level}) [TEST]",
+        "new_level": next_level,
+        "new_level_name": next_name,
+        "options": ["press_on_same", "press_on_next", "retreat"],
+    }
+
+    active.result = "awaiting_choice"
+    active.pending_event = stairs_event
+    db.commit()
+
+    party_name = active.party.name if active.party else "Unknown"
+    return {
+        "ok": True,
+        "message": f"Stairs injected into '{party_name}'s expedition.",
+        "events": [
+            {
+                "type": "expedition_choice",
+                "message": f"Party '{party_name}': {stairs_event['message']}",
+                "expedition_id": active.id,
+                "event_subtype": "stairs",
+            }
+        ],
+    }

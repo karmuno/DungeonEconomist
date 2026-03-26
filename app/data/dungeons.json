@@ -27,6 +27,21 @@
     "of Ice", "of Stone", "of Iron", "of Gold", "of Blood",
     "Below", "Beneath", "Beyond", "Within", "Eternal"
   ],
+  "level_adjectives": [
+    "Upper", "Twisting", "Sunless", "Echoing", "Flooded", "Crumbling",
+    "Forgotten", "Burning", "Frozen", "Silent", "Winding", "Hidden",
+    "Ancient", "Hollow", "Drowned", "Shadowed", "Festering", "Shattered",
+    "Howling", "Smoldering", "Sealed", "Broken", "Empty", "Lightless",
+    "Cursed", "Deep", "Lower", "Sunken", "Lost", "Dark",
+    "Screaming", "Weeping", "Blighted", "Ruined", "Writhing"
+  ],
+  "level_places": [
+    "Halls", "Corridors", "Galleries", "Warrens", "Vaults", "Chambers",
+    "Passages", "Crypts", "Catacombs", "Sanctum", "Tombs", "Ossuary",
+    "Barrows", "Cells", "Undercroft", "Delves", "Grotto", "Lair",
+    "Pit", "Depths", "Reaches", "Expanse", "Caverns", "Ruins",
+    "Foundry", "Labyrinth", "Dungeons", "Warren", "Mines", "Sepulchre"
+  ],
   "dungeon_levels": [
     {"name": "The Upper Halls",        "duration_days": 3},
     {"name": "The Twisting Corridors", "duration_days": 5},

@@ -29,11 +29,10 @@ MAX_TAVERN_SIZE = 20
 
 
 def roll_hp(adventurer_class: AdventurerClass) -> int:
-    """Roll starting HP for an adventurer"""
-    base = random.randint(1, 6)
-    if adventurer_class in (AdventurerClass.FIGHTER, AdventurerClass.DWARF):
-        return base + 2
-    return base
+    """Roll starting HP for an adventurer (1 class hit die)."""
+    from app.class_config import get_hit_die
+
+    return random.randint(1, get_hit_die(adventurer_class.value))
 
 
 def create_random_adventurer(adventurer_class: AdventurerClass, keep: Keep, db: Session) -> Adventurer:
@@ -286,7 +285,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             from app.routes.expeditions import _auto_launch_expedition
             # Use party's preferred level, clamped to max unlocked
             target_level = party.auto_delve_level if party.auto_delve_level else (keep.max_dungeon_level or 1)
-            target_level = min(target_level, keep.max_dungeon_level or 1)
+            target_level = max(1, min(target_level, keep.max_dungeon_level or 1))
             exp_result = _auto_launch_expedition(party, keep, db, dungeon_level=target_level)
             if exp_result:
                 events.append(GameEvent(
@@ -772,13 +771,15 @@ def get_game_time(keep: Keep = Depends(get_current_keep)):
 def get_dungeon_info(keep: Keep = Depends(get_current_keep)):
     """Get the keep's megadungeon info: name, unlocked levels, level names."""
     total_levels = len(DUNGEON_LEVELS)
+    stored_names = keep.dungeon_level_names or []
     levels = []
     for i in range(total_levels):
         level_num = i + 1
         lvl = DUNGEON_LEVELS[i]
+        name = stored_names[i] if i < len(stored_names) else lvl["name"]
         levels.append({
             "level": level_num,
-            "name": lvl["name"],
+            "name": name,
             "duration_days": lvl["duration_days"],
             "unlocked": level_num <= (keep.max_dungeon_level or 1),
         })
@@ -788,3 +789,50 @@ def get_dungeon_info(keep: Keep = Depends(get_current_keep)):
         "total_levels": total_levels,
         "levels": levels,
     }
+
+
+@router.get("/metrics")
+def get_metrics(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
+    """Balance metrics aggregated by dungeon level for this keep."""
+    from app.models import Expedition, ExpeditionLog, ExpeditionNodeResult
+
+    completed = (
+        db.query(Expedition)
+        .join(Party, Expedition.party_id == Party.id)
+        .filter(Party.keep_id == keep.id, Expedition.result == "completed")
+        .all()
+    )
+
+    by_level: dict[int, dict] = {}
+    for exp in completed:
+        lvl = exp.dungeon_level or 1
+        if lvl not in by_level:
+            by_level[lvl] = {"count": 0, "gold": 0, "xp": 0, "deaths": 0}
+        by_level[lvl]["count"] += 1
+
+        nodes = db.query(ExpeditionNodeResult).filter(
+            ExpeditionNodeResult.expedition_id == exp.id
+        ).all()
+        by_level[lvl]["gold"] += sum(n.loot for n in nodes)
+        by_level[lvl]["xp"] += sum(n.xp_earned for n in nodes)
+
+        deaths = db.query(ExpeditionLog).filter(
+            ExpeditionLog.expedition_id == exp.id,
+            ExpeditionLog.status == "dead",
+        ).count()
+        by_level[lvl]["deaths"] += deaths
+
+    levels = []
+    for lvl in sorted(by_level.keys()):
+        d = by_level[lvl]
+        n = d["count"]
+        levels.append({
+            "level": lvl,
+            "expeditions": n,
+            "avg_gold": round(d["gold"] / n) if n else 0,
+            "avg_xp": round(d["xp"] / n) if n else 0,
+            "total_deaths": d["deaths"],
+            "deaths_per_run": round(d["deaths"] / n, 2) if n else 0,
+        })
+
+    return {"levels": levels, "total_expeditions": len(completed)}

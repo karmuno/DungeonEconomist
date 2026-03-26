@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_account
 from app.database import get_db
-from app.dungeons import generate_dungeon_name
+from app.dungeons import DUNGEON_LEVELS, generate_dungeon_name, generate_level_names
 from app.models import Account, Adventurer, AdventurerClass, Keep
 from app.names import generate_adventurer_name
 
@@ -93,6 +93,7 @@ def create_keep(data: KeepCreate, account: Account = Depends(get_current_account
         last_updated=now,
         created_at=now,
         dungeon_name=generate_dungeon_name(),
+        dungeon_level_names=generate_level_names(len(DUNGEON_LEVELS)),
         max_dungeon_level=1,
     )
     db.add(keep)

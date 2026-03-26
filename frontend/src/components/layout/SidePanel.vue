@@ -22,6 +22,24 @@ const choiceExpeditionId = ref<number | null>(null)
 const choiceEventType = ref('')
 const choosingInPopup = ref(false)
 
+// Queue for multiple choices
+interface PendingChoice {
+  message: string;
+  expeditionId: number;
+  eventType: string;
+}
+const choiceQueue = ref<PendingChoice[]>([])
+
+function checkChoiceQueue() {
+  if (showChoicePopup.value || choiceQueue.value.length === 0) return
+  
+  const next = choiceQueue.value.shift()!
+  choiceMessage.value = next.message
+  choiceExpeditionId.value = next.expeditionId
+  choiceEventType.value = next.eventType
+  showChoicePopup.value = true
+}
+
 
 // Level-up popup
 const showLevelUpPopup = ref(false)
@@ -59,12 +77,13 @@ function processEvents(events: Array<{ type: string; message: string; expedition
       continue
     }
 
-    // Expedition choice — always show popup
+    // Expedition choice — queue it
     if (event.type === 'expedition_choice' && event.expedition_id) {
-      choiceMessage.value = event.message
-      choiceExpeditionId.value = event.expedition_id
-      choiceEventType.value = event.event_subtype ?? ''
-      showChoicePopup.value = true
+      choiceQueue.value.push({
+        message: event.message,
+        expeditionId: event.expedition_id,
+        eventType: event.event_subtype ?? '',
+      })
       gameTime.expeditionVersion++
       continue
     }
@@ -80,6 +99,9 @@ function processEvents(events: Array<{ type: string; message: string; expedition
     }
     notifications.add(event.message, opts)
   }
+  
+  // Try showing the first one in queue if nothing is showing
+  checkChoiceQueue()
 }
 
 async function popupChoice(choice: string) {
@@ -118,10 +140,16 @@ async function popupChoice(choice: string) {
       )
     }
     gameTime.expeditionVersion++
+    
+    // Check if more choices are in queue
+    checkChoiceQueue()
   } catch (e: any) {
     const detail = (e as any)?.data?.detail ?? 'Failed to submit choice'
     notifications.add(detail, 'error')
     showChoicePopup.value = false
+    
+    // Check if more choices are in queue even on error
+    checkChoiceQueue()
   } finally {
     choosingInPopup.value = false
   }
@@ -132,6 +160,9 @@ function viewExpedition() {
   if (choiceExpeditionId.value) {
     router.push(`/expedition/${choiceExpeditionId.value}/summary`)
   }
+  // Check queue if they just closed the modal to navigate away
+  // but they probably want to see the other popups later
+  checkChoiceQueue()
 }
 
 const skipping = ref(false)

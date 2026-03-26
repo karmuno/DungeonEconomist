@@ -1,52 +1,56 @@
 {
-  "levels": {
-    "1": {
+  "tiers": [
+    {
+      "max_level": 1,
       "name": "Petty Hoard",
-      "gold_dice": "2d6",
-      "gold_multiplier": 10,
-      "gold_bonus_dice": "1d10-1",
-      "silver_dice": "3d6",
-      "copper_dice": "5d6"
+      "silver_base": 100,
+      "silver_die": 6,
+      "gold_base": 10,
+      "gold_die": 6,
+      "gems_chance": 0.05,
+      "gems_value": 60,
+      "jewelry_chance": 0.05,
+      "jewelry_value": 120,
+      "magic_chance": 0.05
     },
-    "2": {
+    {
+      "max_level": 3,
       "name": "Small Cache",
-      "gold_dice": "2d6",
-      "gold_multiplier": 20,
-      "gold_bonus_dice": "1d10-1",
-      "silver_dice": "4d6",
-      "copper_dice": "6d6"
+      "silver_base": 100,
+      "silver_die": 12,
+      "gold_base": 100,
+      "gold_die": 6,
+      "gems_chance": 0.10,
+      "gems_value": 300,
+      "jewelry_chance": 0.10,
+      "jewelry_value": 600,
+      "magic_chance": 0.05
     },
-    "3": {
+    {
+      "max_level": 5,
       "name": "Modest Trove",
-      "gold_dice": "2d6",
-      "gold_multiplier": 30,
-      "gold_bonus_dice": "1d10-1",
-      "silver_dice": "5d8",
-      "copper_dice": "8d6"
+      "silver_base": 1000,
+      "silver_die": 6,
+      "gold_base": 200,
+      "gold_die": 6,
+      "gems_chance": 0.20,
+      "gems_value": 600,
+      "jewelry_chance": 0.20,
+      "jewelry_value": 1200,
+      "magic_chance": 0.10
     },
-    "4": {
-      "name": "Wealthy Stash",
-      "gold_dice": "2d6",
-      "gold_multiplier": 40,
-      "gold_bonus_dice": "1d10-1",
-      "silver_dice": "6d8",
-      "copper_dice": "10d6"
-    },
-    "5": {
-      "name": "Grand Treasure",
-      "gold_dice": "2d6",
-      "gold_multiplier": 50,
-      "gold_bonus_dice": "1d10-1",
-      "silver_dice": "8d8",
-      "copper_dice": "10d8"
-    },
-    "6": {
-      "name": "Dragon's Hoard",
-      "gold_dice": "2d6",
-      "gold_multiplier": 60,
-      "gold_bonus_dice": "1d10-1",
-      "silver_dice": "10d10",
-      "copper_dice": "10d10"
+    {
+      "max_level": 99,
+      "name": "Rich Hoard",
+      "silver_base": 2000,
+      "silver_die": 6,
+      "gold_base": 500,
+      "gold_die": 6,
+      "gems_chance": 0.30,
+      "gems_value": 3000,
+      "jewelry_chance": 0.30,
+      "jewelry_value": 6000,
+      "magic_chance": 0.15
     }
-  }
+  ]
 }

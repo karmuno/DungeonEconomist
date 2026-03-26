@@ -328,6 +328,17 @@ def _finalize_expedition(
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
+        # TPK cleanup: if no members remain, disable auto-delve flags so the
+        # ghost party doesn't silently block the auto-delve loop forever.
+        if not party.members:
+            party.auto_delve = False
+            party.auto_delve_healed = False
+            party.auto_delve_full = False
+            events.append({
+                "type": "death",
+                "message": f"Party '{party.name}' was wiped out. Auto-delve disabled.",
+            })
+
     # Magic item discovery (Library Tier I + general discovery)
     if living_members:
         building_bonuses = _get_building_bonuses(keep, db)

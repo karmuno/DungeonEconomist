@@ -34,3 +34,21 @@ export interface DungeonInfo {
 export function getDungeonInfo(): Promise<DungeonInfo> {
   return get<DungeonInfo>('/dungeon/')
 }
+
+export interface MetricsLevel {
+  level: number
+  expeditions: number
+  avg_gold: number
+  avg_xp: number
+  total_deaths: number
+  deaths_per_run: number
+}
+
+export interface MetricsData {
+  levels: MetricsLevel[]
+  total_expeditions: number
+}
+
+export function getMetrics(): Promise<MetricsData> {
+  return get<MetricsData>('/metrics')
+}

@@ -1,14 +1,29 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlayerStore } from '../../stores/player'
 import { useAuthStore } from '../../stores/auth'
 import { useNotificationsStore } from '../../stores/notifications'
+import eventBus from '../../eventBus'
 
 const route = useRoute()
 const router = useRouter()
 const player = usePlayerStore()
 const auth = useAuthStore()
 const notifications = useNotificationsStore()
+
+const showMetricsBtn = ref(false)
+
+function toggleMetricsButton() {
+  showMetricsBtn.value = !showMetricsBtn.value
+}
+
+function openMetrics() {
+  eventBus.emit('toggle-metrics')
+}
+
+onMounted(() => eventBus.on('toggle-metrics-button', toggleMetricsButton))
+onUnmounted(() => eventBus.off('toggle-metrics-button', toggleMetricsButton))
 
 function switchKeep() {
   auth.clearKeep()
@@ -34,6 +49,7 @@ function logout() {
       <router-link to="/expeditions" :class="{ active: route.path.startsWith('/expedition') }">Expeditions</router-link>
     </nav>
     <div class="header-actions">
+      <button v-if="showMetricsBtn" class="header-btn metrics-btn" @click="openMetrics">Metrics</button>
       <button class="header-btn" @click="switchKeep">Switch Keep</button>
       <button class="header-btn" @click="logout">Sign Out</button>
     </div>
@@ -109,5 +125,15 @@ nav a.active {
 .header-btn:hover {
   color: var(--text-primary);
   border-color: var(--text-muted);
+}
+
+.metrics-btn {
+  color: #a78bfa;
+  border-color: #a78bfa44;
+}
+
+.metrics-btn:hover {
+  color: #c4b5fd;
+  border-color: #a78bfa;
 }
 </style>

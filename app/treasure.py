@@ -1,8 +1,7 @@
-"""Treasure generation from JSON config."""
+"""Treasure generation from OSE dungeon level tables."""
 
 import json
 import random
-import re
 from pathlib import Path
 
 _DATA_PATH = Path(__file__).parent / "data" / "treasure.json"
@@ -11,51 +10,50 @@ with open(_DATA_PATH) as f:
     TREASURE_CONFIG = json.load(f)
 
 
-def _roll_dice(expr: str) -> int:
-    """Roll dice from an expression like '2d6', '1d10-1', '3d8+2'."""
-    if not expr:
-        return 0
-    match = re.match(r'(\d+)d(\d+)([+-]\d+)?', expr.strip())
-    if not match:
-        return int(expr)
-    count = int(match.group(1))
-    sides = int(match.group(2))
-    modifier = int(match.group(3)) if match.group(3) else 0
-    total = sum(random.randint(1, sides) for _ in range(count)) + modifier
-    return max(0, total)
+def _get_tier(dungeon_level: int) -> dict:
+    for tier in TREASURE_CONFIG["tiers"]:
+        if dungeon_level <= tier["max_level"]:
+            return tier
+    return TREASURE_CONFIG["tiers"][-1]
 
 
 def generate_treasure(dungeon_level: int) -> dict:
-    """Generate treasure for a given dungeon level using the JSON config.
+    """Generate treasure for a given dungeon level using OSE tables.
 
-    Returns {"gold": int, "silver": int, "copper": int, "xp_value": int, "special_item": None, "name": str}
+    Silver is always present. Gold appears 50% of the time.
+    Gems and jewelry each appear at the tier's listed percentage.
+    Magic items appear at the tier's listed percentage.
+    Gem/jewelry values are folded into the gold total.
     """
-    level_key = str(min(dungeon_level, 6))
-    config = TREASURE_CONFIG.get("levels", {}).get(level_key)
-    if not config:
-        config = TREASURE_CONFIG["levels"]["1"]
+    tier = _get_tier(dungeon_level)
 
-    # Roll gold: dice * multiplier + bonus
-    gold_roll = _roll_dice(config.get("gold_dice", "2d6"))
-    multiplier = config.get("gold_multiplier", dungeon_level * 10)
-    bonus = _roll_dice(config.get("gold_bonus_dice", "")) if config.get("gold_bonus_dice") else 0
-    gold = gold_roll * multiplier + bonus
+    # Silver: always present, base × 1d(die)
+    silver = tier["silver_base"] * random.randint(1, tier["silver_die"])
 
-    # Optional silver and copper
-    silver = _roll_dice(config["silver_dice"]) if config.get("silver_dice") else 0
-    copper = _roll_dice(config["copper_dice"]) if config.get("copper_dice") else 0
+    # Gold: 50% chance, base × 1d6
+    gold = 0
+    if random.random() < 0.5:
+        gold = tier["gold_base"] * random.randint(1, tier["gold_die"])
 
-    name = config.get("name", "Treasure")
+    # Gems: percent chance → value in gp folded into gold
+    if random.random() < tier["gems_chance"]:
+        gold += tier["gems_value"]
 
-    # XP = total value in copper / 100 (i.e. 1 XP per GP equivalent)
-    total_copper = gold * 100 + silver * 10 + copper
-    xp_value = total_copper // 100
+    # Jewelry: percent chance → value in gp folded into gold
+    if random.random() < tier["jewelry_chance"]:
+        gold += tier["jewelry_value"]
+
+    # Magic item: percent chance
+    special_item = "Magic Item" if random.random() < tier["magic_chance"] else None
+
+    total_copper = gold * 100 + silver * 10
+    xp_value = total_copper // 100  # 1 XP per GP equivalent
 
     return {
         "gold": gold,
         "silver": silver,
-        "copper": copper,
+        "copper": 0,
         "xp_value": xp_value,
-        "special_item": None,
-        "name": name,
+        "special_item": special_item,
+        "name": tier["name"],
     }

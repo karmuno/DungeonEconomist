@@ -7,6 +7,7 @@ import { usePlayerStore } from './stores/player'
 import AppHeader from './components/layout/AppHeader.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 import AdminConsole from './components/layout/AdminConsole.vue'
+import MetricsPanel from './components/layout/MetricsPanel.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -49,5 +50,6 @@ onMounted(async () => {
       </div>
     </div>
     <AdminConsole />
+    <MetricsPanel />
   </template>
 </template>

@@ -4,7 +4,7 @@ Class-specific HP and XP values are driven by app/data/classes.json
 via the class_config module. XP thresholds are per-class per OSE tables.
 """
 
-from app.class_config import get_hp_config
+
 from app.models import AdventurerClass
 
 # OSE XP tables per class. Index = level (1-based); table[level] = XP required.
@@ -79,16 +79,14 @@ def check_for_level_up(
     return current_xp >= threshold
 
 
-def calculate_hp_gain(adventurer_class: AdventurerClass | str, current_level: int) -> int:
-    """Calculate HP gain for a level up based on class (from classes.json)."""
+def calculate_hp_gain(adventurer_class: AdventurerClass | str, current_level: int) -> int:  # noqa: ARG001
+    """Roll one class hit die for a level-up HP gain."""
+    import random
+
+    from app.class_config import get_hit_die
+
     name = _class_name(adventurer_class)
-    base_hp, class_multiplier = get_hp_config(name)
-
-    # Higher levels gain slightly less HP
-    level_factor = max(0.8, 1.0 - (current_level * 0.02))
-
-    hp_gain = int(base_hp * class_multiplier * level_factor)
-    return max(1, hp_gain)  # Always gain at least 1 HP
+    return max(1, random.randint(1, get_hit_die(name)))
 
 
 def get_class_level_bonuses(adventurer_class: AdventurerClass | str, new_level: int) -> dict:

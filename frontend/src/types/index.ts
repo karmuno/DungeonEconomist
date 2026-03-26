@@ -126,9 +126,10 @@ export interface PartyStatus {
 // Game Time
 
 export interface GameEvent {
-  type: 'recruitment' | 'healing' | 'expedition_complete' | 'auto_start' | 'upkeep' | string
+  type: 'recruitment' | 'healing' | 'expedition_complete' | 'auto_start' | 'upkeep' | 'expedition_choice' | string
   message: string
   expedition_id?: number | null
+  event_subtype?: string | null
 }
 
 export interface GameTimeInfo {

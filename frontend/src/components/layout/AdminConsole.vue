@@ -36,6 +36,15 @@ async function execute() {
   const cmd = input.value.trim()
   if (!cmd || submitting.value) return
   input.value = ''
+
+  // Client-side commands
+  if (cmd === 'metrics') {
+    history.value.push({ cmd, result: 'Metrics button toggled in header.', error: false })
+    eventBus.emit('toggle-metrics-button')
+    nextTick(() => inputEl.value?.focus())
+    return
+  }
+
   submitting.value = true
 
   try {

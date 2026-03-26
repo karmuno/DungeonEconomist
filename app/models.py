@@ -37,6 +37,7 @@ class Keep(Base):
     last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     created_at = Column(DateTime, default=datetime.now)
     dungeon_name = Column(String, nullable=True)
+    dungeon_level_names = Column(JSON, nullable=True)
     max_dungeon_level = Column(Integer, default=1)
     highest_level_achieved = Column(Integer, default=1)
 

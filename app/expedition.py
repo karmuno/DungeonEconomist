@@ -390,31 +390,47 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
         # MU/Elf spells fire only on the party's initiative turn.
         # Monsters killed by a spell do NOT get a retaliation attack (snapshot after spell).
         # On monster initiative, no spell fires — monsters always get at least one round.
-        if initiative == "party":
+        #
+        # Spell HD limit: base spells insta-kill HD ≤ caster_level + 3 only.
+        # Scrolls (spells_remaining ≤ scroll_count) insta-kill any HD.
+
+        def _try_fire_spell() -> bool:
+            """Attempt to cast a spell from the first willing caster. Returns True if a spell fired."""
+            nonlocal mu_spell_used, mu_caster_name, monsters_killed, monster_deaths_in_round, monster_deaths_total
             _casters = [m for m in living_party()
                         if m.get("character_class") in ("Magic-User", "Elf")
                         and m.get("spells_remaining", 0) > 0]
             for _caster in _casters:
-                if random.randint(1, 6) >= 4:
-                    _spell = get_spell_name(_caster["level"])
-                    mu_spell_used = _spell
-                    mu_caster_name = _caster["name"]
-                    _targets = living_monsters()
-                    if _targets:
-                        _n = len(_targets)
-                        for _m in _targets:
-                            _m["current_hp"] = 0
-                        monsters_killed += _n
-                        monster_deaths_in_round += _n
-                        monster_deaths_total += _n
-                        _caster["spells_remaining"] -= 1
-                        round_spell_casters.add(_caster["name"])
-                        round_entry.setdefault("spell_casts", []).append({
-                            "caster": _caster["name"],
-                            "spell": _spell,
-                            "monsters_destroyed": _n,
-                        })
-                    break
+                if random.randint(1, 6) < 4:
+                    continue  # caster didn't manage to cast this round
+                is_scroll = _caster.get("spells_remaining", 0) <= _caster.get("scroll_count", 0)
+                hd_limit = _caster["level"] + 3
+                _all_targets = living_monsters()
+                killable = _all_targets if is_scroll else [m for m in _all_targets if m["hd"] <= hd_limit]
+                if not killable:
+                    continue  # monsters too tough for a base spell; caster holds back
+                _spell = get_spell_name(_caster["level"])
+                mu_spell_used = _spell
+                mu_caster_name = _caster["name"]
+                _n = len(killable)
+                for _m in killable:
+                    _m["current_hp"] = 0
+                monsters_killed += _n
+                monster_deaths_in_round += _n
+                monster_deaths_total += _n
+                _caster["spells_remaining"] -= 1
+                round_spell_casters.add(_caster["name"])  # noqa: B023
+                round_entry.setdefault("spell_casts", []).append({  # noqa: B023
+                    "caster": _caster["name"],
+                    "spell": _spell,
+                    "monsters_destroyed": _n,
+                    "scroll_used": is_scroll,
+                })
+                return True
+            return False
+
+        if initiative == "party":
+            _try_fire_spell()
             monster_snapshot = list(living_monsters())      # snapshot AFTER spell; spell-killed don't retaliate
             do_party_attacks()                               # spell casters are auto-skipped
             do_monster_attacks(use_snapshot=True)            # monsters killed in B still retaliate
@@ -423,30 +439,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             do_party_attacks(use_snapshot=True)              # PCs died in B still retaliate
         else:  # tie — simultaneous; spell fires but snapshot taken first so killed monsters still retaliate
             monster_snapshot = list(living_monsters())
-            _casters = [m for m in living_party()
-                        if m.get("character_class") in ("Magic-User", "Elf")
-                        and m.get("spells_remaining", 0) > 0]
-            for _caster in _casters:
-                if random.randint(1, 6) >= 4:
-                    _spell = get_spell_name(_caster["level"])
-                    mu_spell_used = _spell
-                    mu_caster_name = _caster["name"]
-                    _targets = living_monsters()
-                    if _targets:
-                        _n = len(_targets)
-                        for _m in _targets:
-                            _m["current_hp"] = 0
-                        monsters_killed += _n
-                        monster_deaths_in_round += _n
-                        monster_deaths_total += _n
-                        _caster["spells_remaining"] -= 1
-                        round_spell_casters.add(_caster["name"])
-                        round_entry.setdefault("spell_casts", []).append({
-                            "caster": _caster["name"],
-                            "spell": _spell,
-                            "monsters_destroyed": _n,
-                        })
-                    break
+            _try_fire_spell()
             do_party_attacks(use_snapshot=True)              # spell casters are auto-skipped
             do_monster_attacks(use_snapshot=True)
 

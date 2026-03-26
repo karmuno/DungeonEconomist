@@ -81,30 +81,25 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
                     "options": ["press_on", "retreat"],
                 })
 
-    # Stairs discovery — guaranteed at the deepest unlocked level.
-    # Dwarves find stairs earlier in the expedition (weighted toward earlier turns).
+    # Stairs discovery — 1% chance per turn at the deepest unlocked level.
+    # Each Dwarf in the party adds +0.5% per turn.
     if dungeon_level >= max_dungeon_level and dungeon_level < total_levels and log:
         party_classes = sim_result.get("party_classes", [])
         dwarf_count = party_classes.count("Dwarf")
-        # Weight turns so Dwarves find stairs earlier; without Dwarves, uniform.
-        n = len(log)
-        if dwarf_count > 0:
-            weights = [n - i + dwarf_count * 2 for i in range(n)]
-        else:
-            weights = [1] * n
-        chosen_i = random.choices(range(n), weights=weights, k=1)[0]
-        turn = log[chosen_i]
-        turn_num = turn.get("turn", chosen_i + 1)
+        stairs_chance_per_turn = 0.01 + dwarf_count * 0.005
         next_level = dungeon_level + 1
         next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "unknown depths"
-        decision_points.append({
-            "after_turn": turn_num,
-            "type": "stairs",
-            "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
-            "new_level": next_level,
-            "new_level_name": next_name,
-            "options": ["press_on_same", "press_on_next", "retreat"],
-        })
+        for turn in log:
+            if random.random() < stairs_chance_per_turn:
+                decision_points.append({
+                    "after_turn": turn.get("turn", 1),
+                    "type": "stairs",
+                    "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
+                    "new_level": next_level,
+                    "new_level_name": next_name,
+                    "options": ["press_on_same", "press_on_next", "retreat"],
+                })
+                break  # only find stairs once per expedition
 
     # Sort by turn order
     decision_points.sort(key=lambda dp: dp["after_turn"])
