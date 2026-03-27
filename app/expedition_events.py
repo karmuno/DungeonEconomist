@@ -170,6 +170,11 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
             continue
 
         event_type, message = _classify_turn(turn)
+
+        # Skip trivial rooms (clues, empty) — not worth a popup
+        if event_type in ("clue", "room"):
+            continue
+
         decision_points.append({
             "after_turn": turn_num,
             "type": event_type,

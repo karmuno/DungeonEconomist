@@ -132,10 +132,11 @@ async function popupChoice(choice: string) {
     }
 
     if (result.status === 'in_progress') {
-      const msg = result.auto_choice
-        ? `The party decided to press on!`
-        : 'The expedition presses on...'
-      notifications.add(msg, 'info')
+      // Don't notify — immediately advance to surface the next event
+      gameTime.expeditionVersion++
+      choosingInPopup.value = false
+      await advanceDay()
+      return
     } else if (result.status === 'completed') {
       await player.fetchPlayer()
       const retMsg = result.auto_choice === 'retreat'
