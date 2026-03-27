@@ -45,6 +45,10 @@ function checkChoiceQueue() {
 const showLevelUpPopup = ref(false)
 const levelUpMessage = ref('')
 
+// Stairs discovered popup
+const showStairsPopup = ref(false)
+const stairsMessage = ref('')
+
 
 function handleAction(notification: Notification) {
   if (notification.action?.callback) {
@@ -74,6 +78,13 @@ function processEvents(events: Array<{ type: string; message: string; expedition
     if (event.type === 'level_up' && event.first_time) {
       levelUpMessage.value = event.message
       showLevelUpPopup.value = true
+      continue
+    }
+
+    // Stairs discovered — ALWAYS show popup, no exceptions
+    if (event.type === 'stairs_discovered') {
+      stairsMessage.value = event.message
+      showStairsPopup.value = true
       continue
     }
 
@@ -260,30 +271,6 @@ onUnmounted(() => {
     <div class="choice-popup">
       <p class="choice-popup-msg">{{ choiceMessage }}</p>
       <div class="choice-popup-buttons">
-        <template v-if="choiceEventType === 'stairs'">
-          <button
-            class="btn btn-primary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('press_on_same')"
-          >
-            Continue This Level
-          </button>
-          <button
-            class="btn btn-success"
-            :disabled="choosingInPopup"
-            @click="popupChoice('press_on_next')"
-          >
-            Descend Deeper
-          </button>
-          <button
-            class="btn btn-secondary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('retreat')"
-          >
-            Retreat (Level Saved)
-          </button>
-        </template>
-        <template v-else>
           <button
             class="btn btn-primary"
             :disabled="choosingInPopup"
@@ -298,7 +285,6 @@ onUnmounted(() => {
           >
             Retreat
           </button>
-        </template>
         <button
           class="btn btn-secondary"
           :disabled="choosingInPopup"
@@ -330,6 +316,25 @@ onUnmounted(() => {
           @click="showLevelUpPopup = false"
         >
           Awesome!
+        </button>
+      </div>
+    </div>
+  </ModalDialog>
+
+  <!-- Stairs Discovered Popup -->
+  <ModalDialog
+    :is-open="showStairsPopup"
+    title="Stairs Discovered!"
+    @close="showStairsPopup = false"
+  >
+    <div class="choice-popup">
+      <p class="choice-popup-msg">{{ stairsMessage }}</p>
+      <div class="choice-popup-buttons">
+        <button
+          class="btn btn-success"
+          @click="showStairsPopup = false"
+        >
+          Excellent!
         </button>
       </div>
     </div>

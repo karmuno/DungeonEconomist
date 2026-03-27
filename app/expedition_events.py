@@ -22,17 +22,10 @@ BIG_HAUL_THRESHOLD = 8
 def auto_decide(event_type: str, party: list = None) -> str:
     """Have the party automatically decide what to do at a decision point.
 
-    For stairs events, returns 'press_on_same', 'press_on_next', or 'retreat'.
-    For other events, returns 'press_on' or 'retreat'.
+    Returns 'press_on' or 'retreat'.
     Eventually this will factor in party composition, morale, HP levels, etc.
     """
     # TODO: weight by party composition, current HP %, class abilities
-    if event_type == "stairs":
-        return random.choices(
-            ["press_on_same", "press_on_next", "retreat"],
-            weights=[50, 30, 20],
-            k=1,
-        )[0]
     return random.choice(["press_on", "retreat"])
 
 
@@ -81,25 +74,23 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
                     "options": ["press_on", "retreat"],
                 })
 
-    # Stairs discovery — 1% chance per turn at the deepest unlocked level.
-    # Each Dwarf in the party adds +0.5% per turn.
+    # Stairs discovery — 15% chance per turn at the deepest unlocked level.
+    # Each Dwarf in the party adds +5% per turn.
+    # Stairs are NOT a decision point — they auto-unlock at expedition completion
+    # and always produce a popup notification the player cannot miss.
     if dungeon_level >= max_dungeon_level and dungeon_level < total_levels and log:
         party_classes = sim_result.get("party_classes", [])
         dwarf_count = party_classes.count("Dwarf")
-        stairs_chance_per_turn = 0.01 + dwarf_count * 0.005
+        stairs_chance_per_turn = 0.15 + dwarf_count * 0.05
         next_level = dungeon_level + 1
         next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "unknown depths"
-        for turn in log:
+        for _turn in log:
             if random.random() < stairs_chance_per_turn:
-                decision_points.append({
-                    "after_turn": turn.get("turn", 1),
-                    "type": "stairs",
-                    "message": f"Your party discovered stairs leading down to {next_name}! (Level {next_level})",
+                sim_result["stairs_found"] = {
                     "new_level": next_level,
                     "new_level_name": next_name,
-                    "options": ["press_on_same", "press_on_next", "retreat"],
-                })
-                break  # only find stairs once per expedition
+                }
+                break
 
     # Sort by turn order
     decision_points.sort(key=lambda dp: dp["after_turn"])

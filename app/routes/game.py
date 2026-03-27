@@ -305,18 +305,6 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}
 
-        # Never auto-resolve stairs — always require player input.
-        # _check_pending_decisions should block us from reaching this, but
-        # guard here as a failsafe so stairs are never silently swallowed.
-        if dp.get("type") == "stairs":
-            events.append(GameEvent(
-                type="expedition_choice",
-                message=f"Party '{party_name}': {dp.get('message', 'A decision awaits')}",
-                expedition_id=expedition.id,
-                event_subtype="stairs",
-            ))
-            continue
-
         is_silent = expedition.party and expedition.party.auto_decide_events
         choice = auto_decide(dp.get("type", ""), expedition.party.members if expedition.party else [])
 
@@ -371,8 +359,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                 party_obj = expedition.party
 
                 # Auto-decide if party has auto_decide_events enabled
-                # (never auto-decide stairs — always prompt the player)
-                if party_obj and party_obj.auto_decide_events and dp.get("type") != "stairs":
+                if party_obj and party_obj.auto_decide_events:
                     choice = auto_decide(dp.get("type", ""), party_obj.members if party_obj else [])
                     if choice == "retreat":
                         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
@@ -441,7 +428,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
 
 
 # Event types that are considered notable for skip-to-event
-NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "loot", "level_up"}
+NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "loot", "level_up", "stairs_discovered"}
 
 
 def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
@@ -454,9 +441,7 @@ def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
     events = []
     for expedition in awaiting:
         # Skip auto-decide parties — they don't block time
-        # EXCEPT stairs events, which always require player input
-        is_stairs = expedition.pending_event and expedition.pending_event.get("type") == "stairs"
-        if expedition.party and expedition.party.auto_decide_events and not is_stairs:
+        if expedition.party and expedition.party.auto_decide_events:
             continue
         party_name = expedition.party.name if expedition.party else "Unknown"
         dp = expedition.pending_event or {}
@@ -651,7 +636,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "assigned_adventurers": [_adv_summary_local(a) for a in b.assigned_adventurers],
         })
 
-    # Parties with status
+    # Parties with status (skip wiped parties — empty and not on expedition)
     all_parties = db.query(Party).filter(Party.keep_id == keep.id).all()
     parties_summary = []
     for p in all_parties:
@@ -660,11 +645,11 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             # Find the active expedition for this party
             exp = next((e for e in active_expeditions if e.party_id == p.id), None)
             expedition_id = exp.id if exp else None
+        elif len(p.members) == 0:
+            # Wiped party — hide from UI
+            continue
         elif any(m.hp_current < m.hp_max for m in p.members):
             status = "Healing"
-            expedition_id = None
-        elif len(p.members) == 0:
-            status = "Empty"
             expedition_id = None
         else:
             status = "Ready"
@@ -712,7 +697,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "adventurer_count": adventurer_count,
         "graveyard_count": graveyard_count,
         "debtors_prison_count": debtors_prison_count,
-        "party_count": party_count,
+        "party_count": len(parties_summary),
         "expedition_count": expedition_count,
         "treasury_gold": keep.treasury_gold,
         "treasury_silver": keep.treasury_silver,

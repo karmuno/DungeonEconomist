@@ -138,28 +138,16 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
         party = expedition.party
 
         # Auto-decide if party has auto_decide_events
-        # (never auto-decide stairs — always prompt the player)
         if party and party.auto_decide_events:
             from app.expedition_events import auto_decide
             while resolved < len(decision_points):
                 dp = decision_points[resolved]
-                if dp.get("type") == "stairs":
-                    break  # stairs always require player input
                 choice = auto_decide(dp.get("type", ""), party.members if party else [])
                 if choice == "retreat":
                     return _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
-                if choice == "press_on_next" and dp.get("new_level"):
-                    expedition.dungeon_level = dp["new_level"]
                 resolved += 1
                 expedition.resolved_phases = resolved
-            # If we stopped at a stairs decision, pause for player input
-            if resolved < len(decision_points):
-                dp = decision_points[resolved]
-                expedition.result = "awaiting_choice"
-                expedition.pending_event = dp
-                expedition.decision_day = expedition.return_day
-                return {"events": [], "awaiting_choice": True, "pending_event": dp}
-            # All decisions auto-resolved with press_on, finalize normally
+            # All decisions auto-resolved, finalize normally
             return _finalize_expedition(expedition, sim_result, db, keep)
 
         # Otherwise pause for player input
@@ -328,15 +316,13 @@ def _finalize_expedition(
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
-        # TPK cleanup: if no members remain, disable auto-delve flags so the
-        # ghost party doesn't silently block the auto-delve loop forever.
+        # TPK cleanup: disable auto-delve so a ghost party doesn't keep launching.
         if not party.members:
-            party.auto_delve = False
             party.auto_delve_healed = False
             party.auto_delve_full = False
             events.append({
                 "type": "death",
-                "message": f"Party '{party.name}' was wiped out. Auto-delve disabled.",
+                "message": f"Party '{party.name}' was wiped out!",
             })
 
     # Magic item discovery (Library Tier I + general discovery)
@@ -493,17 +479,20 @@ def _finalize_expedition(
                             db.delete(item)
                             consumed += 1
 
-    # Apply stairs discovery — finding stairs always unlocks the next level,
-    # regardless of whether the party pressed on or retreated.
-    for dp in sim_result.get("decision_points", []):
-        if dp["type"] == "stairs":
-            new_level = dp.get("new_level", 0)
-            if new_level > keep.max_dungeon_level:
-                keep.max_dungeon_level = new_level
-                events.append({
-                    "type": "stairs",
-                    "message": dp["message"],
-                })
+    # Stairs discovery — always fires at expedition completion, never mid-expedition.
+    # Unlocks the next level and emits a stairs_discovered event that the frontend
+    # ALWAYS shows as a popup, regardless of auto-decide settings.
+    stairs = sim_result.get("stairs_found") or effective_result.get("stairs_found")
+    if stairs:
+        new_level = stairs["new_level"]
+        new_name = stairs["new_level_name"]
+        if new_level > (keep.max_dungeon_level or 0):
+            keep.max_dungeon_level = new_level
+            party_name = party.name if party else "Your party"
+            events.append({
+                "type": "stairs_discovered",
+                "message": f"{party_name} discovered stairs down to {new_name}! (Level {new_level}) New dungeon level unlocked!",
+            })
 
     if retreat:
         events.insert(0, {"type": "expedition_complete", "message": "The party retreated from the dungeon"})
