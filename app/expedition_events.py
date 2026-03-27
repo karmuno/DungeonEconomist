@@ -24,11 +24,11 @@ def auto_decide(event_type: str, party: list = None) -> str:
 
     Returns 'press_on' or 'retreat'.
     Retreat probability varies by event type:
-      - death: 50% retreat (morale shaken by losing a companion)
-      - big_haul: 40% retreat (tempted to secure the loot)
+      - death: 66% retreat (morale shaken by losing a companion)
+      - big_haul: 33% retreat (tempted to secure the loot)
       - other: 25% retreat (default cautious adventurers)
     """
-    retreat_chance = {"death": 0.50, "big_haul": 0.40}.get(event_type, 0.25)
+    retreat_chance = {"death": 0.66, "big_haul": 0.33}.get(event_type, 0.25)
     return "retreat" if random.random() < retreat_chance else "press_on"
 
 
