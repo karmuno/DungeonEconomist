@@ -120,17 +120,20 @@ class DungeonSimulator:
                 trap_damage = random.randint(1, 6) * expedition.dungeon_level
                 expedition.resources_used["hp_lost"] += trap_damage
                 alive_members = [m for m in expedition.party if m["current_hp"] > 0]
+                trap_victims = []
                 if alive_members:
                     base_loss = trap_damage // len(alive_members)
                     remainder = trap_damage % len(alive_members)
                     for i, member in enumerate(alive_members):
                         loss = base_loss + (1 if i < remainder else 0)
                         member["current_hp"] -= loss
+                        trap_victims.append({"name": member["name"], "damage": loss})
                         if member["current_hp"] <= 0:
                             member["current_hp"] = 0
                             if member not in expedition.dead:
                                 expedition.dead.append(member)
                 encounter_log["trap_damage"] = trap_damage
+                encounter_log["trap_victims"] = trap_victims
                 turn_log["events"].append(encounter_log)
 
             elif encounter_type == EncounterType.CLUE:
@@ -140,6 +143,11 @@ class DungeonSimulator:
         alive_after = {m["name"] for m in expedition.party if m["current_hp"] > 0}
         newly_dead = alive_before - alive_after
         turn_log["deaths"] = list(newly_dead)
+
+        # Snapshot party state at end of this turn (HP, spells, heals)
+        turn_log["party_hp"] = {m["name"]: m["current_hp"] for m in expedition.party}
+        turn_log["spells_left"] = sum(m.get("spells_remaining", 0) for m in expedition.party)
+        turn_log["heals_left"] = sum(m.get("heals_remaining", 0) for m in expedition.party)
 
         # Update the expedition log
         self.expedition_logs[expedition_id].append(turn_log)

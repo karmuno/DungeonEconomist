@@ -1132,6 +1132,23 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     if expedition.result == "awaiting_choice" and expedition.pending_event:
         pending_event = expedition.pending_event
 
+    # Spells/heals at the current decision point (not end-of-expedition)
+    spells_left = sim.get("spells_left", 0)
+    heals_left = sim.get("heals_left", 0)
+    if events_log:
+        last_turn = events_log[-1]
+        if "spells_left" in last_turn:
+            spells_left = last_turn["spells_left"]
+        if "heals_left" in last_turn:
+            heals_left = last_turn["heals_left"]
+
+    # Filter turn summaries to only include turns the player has seen
+    all_summaries = sim.get("turn_summaries", [])
+    if cutoff_turn is not None and cutoff_turn <= len(all_summaries):
+        visible_summaries = all_summaries[:cutoff_turn]
+    else:
+        visible_summaries = all_summaries
+
     return {
         "expedition_id": expedition.id,
         "party_id": expedition.party_id,
@@ -1147,9 +1164,9 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "events_log": events_log,
         "estimated_readiness_day": None,
         "pending_event": pending_event,
-        "spells_left": sim.get("spells_left", 0),
-        "heals_left": sim.get("heals_left", 0),
-        "turn_summaries": sim.get("turn_summaries", []),
+        "spells_left": spells_left,
+        "heals_left": heals_left,
+        "turn_summaries": visible_summaries,
     }
 
 

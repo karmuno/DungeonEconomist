@@ -46,7 +46,16 @@ def _summarize_turn(turn: dict) -> str:
             monster = combat.get("monster_type", "monsters")
             count = combat.get("monster_count", 1)
             xp = combat.get("xp_earned", 0)
-            monster_label = f"{count} {monster}s" if count > 1 else monster
+            if count > 1:
+                # Simple English plural: Wolf→Wolves, most others just add 's'
+                if monster.endswith("f"):
+                    monster_label = f"{count} {monster[:-1]}ves"
+                elif monster.endswith("fe"):
+                    monster_label = f"{count} {monster[:-2]}ves"
+                else:
+                    monster_label = f"{count} {monster}s"
+            else:
+                monster_label = monster
             outcome = combat.get("outcome", "")
             parts.append(f"Fought {monster_label} ({outcome}, +{xp} XP)")
         elif event.get("treasure"):
@@ -63,7 +72,12 @@ def _summarize_turn(turn: dict) -> str:
                 loot_parts.append(f"{copper}cp")
             parts.append(f"Found {' '.join(loot_parts)}" if loot_parts else "Found treasure")
         elif event.get("trap_damage"):
-            parts.append(f"Trap! {event['trap_damage']} damage")
+            victims = event.get("trap_victims", [])
+            if victims:
+                victim_parts = [f"{v['name']} ({v['damage']})" for v in victims]
+                parts.append(f"Trap! {', '.join(victim_parts)}")
+            else:
+                parts.append(f"Trap! {event['trap_damage']} damage")
         elif event.get("type") == "Clue":
             parts.append("Found a clue")
 
@@ -115,7 +129,15 @@ def _classify_turn(turn: dict) -> tuple[str, str]:
         return "big_haul", f"Your party found a massive treasure hoard worth {gold_found} gp!"
 
     if has_combat:
-        monster_label = f"{monster_count} {monster_name}s" if monster_count > 1 else monster_name
+        if monster_count > 1:
+            if monster_name.endswith("f"):
+                monster_label = f"{monster_count} {monster_name[:-1]}ves"
+            elif monster_name.endswith("fe"):
+                monster_label = f"{monster_count} {monster_name[:-2]}ves"
+            else:
+                monster_label = f"{monster_count} {monster_name}s"
+        else:
+            monster_label = monster_name
         return "combat", f"Your party fought {monster_label}."
 
     if has_trap:

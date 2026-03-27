@@ -37,6 +37,13 @@ watch(() => props.isOpen, async (open) => {
   }
 })
 
+function pluralMonster(name: string, count: number): string {
+  if (count <= 1) return name
+  if (name.endsWith('f')) return `${count} ${name.slice(0, -1)}ves`
+  if (name.endsWith('fe')) return `${count} ${name.slice(0, -2)}ves`
+  return `${count} ${name}s`
+}
+
 function hpColor(member: ExpeditionMemberResult): string {
   if (!member.alive) return 'var(--accent-red, #e74c3c)'
   const pct = member.hp_max > 0 ? member.hp_current / member.hp_max : 0
@@ -62,6 +69,7 @@ interface TurnEvent {
   }
   treasure?: { gold: number; silver: number; copper: number; xp_value: number; name: string }
   trap_damage?: number
+  trap_victims?: Array<{ name: string; damage: number }>
 }
 
 interface TurnLog {
@@ -157,9 +165,7 @@ function getPastSummaries(): string[] {
               <div v-if="event.combat" class="turn-detail">
                 <span class="detail-badge combat">Combat</span>
                 <span>
-                  {{ (event.combat.monster_count ?? 1) > 1
-                    ? `${event.combat.monster_count} ${event.combat.monster_type}s`
-                    : event.combat.monster_type }}
+                  {{ pluralMonster(event.combat.monster_type, event.combat.monster_count ?? 1) }}
                   — <strong>{{ event.combat.outcome }}</strong>
                 </span>
                 <span class="detail-stat">{{ event.combat.hp_lost }} HP lost</span>
@@ -181,7 +187,12 @@ function getPastSummaries(): string[] {
               </div>
               <div v-else-if="event.trap_damage" class="turn-detail">
                 <span class="detail-badge trap">Trap</span>
-                <span>{{ event.trap_damage }} damage to party</span>
+                <span>{{ event.trap_damage }} total damage</span>
+                <template v-if="event.trap_victims?.length">
+                  <span class="trap-victims">
+                    ({{ event.trap_victims.map(v => `${v.name} ${v.damage}`).join(', ') }})
+                  </span>
+                </template>
               </div>
               <div v-else class="turn-detail">
                 <span class="detail-badge">{{ event.type }}</span>
@@ -421,6 +432,11 @@ function getPastSummaries(): string[] {
 
 .death-line {
   color: var(--accent-red, #e74c3c);
+}
+
+.trap-victims {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .heal-line {
