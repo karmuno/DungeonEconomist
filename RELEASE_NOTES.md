@@ -1,3 +1,22 @@
+# v0.8.1
+
+## Stairs Rework
+
+- **Always-popup stairs**: Stairs discovery completely decoupled from the decision-point system. Now fires at expedition finalization as a dedicated `stairs_discovered` event — the player ALWAYS gets a disruptive popup, regardless of auto-decide settings.
+- **Rebalanced chance**: 1.5% per turn at the deepest unlocked level, +1% per Dwarf in the party.
+- **Skip-to-event awareness**: "Skip to Event" now stops on stairs discovery.
+
+## Party Wipe
+
+- Wiped parties (all members dead or bankrupt) are now hidden from the dashboard and Parties view instead of lingering as "Empty".
+- Party count reflects only active parties.
+
+## Admin
+
+- `test stairs` command simplified — directly unlocks next level and fires a popup event for testing.
+
+---
+
 # v0.8 — The Monster Release
 
 ## Combat & Balance
