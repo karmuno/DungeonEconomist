@@ -6,8 +6,8 @@ Detects real events from the simulation log:
 - A specific turn produced treasure above the big haul threshold
 - Stairs were discovered (random roll, once per expedition)
 
-Parties auto-decide whether to press on or retreat. For now decisions are
-random; eventually this will depend on party composition and morale.
+Parties auto-decide whether to press on or retreat based on event type:
+deaths make retreat more likely (50%), big hauls tempt retreat (40%).
 """
 
 import random
@@ -23,10 +23,13 @@ def auto_decide(event_type: str, party: list = None) -> str:
     """Have the party automatically decide what to do at a decision point.
 
     Returns 'press_on' or 'retreat'.
-    Eventually this will factor in party composition, morale, HP levels, etc.
+    Retreat probability varies by event type:
+      - death: 50% retreat (morale shaken by losing a companion)
+      - big_haul: 40% retreat (tempted to secure the loot)
+      - other: 25% retreat (default cautious adventurers)
     """
-    # TODO: weight by party composition, current HP %, class abilities
-    return random.choice(["press_on", "retreat"])
+    retreat_chance = {"death": 0.50, "big_haul": 0.40}.get(event_type, 0.25)
+    return "retreat" if random.random() < retreat_chance else "press_on"
 
 
 def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -> dict:
@@ -74,8 +77,8 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
                     "options": ["press_on", "retreat"],
                 })
 
-    # Stairs discovery — 15% chance per turn at the deepest unlocked level.
-    # Each Dwarf in the party adds +5% per turn.
+    # Stairs discovery — 1.5% chance per turn at the deepest unlocked level.
+    # Each Dwarf in the party adds +1% per turn.
     # Stairs are NOT a decision point — they auto-unlock at expedition completion
     # and always produce a popup notification the player cannot miss.
     if dungeon_level >= max_dungeon_level and dungeon_level < total_levels and log:
