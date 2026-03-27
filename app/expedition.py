@@ -435,8 +435,10 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             do_party_attacks()                               # spell casters are auto-skipped
             do_monster_attacks(use_snapshot=True)            # monsters killed in B still retaliate
         elif initiative == "monsters":
-            do_monster_attacks()                             # no spell this round
-            do_party_attacks(use_snapshot=True)              # PCs died in B still retaliate
+            do_monster_attacks()                             # monsters go first
+            _try_fire_spell()                               # MUs cast on their turn (second)
+            monster_snapshot = list(living_monsters())       # snapshot AFTER spell
+            do_party_attacks(use_snapshot=True)              # spell casters are auto-skipped
         else:  # tie — simultaneous; spell fires but snapshot taken first so killed monsters still retaliate
             monster_snapshot = list(living_monsters())
             _try_fire_spell()

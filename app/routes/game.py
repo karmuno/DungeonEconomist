@@ -284,7 +284,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
         if should_launch:
             from app.routes.expeditions import _auto_launch_expedition
             # Use party's preferred level, clamped to max unlocked
-            target_level = party.auto_delve_level if party.auto_delve_level else (keep.max_dungeon_level or 1)
+            target_level = party.auto_delve_level if party.auto_delve_level else 1
             target_level = max(1, min(target_level, keep.max_dungeon_level or 1))
             exp_result = _auto_launch_expedition(party, keep, db, dungeon_level=target_level)
             if exp_result:

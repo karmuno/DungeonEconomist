@@ -513,7 +513,7 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             return None
 
     if dungeon_level is None:
-        dungeon_level = keep.max_dungeon_level or 1
+        dungeon_level = 1
     dungeon_level = min(dungeon_level, keep.max_dungeon_level or 1)
 
     from app.magic_items import get_scroll_count, get_spell_multiplier, has_potion
@@ -809,13 +809,19 @@ def make_expedition_choice(
     auto_choice_label = choice if was_auto else None
 
     if expedition.resolved_phases < len(decision_points):
-        expedition.decision_day = expedition.return_day
-        expedition.result = "in_progress"
+        # Immediately present the next decision point — no day advance needed
+        next_dp = decision_points[expedition.resolved_phases]
+        expedition.result = "awaiting_choice"
+        expedition.pending_event = next_dp
         db.commit()
         return {
-            "status": "in_progress",
+            "status": "next_event",
             "auto_choice": auto_choice_label,
-            "message": "The expedition continues...",
+            "next_event": {
+                "message": next_dp.get("message", "A decision awaits"),
+                "expedition_id": expedition.id,
+                "event_type": next_dp.get("type", ""),
+            },
             "events": [],
         }
 
@@ -1083,12 +1089,16 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
 
     # Calculate totals from phases resolved so far + current phase
     total_loot = 0
+    total_silver = 0
+    total_copper = 0
     total_xp = 0
     all_deaths = []
     for i, phase in enumerate(phases):
         if i > resolved:
             break
         total_loot += phase.get("loot", 0)
+        total_silver += phase.get("silver", 0)
+        total_copper += phase.get("copper", 0)
         total_xp += phase.get("xp", 0)
         all_deaths.extend(phase.get("deaths", []))
 
@@ -1160,6 +1170,8 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "dungeon_level": expedition.dungeon_level,
         "member_results": member_results,
         "total_loot": total_loot,
+        "total_silver": total_silver,
+        "total_copper": total_copper,
         "total_xp": total_xp,
         "events_log": events_log,
         "estimated_readiness_day": None,
@@ -1167,6 +1179,7 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "spells_left": spells_left,
         "heals_left": heals_left,
         "turn_summaries": visible_summaries,
+        "stairs_found": sim.get("stairs_found"),
     }
 
 
@@ -1250,6 +1263,7 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "pending_event": None,
         "spells_left": sim.get("spells_left", 0),
         "heals_left": sim.get("heals_left", 0),
+        "stairs_found": sim.get("stairs_found"),
     }
 
 

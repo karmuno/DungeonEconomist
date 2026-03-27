@@ -22,8 +22,8 @@ const emit = defineEmits<{
 const loading = ref(false)
 const summary = ref<ExpeditionSummaryDetail | null>(null)
 
-// Fetch expedition summary whenever the modal opens
-watch(() => props.isOpen, async (open) => {
+// Fetch expedition summary whenever the modal opens or the event changes
+watch([() => props.isOpen, () => props.eventMessage], async ([open]) => {
   if (open && props.expeditionId) {
     loading.value = true
     summary.value = null
@@ -211,10 +211,11 @@ function getPastSummaries(): string[] {
 
         <!-- Totals -->
         <div class="section totals">
-          <span class="text-gold">Loot: {{ formatCurrency(summary.total_loot, 0, 0) }}</span>
+          <span class="text-gold">Loot: {{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
           <span>XP: {{ summary.total_xp }}</span>
           <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
           <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
+          <span v-if="summary.stairs_found" class="text-stairs">Stairs found!</span>
         </div>
       </template>
 
@@ -328,7 +329,9 @@ function getPastSummaries(): string[] {
 }
 
 .member-hp {
-  flex: 1;
+  width: 140px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .dead-badge {
@@ -338,6 +341,7 @@ function getPastSummaries(): string[] {
   background: rgba(231, 76, 60, 0.15);
   padding: 1px 6px;
   border-radius: 3px;
+  margin-left: auto;
 }
 
 /* Turn Log */
@@ -465,6 +469,11 @@ function getPastSummaries(): string[] {
 
 .text-success {
   color: #4ade80;
+}
+
+.text-stairs {
+  color: #fbbf24;
+  font-weight: 700;
 }
 
 /* Action Buttons */

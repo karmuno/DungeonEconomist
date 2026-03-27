@@ -54,7 +54,7 @@ onMounted(async () => {
     ])
     parties.value = partiesData
     dungeon.value = dungeonData
-    selectedLevel.value = dungeonData.max_dungeon_level
+    selectedLevel.value = 1
 
     // Pre-select party from route param if provided
     const partyIdParam = Number(route.params.partyId)

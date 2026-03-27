@@ -322,10 +322,9 @@ async function deleteParty() {
             </label>
             <select
               class="form-select auto-level-select"
-              :value="selectedParty.auto_delve_level ?? ''"
-              @change="setAutoDelveLevel(($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null)"
+              :value="selectedParty.auto_delve_level ?? 1"
+              @change="setAutoDelveLevel(Number(($event.target as HTMLSelectElement).value) || 1)"
             >
-              <option value="">Deepest</option>
               <option v-for="n in maxDungeonLevel" :key="n" :value="n">Depth {{ n }}</option>
             </select>
             <span class="auto-delve-label" style="margin-left: 8px">|</span>

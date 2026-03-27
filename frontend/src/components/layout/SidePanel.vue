@@ -121,23 +121,28 @@ async function popupChoice(choice: string) {
   choosingInPopup.value = true
   try {
     const result = await expeditionsApi.choose(choiceExpeditionId.value, choice)
-    showChoicePopup.value = false
 
-    for (const evt of result.events ?? []) {
-      const evtTypeMap: Record<string, string> = {
-        death: 'error', loot: 'info', stairs: 'success',
-        upkeep: 'warning', expedition_complete: 'success',
-      }
-      notifications.add(evt.message, { type: (evtTypeMap[evt.type] ?? 'info') as any })
+    // Route events through processEvents so stairs/level-ups get their popups
+    if (result.events?.length) {
+      processEvents(result.events)
     }
 
-    if (result.status === 'in_progress') {
-      // Don't notify — immediately advance to surface the next event
+    if (result.status === 'next_event' && result.next_event) {
+      // Show next event in same modal without advancing the day
       gameTime.expeditionVersion++
+      choiceMessage.value = result.next_event.message
+      choiceEventType.value = result.next_event.event_type
       choosingInPopup.value = false
-      await advanceDay()
+      return
+    } else if (result.status === 'in_progress') {
+      // No more events this expedition — just close modal
+      gameTime.expeditionVersion++
+      showChoicePopup.value = false
+      choosingInPopup.value = false
+      checkChoiceQueue()
       return
     } else if (result.status === 'completed') {
+      showChoicePopup.value = false
       await player.fetchPlayer()
       const retMsg = result.auto_choice === 'retreat'
         ? 'The party decided to retreat!'
@@ -151,9 +156,13 @@ async function popupChoice(choice: string) {
           },
         },
       )
+    } else {
+      // Unknown status — close modal as fallback
+      showChoicePopup.value = false
     }
     gameTime.expeditionVersion++
-    
+    choosingInPopup.value = false
+
     // Check if more choices are in queue
     checkChoiceQueue()
   } catch (e: any) {

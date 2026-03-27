@@ -329,6 +329,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
           <span>XP: {{ summary.total_xp }}</span>
           <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
           <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
+          <span v-if="summary.stairs_found" class="text-stairs">Stairs to {{ summary.stairs_found.new_level_name }} found!</span>
           <template v-if="summary.estimated_readiness_day">
             <span class="text-muted">Ready by: {{ formatGameDayShort(summary.estimated_readiness_day) }}</span>
           </template>
@@ -792,5 +793,10 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
 .monster-fate.fled {
   background: rgba(241, 196, 15, 0.12);
   color: #f1c40f;
+}
+
+.text-stairs {
+  color: #fbbf24;
+  font-weight: 700;
 }
 </style>

@@ -13,8 +13,20 @@ import random
 
 from app.dungeons import DUNGEON_LEVEL_NAMES
 
-# Treasure threshold for "big haul" event (gold pieces in a single turn)
+# Treasure threshold for "big haul" event (gold-equivalent value in a single turn)
 BIG_HAUL_THRESHOLD = 8
+
+
+def _format_coins(gold: int, silver: int, copper: int) -> str:
+    """Format coin amounts into a readable string like '5gp 20sp'."""
+    parts = []
+    if gold:
+        parts.append(f"{gold}gp")
+    if silver:
+        parts.append(f"{silver}sp")
+    if copper:
+        parts.append(f"{copper}cp")
+    return " ".join(parts) if parts else "0gp"
 
 
 def auto_decide(event_type: str, party: list = None) -> str:
@@ -103,7 +115,9 @@ def _classify_turn(turn: dict) -> tuple[str, str]:
     monster_name = ""
     monster_count = 0
     trap_damage = 0
-    gold_found = 0
+    treasure_gold = 0
+    treasure_silver = 0
+    treasure_copper = 0
 
     for event in events:
         if event.get("combat"):
@@ -112,8 +126,12 @@ def _classify_turn(turn: dict) -> tuple[str, str]:
             monster_count = event["combat"].get("monster_count", 1)
         if event.get("treasure"):
             has_treasure = True
-            gold_found = event["treasure"].get("gold", 0)
-            if gold_found >= BIG_HAUL_THRESHOLD:
+            treasure_gold = event["treasure"].get("gold", 0)
+            treasure_silver = event["treasure"].get("silver", 0)
+            treasure_copper = event["treasure"].get("copper", 0)
+            # Compare GP-equivalent value for big haul threshold
+            gp_equivalent = treasure_gold + treasure_silver / 10 + treasure_copper / 100
+            if gp_equivalent >= BIG_HAUL_THRESHOLD:
                 has_big_haul = True
         if event.get("trap_damage"):
             has_trap = True
@@ -121,12 +139,15 @@ def _classify_turn(turn: dict) -> tuple[str, str]:
         if event.get("type") == "Clue":
             has_clue = True
 
+    # Build readable treasure string
+    treasure_label = _format_coins(treasure_gold, treasure_silver, treasure_copper)
+
     if deaths:
         dead_names = ", ".join(deaths)
         return "death", f"{dead_names} {'has' if len(deaths) == 1 else 'have'} fallen in the dungeon!"
 
     if has_big_haul:
-        return "big_haul", f"Your party found a massive treasure hoard worth {gold_found} gp!"
+        return "big_haul", f"Your party found a massive treasure hoard worth {treasure_label}!"
 
     if has_combat:
         if monster_count > 1:
@@ -144,7 +165,7 @@ def _classify_turn(turn: dict) -> tuple[str, str]:
         return "trap", f"Your party triggered a trap dealing {trap_damage} damage!"
 
     if has_treasure:
-        return "treasure", f"Your party found unguarded treasure worth {gold_found} gp."
+        return "treasure", f"Your party found unguarded treasure worth {treasure_label}."
 
     if has_clue:
         return "clue", "Your party discovered a mysterious clue."

@@ -37,11 +37,14 @@ export interface ExpeditionSummaryDetail {
   dungeon_level?: number
   member_results: ExpeditionMemberResult[]
   total_loot: number
+  total_silver: number
+  total_copper: number
   total_xp: number
   events_log: unknown[]
   estimated_readiness_day: number | null
   pending_event?: PendingEvent | null
   turn_summaries?: string[]
+  stairs_found?: { new_level: number; new_level_name: string } | null
 }
 
 export function getSummary(id: number): Promise<ExpeditionSummaryDetail> {
@@ -71,6 +74,7 @@ export interface ChoiceResponse {
   auto_choice?: string | null
   pending_event?: PendingEvent
   events?: Array<{ type: string; message: string }>
+  next_event?: { message: string; expedition_id: number; event_type: string }
 }
 
 export function getPending(id: number): Promise<PendingEventResponse> {
