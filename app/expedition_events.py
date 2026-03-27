@@ -81,7 +81,7 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
     if dungeon_level >= max_dungeon_level and dungeon_level < total_levels and log:
         party_classes = sim_result.get("party_classes", [])
         dwarf_count = party_classes.count("Dwarf")
-        stairs_chance_per_turn = 0.15 + dwarf_count * 0.05
+        stairs_chance_per_turn = 0.015 + dwarf_count * 0.01
         next_level = dungeon_level + 1
         next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "unknown depths"
         for _turn in log:
