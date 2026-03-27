@@ -41,6 +41,7 @@ export interface ExpeditionSummaryDetail {
   events_log: unknown[]
   estimated_readiness_day: number | null
   pending_event?: PendingEvent | null
+  turn_summaries?: string[]
 }
 
 export function getSummary(id: number): Promise<ExpeditionSummaryDetail> {

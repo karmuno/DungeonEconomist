@@ -1,13 +1,12 @@
 """Post-process simulation results to detect noteworthy events and auto-resolve
 party decisions about them.
 
-Detects real events from the simulation log:
-- A party member actually died in a specific turn
-- A specific turn produced treasure above the big haul threshold
-- Stairs were discovered (random roll, once per expedition)
+Every non-empty room becomes a decision point. When auto-decide is enabled the
+existing auto-resolve machinery handles them silently. When disabled the player
+sees the full expedition event modal for each one.
 
 Parties auto-decide whether to press on or retreat based on event type:
-deaths make retreat more likely (50%), big hauls tempt retreat (40%).
+deaths make retreat more likely (66%), big hauls tempt retreat (33%).
 """
 
 import random
@@ -16,7 +15,6 @@ from app.dungeons import DUNGEON_LEVEL_NAMES
 
 # Treasure threshold for "big haul" event (gold pieces in a single turn)
 BIG_HAUL_THRESHOLD = 8
-
 
 
 def auto_decide(event_type: str, party: list = None) -> str:
@@ -32,11 +30,111 @@ def auto_decide(event_type: str, party: list = None) -> str:
     return "retreat" if random.random() < retreat_chance else "press_on"
 
 
-def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -> dict:
-    """Scan simulation log for real trigger events and build decision points.
+def _summarize_turn(turn: dict) -> str:
+    """Produce a compact one-line summary of a turn for the collapsed log."""
+    turn_num = turn.get("turn", "?")
+    events = turn.get("events", [])
+    deaths = turn.get("deaths", [])
 
-    Mutates sim_result by adding 'phases' and 'decision_points' keys.
-    Returns the modified sim_result.
+    if not events and not deaths:
+        return f"Turn {turn_num}: Empty room"
+
+    parts = []
+    for event in events:
+        if event.get("combat"):
+            combat = event["combat"]
+            monster = combat.get("monster_type", "monsters")
+            count = combat.get("monster_count", 1)
+            xp = combat.get("xp_earned", 0)
+            monster_label = f"{count} {monster}s" if count > 1 else monster
+            outcome = combat.get("outcome", "")
+            parts.append(f"Fought {monster_label} ({outcome}, +{xp} XP)")
+        elif event.get("treasure"):
+            t = event["treasure"]
+            gold = t.get("gold", 0)
+            silver = t.get("silver", 0)
+            copper = t.get("copper", 0)
+            loot_parts = []
+            if gold:
+                loot_parts.append(f"{gold}gp")
+            if silver:
+                loot_parts.append(f"{silver}sp")
+            if copper:
+                loot_parts.append(f"{copper}cp")
+            parts.append(f"Found {' '.join(loot_parts)}" if loot_parts else "Found treasure")
+        elif event.get("trap_damage"):
+            parts.append(f"Trap! {event['trap_damage']} damage")
+        elif event.get("type") == "Clue":
+            parts.append("Found a clue")
+
+    if deaths:
+        parts.append(f"Deaths: {', '.join(deaths)}")
+
+    return f"Turn {turn_num}: {'; '.join(parts)}" if parts else f"Turn {turn_num}: Empty room"
+
+
+def _classify_turn(turn: dict) -> tuple[str, str]:
+    """Classify a turn into a decision point type and message.
+
+    Returns (type, message). Priority: death > big_haul > combat > trap > treasure > clue.
+    """
+    events = turn.get("events", [])
+    deaths = turn.get("deaths", [])
+
+    has_combat = False
+    has_big_haul = False
+    has_trap = False
+    has_treasure = False
+    has_clue = False
+    monster_name = ""
+    monster_count = 0
+    trap_damage = 0
+    gold_found = 0
+
+    for event in events:
+        if event.get("combat"):
+            has_combat = True
+            monster_name = event["combat"].get("monster_type", "monsters")
+            monster_count = event["combat"].get("monster_count", 1)
+        if event.get("treasure"):
+            has_treasure = True
+            gold_found = event["treasure"].get("gold", 0)
+            if gold_found >= BIG_HAUL_THRESHOLD:
+                has_big_haul = True
+        if event.get("trap_damage"):
+            has_trap = True
+            trap_damage = event["trap_damage"]
+        if event.get("type") == "Clue":
+            has_clue = True
+
+    if deaths:
+        dead_names = ", ".join(deaths)
+        return "death", f"{dead_names} {'has' if len(deaths) == 1 else 'have'} fallen in the dungeon!"
+
+    if has_big_haul:
+        return "big_haul", f"Your party found a massive treasure hoard worth {gold_found} gp!"
+
+    if has_combat:
+        monster_label = f"{monster_count} {monster_name}s" if monster_count > 1 else monster_name
+        return "combat", f"Your party fought {monster_label}."
+
+    if has_trap:
+        return "trap", f"Your party triggered a trap dealing {trap_damage} damage!"
+
+    if has_treasure:
+        return "treasure", f"Your party found unguarded treasure worth {gold_found} gp."
+
+    if has_clue:
+        return "clue", "Your party discovered a mysterious clue."
+
+    return "room", "Your party explored a room."
+
+
+def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -> dict:
+    """Scan simulation log and build decision points for every non-empty turn.
+
+    Mutates sim_result by adding 'phases', 'decision_points', and
+    'turn_summaries' keys. Returns the modified sim_result.
     """
     log = sim_result.get("log", [])
     total_turns = len(log)
@@ -45,37 +143,39 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
     if total_turns == 0:
         sim_result["phases"] = []
         sim_result["decision_points"] = []
+        sim_result["turn_summaries"] = []
         return sim_result
 
     decision_points = []
+    turn_summaries = []
 
-    # Scan turn-by-turn for real events
+    # Track cumulative deaths to detect TPK
+    all_dead: set[str] = set()
+    party_size = len(sim_result.get("party_classes", []))
+
     for i, turn in enumerate(log):
         turn_num = turn.get("turn", i + 1)
+        turn_summaries.append(_summarize_turn(turn))
 
-        # Check for real deaths this turn
-        deaths_this_turn = turn.get("deaths", [])
-        for dead_name in deaths_this_turn:
-            decision_points.append({
-                "after_turn": turn_num,
-                "type": "death",
-                "message": f"{dead_name} has fallen in the dungeon! Press on or retreat?",
-                "dead_member": dead_name,
-                "options": ["press_on", "retreat"],
-            })
+        events = turn.get("events", [])
+        deaths = turn.get("deaths", [])
+        all_dead.update(deaths)
 
-        # Check for big haul this turn
-        for event in turn.get("events", []):
-            treasure = event.get("treasure")
-            if treasure and treasure.get("gold", 0) >= BIG_HAUL_THRESHOLD:
-                gold = treasure["gold"]
-                decision_points.append({
-                    "after_turn": turn_num,
-                    "type": "big_haul",
-                    "message": f"Your party found a massive treasure hoard worth {gold} gp! Secure the loot and retreat, or press deeper?",
-                    "loot_so_far": gold,
-                    "options": ["press_on", "retreat"],
-                })
+        # Skip empty rooms — no decision point
+        if not events and not deaths:
+            continue
+
+        # Skip TPK turns — expedition ends naturally, no decision to make
+        if party_size > 0 and len(all_dead) >= party_size:
+            continue
+
+        event_type, message = _classify_turn(turn)
+        decision_points.append({
+            "after_turn": turn_num,
+            "type": event_type,
+            "message": message,
+            "options": ["press_on", "retreat"],
+        })
 
     # Stairs discovery — 1.5% chance per turn at the deepest unlocked level.
     # Each Dwarf in the party adds +1% per turn.
@@ -110,6 +210,7 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
 
     sim_result["phases"] = phases
     sim_result["decision_points"] = decision_points
+    sim_result["turn_summaries"] = turn_summaries
     return sim_result
 
 

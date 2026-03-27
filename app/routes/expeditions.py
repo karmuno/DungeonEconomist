@@ -1149,6 +1149,7 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "pending_event": pending_event,
         "spells_left": sim.get("spells_left", 0),
         "heals_left": sim.get("heals_left", 0),
+        "turn_summaries": sim.get("turn_summaries", []),
     }
 
 

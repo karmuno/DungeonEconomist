@@ -7,6 +7,7 @@ import { useNotificationsStore, type Notification } from '../../stores/notificat
 import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 import ModalDialog from '../shared/ModalDialog.vue'
+import ExpeditionEventModal from '../expeditions/ExpeditionEventModal.vue'
 import * as expeditionsApi from '../../api/expeditions'
 import eventBus from '../../eventBus'
 
@@ -262,45 +263,16 @@ onUnmounted(() => {
     </div>
   </aside>
 
-  <!-- Expedition Choice Popup -->
-  <ModalDialog
+  <!-- Expedition Event Modal -->
+  <ExpeditionEventModal
     :is-open="showChoicePopup"
-    title="Expedition Event"
+    :expedition-id="choiceExpeditionId"
+    :event-message="choiceMessage"
+    :event-type="choiceEventType"
+    :choosing="choosingInPopup"
+    @choose="popupChoice"
     @close="viewExpedition"
-  >
-    <div class="choice-popup">
-      <p class="choice-popup-msg">{{ choiceMessage }}</p>
-      <div class="choice-popup-buttons">
-          <button
-            class="btn btn-primary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('press_on')"
-          >
-            Press On
-          </button>
-          <button
-            class="btn btn-secondary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('retreat')"
-          >
-            Retreat
-          </button>
-        <button
-          class="btn btn-secondary"
-          :disabled="choosingInPopup"
-          @click="popupChoice('auto')"
-        >
-          You Decide
-        </button>
-      </div>
-      <button
-        class="btn btn-sm choice-popup-view"
-        @click="viewExpedition"
-      >
-        View Expedition Details
-      </button>
-    </div>
-  </ModalDialog>
+  />
 
   <!-- Level-Up Popup -->
   <ModalDialog
@@ -578,8 +550,4 @@ onUnmounted(() => {
   min-width: 120px;
 }
 
-.choice-popup-view {
-  color: var(--text-muted);
-  text-decoration: underline;
-}
 </style>
