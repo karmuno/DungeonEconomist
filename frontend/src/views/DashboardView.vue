@@ -8,9 +8,11 @@ import * as adventurersApi from '../api/adventurers'
 import type { DashboardStats, AdventurerOut } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
+import { useTutorialStore } from '../stores/tutorial'
 import { formatCurrency } from '../utils/currency'
 import { itemEmoji, itemBonusLabel } from '../utils/adventurer'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import InfoTooltip from '../components/shared/InfoTooltip.vue'
 import ModalDialog from '../components/shared/ModalDialog.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
 import eventBus from '../eventBus'
@@ -18,6 +20,7 @@ import eventBus from '../eventBus'
 const router = useRouter()
 const gameTime = useGameTimeStore()
 const notifications = useNotificationsStore()
+const tutorial = useTutorialStore()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(true)
 
@@ -34,6 +37,13 @@ async function handleLevelUp() {
   notifications.add(`${selectedAdventurer.value.name} leveled up to ${result.new_level}! (+${result.hp_gained} HP)`, 'success')
   selectedAdventurer.value = await adventurersApi.getById(selectedAdventurer.value.id)
   await fetchStats()
+}
+
+function dismissTutorialHint() {
+  if (stats.value) {
+    tutorial.advance(stats.value.tutorial_step + 1)
+    stats.value.tutorial_hint = null
+  }
 }
 
 // Expand state
@@ -242,8 +252,13 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
       </div>
       <h1 v-else>Dashboard</h1>
 
-      <!-- Hint -->
-      <div v-if="stats.hint && stats.hint !== 'launch_expedition'" class="hint-bar mb-2">{{ stats.hint }}</div>
+      <!-- Tutorial hint -->
+      <div v-if="stats.tutorial_hint && !tutorial.isTutorialComplete" class="hint-bar tutorial-hint mb-2">
+        <span>{{ stats.tutorial_hint }}</span>
+        <button class="hint-dismiss" @click="dismissTutorialHint">Got it</button>
+      </div>
+      <!-- Contextual hint (post-tutorial) -->
+      <div v-else-if="stats.hint && stats.hint !== 'launch_expedition'" class="hint-bar mb-2">{{ stats.hint }}</div>
 
 
       <!-- Active Expeditions -->
@@ -364,7 +379,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 <button class="btn btn-sm btn-secondary" @click.stop="router.push(`/parties/${p.id}`)">Manage</button>
               </div>
               <div class="auto-delve-row">
-                <span class="auto-delve-label">Auto-Delve:</span>
+                <span class="auto-delve-label">Auto-Delve: <InfoTooltip text="Automatically sends this party on a new expedition when conditions are met." /></span>
                 <label class="checkbox-label" @click.stop>
                   <input type="checkbox" :checked="p.auto_delve_healed" @change="togglePartySetting(p.id, 'healed')" />
                   When Healed
@@ -384,7 +399,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 <span class="auto-delve-label" style="margin-left: 8px">|</span>
                 <label class="checkbox-label" @click.stop>
                   <input type="checkbox" :checked="p.auto_decide_events" @change="togglePartySetting(p.id, 'auto_decide')" />
-                  Auto-Decide Events
+                  Auto-Decide <InfoTooltip text="Party makes expedition decisions (Press On / Retreat) without pausing for your input. Stairs are always shown." />
                 </label>
               </div>
             </div>
@@ -473,11 +488,22 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .dungeon-depth { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
 
 .hint-bar {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 8px 12px; background: rgba(96, 165, 250, 0.08);
   border: 1px solid rgba(96, 165, 250, 0.2); border-radius: var(--border-radius);
   color: var(--accent-blue, #60a5fa); font-size: 13px;
 }
+.hint-bar.tutorial-hint {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.25);
+  color: #fbbf24;
+}
+.hint-dismiss {
+  background: none; border: 1px solid currentColor; border-radius: 3px;
+  color: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer;
+  white-space: nowrap; opacity: 0.7;
+}
+.hint-dismiss:hover { opacity: 1; }
 .text-green { color: var(--accent-green); }
 .text-dead { color: var(--accent-red, #e74c3c); }
 

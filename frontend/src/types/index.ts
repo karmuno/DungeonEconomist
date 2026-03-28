@@ -21,6 +21,7 @@ export interface AccountOut {
   id: number
   username: string
   is_admin: boolean
+  tutorial_step: number
 }
 
 // Keeps
@@ -278,6 +279,8 @@ export interface DashboardStats {
     magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
   }>
   hint: string | null
+  tutorial_step: number
+  tutorial_hint: string | null
   active_expeditions: Array<{
     id: number
     party_name: string

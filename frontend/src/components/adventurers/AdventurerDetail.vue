@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { AdventurerOut } from '../../types'
 import ProgressBar from '../shared/ProgressBar.vue'
+import InfoTooltip from '../shared/InfoTooltip.vue'
 import { formatCurrency } from '../../utils/currency'
 import { displayStatus, itemEmoji, itemBonusLabel } from '../../utils/adventurer'
 
@@ -73,15 +74,15 @@ const hpBarColor = computed(() => {
     <div class="cs-combat-row">
       <div class="cs-stat">
         <span class="cs-stat-value">{{ adventurer.thac0 ?? '—' }}</span>
-        <span class="cs-stat-label">THAC0</span>
+        <span class="cs-stat-label">THAC0 <InfoTooltip text="To Hit Armor Class 0. The d20 roll needed to hit AC 0. Lower is better." /></span>
       </div>
       <div class="cs-stat">
         <span class="cs-stat-value">{{ adventurer.hit_dice ?? '—' }}</span>
-        <span class="cs-stat-label">HD</span>
+        <span class="cs-stat-label">HD <InfoTooltip text="Hit Dice. Determines HP gained on level up and combat effectiveness." /></span>
       </div>
       <div class="cs-stat">
         <span class="cs-stat-value">{{ adventurer.to_hit_bonus ? '+' + adventurer.to_hit_bonus : '+0' }}</span>
-        <span class="cs-stat-label">ATK</span>
+        <span class="cs-stat-label">ATK <InfoTooltip text="Attack bonus from class and magic weapons." /></span>
       </div>
       <div class="cs-stat">
         <span class="cs-stat-value cs-gold-value">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</span>

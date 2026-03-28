@@ -5,11 +5,12 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_keep
+from app.auth import get_current_account, get_current_keep
 from app.buildings import BUILDING_TYPES, get_upgrade_cost
 from app.database import get_db
 from app.dungeons import DUNGEON_LEVELS
 from app.models import (
+    Account,
     Adventurer,
     AdventurerClass,
     Expedition,
@@ -536,7 +537,11 @@ def _adv_summary(m) -> dict:
 
 
 @router.get("/dashboard/stats")
-def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = Depends(get_db)):
+def get_dashboard_stats(
+    keep: Keep = Depends(get_current_keep),
+    account: Account = Depends(get_current_account),
+    db: Session = Depends(get_db),
+):
     """Get aggregated dashboard stats for the home page."""
     # Pre-calculate current HP for all adventurers on active expeditions
     from app.routes.expeditions import _build_active_summary
@@ -682,16 +687,79 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     ).all()
     unassigned_summary = [_adv_summary_local(a) for a in unassigned]
 
-    # Hint for new players
+    # Tutorial hints (per-account, not per-keep)
+    tutorial_step = account.tutorial_step
+    tutorial_hint = None
+
+    # Check for wounded adventurers (not on expedition)
+    has_wounded = any(
+        a.hp_current < a.hp_max
+        for a in db.query(Adventurer).filter(
+            Adventurer.keep_id == keep.id,
+            Adventurer.is_dead == False,
+            Adventurer.is_bankrupt == False,
+            Adventurer.on_expedition == False,
+        ).all()
+    )
+
+    if tutorial_step < 7:
+        # Auto-advance tutorial based on game state
+        if tutorial_step < 2 and party_count > 0:
+            tutorial_step = 2
+        if tutorial_step < 3 and len(active_expeditions) > 0:
+            tutorial_step = 3
+        if tutorial_step < 5 and len(recent_expeditions) > 0:
+            tutorial_step = 5
+        if tutorial_step < 6 and len(recent_expeditions) > 0 and has_wounded:
+            tutorial_step = 6
+        if tutorial_step == 6 and not has_wounded:
+            # Healed up — check if they can afford a building
+            cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
+            if not built_types and keep.treasury_total_copper() >= cheapest_cost_copper:
+                tutorial_step = 7
+
+        # Persist auto-advancement
+        if tutorial_step > account.tutorial_step:
+            account.tutorial_step = tutorial_step
+            db.commit()
+
+        # Compute hint for current step
+        TUTORIAL_HINTS = {
+            0: "Welcome to Venturekeep! Form your first party to begin your adventure.",
+            1: "Form your first party -- head to the Tavern and recruit adventurers into a party.",
+            2: "Launch an expedition! Select your party and send them into the dungeon.",
+            3: "Your party is delving -- advance days or use Skip to Event to see what happens.",
+            4: "An event! Press On to keep exploring, Retreat to leave safely, or You Decide to let the party choose.",
+            5: "Expedition complete! Check the summary to see your loot and how your party fared.",
+            6: "Your adventurers need rest -- injured adventurers heal over time as you advance days.",
+        }
+
+        # Only show hint if the step is still relevant
+        if tutorial_step == 0 or tutorial_step == 1:
+            if party_count == 0:
+                tutorial_hint = TUTORIAL_HINTS.get(tutorial_step)
+        elif tutorial_step == 2:
+            if len(active_expeditions) == 0:
+                tutorial_hint = TUTORIAL_HINTS[2]
+        elif tutorial_step == 3:
+            if len(active_expeditions) > 0:
+                tutorial_hint = TUTORIAL_HINTS[3]
+        elif tutorial_step == 5:
+            tutorial_hint = TUTORIAL_HINTS[5]
+        elif tutorial_step == 6 and has_wounded:
+            tutorial_hint = TUTORIAL_HINTS[6]
+
+    # Contextual hint (for players past the tutorial)
     hint = None
-    if party_count == 0 and adventurer_count > 0:
-        hint = "Form a party in the Tavern to get started."
-    elif party_count > 0 and len(active_expeditions) == 0:
-        hint = "launch_expedition"
-    elif not built_types:
-        cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
-        if keep.treasury_total_copper() >= cheapest_cost_copper:
-            hint = "Visit the Village to build your first structure."
+    if tutorial_step >= 7:
+        if party_count == 0 and adventurer_count > 0:
+            hint = "Form a party in the Tavern to get started."
+        elif party_count > 0 and len(active_expeditions) == 0:
+            hint = "launch_expedition"
+        elif not built_types:
+            cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
+            if keep.treasury_total_copper() >= cheapest_cost_copper:
+                hint = "Visit the Village to build your first structure."
 
     return {
         "adventurer_count": adventurer_count,
@@ -710,6 +778,8 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "parties": parties_summary,
         "unassigned_adventurers": unassigned_summary,
         "hint": hint,
+        "tutorial_step": tutorial_step,
+        "tutorial_hint": tutorial_hint,
         "active_expeditions": [
             {
                 "id": e.id,

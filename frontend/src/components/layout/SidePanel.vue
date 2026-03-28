@@ -9,12 +9,14 @@ import { formatGameDay } from '../../utils/calendar'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ExpeditionEventModal from '../expeditions/ExpeditionEventModal.vue'
 import * as expeditionsApi from '../../api/expeditions'
+import { useTutorialStore } from '../../stores/tutorial'
 import eventBus from '../../eventBus'
 
 const router = useRouter()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const notifications = useNotificationsStore()
+const tutorial = useTutorialStore()
 
 // Expedition choice popup
 const showChoicePopup = ref(false)
@@ -89,8 +91,9 @@ function processEvents(events: Array<{ type: string; message: string; expedition
       continue
     }
 
-    // Expedition choice — queue it
+    // Expedition choice — queue it (and advance tutorial step 4)
     if (event.type === 'expedition_choice' && event.expedition_id) {
+      tutorial.advance(4)
       choiceQueue.value.push({
         message: event.message,
         expeditionId: event.expedition_id,

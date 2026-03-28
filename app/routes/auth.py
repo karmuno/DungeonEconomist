@@ -49,6 +49,7 @@ class AccountOut(BaseModel):
     id: int
     username: str
     is_admin: bool = False
+    tutorial_step: int = 0
 
     class Config:
         from_attributes = True

@@ -9,6 +9,7 @@ import * as gameApi from '../api/game'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
+import InfoTooltip from '../components/shared/InfoTooltip.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -304,7 +305,7 @@ async function deleteParty() {
             </button>
           </div>
           <div class="auto-delve-row mt-2">
-            <span class="auto-delve-label">Auto-Delve:</span>
+            <span class="auto-delve-label">Auto-Delve: <InfoTooltip text="Automatically sends this party on a new expedition when conditions are met." /></span>
             <label class="checkbox-label">
               <input
                 type="checkbox"
@@ -335,7 +336,7 @@ async function deleteParty() {
                 :checked="selectedParty.auto_decide_events"
                 @change="togglePartySetting('auto_decide')"
               />
-              Auto-Decide Events
+              Auto-Decide <InfoTooltip text="Party makes expedition decisions (Press On / Retreat) without pausing for your input. Stairs are always shown." />
             </label>
           </div>
         </template>

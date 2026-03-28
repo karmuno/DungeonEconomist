@@ -12,6 +12,7 @@ from app.routes import adventurers, expeditions, game, parties
 from app.routes import auth as auth_routes
 from app.routes import buildings as buildings_routes
 from app.routes import keeps as keeps_routes
+from app.routes import tutorial as tutorial_routes
 
 # Create tables on startup
 create_tables()
@@ -44,6 +45,7 @@ app.include_router(adventurers.router)
 app.include_router(parties.router)
 app.include_router(expeditions.router)
 app.include_router(game.router)
+app.include_router(tutorial_routes.router)
 
 # Serve Vue production build if it exists
 frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

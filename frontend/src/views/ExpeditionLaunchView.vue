@@ -9,6 +9,7 @@ import * as gameApi from '../api/game'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
+import InfoTooltip from '../components/shared/InfoTooltip.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -130,7 +131,7 @@ async function launchExpedition() {
       <!-- Right: Dungeon level selector -->
       <div class="card" v-if="dungeon">
         <h3 class="dungeon-title">{{ dungeon.dungeon_name }}</h3>
-        <p class="text-muted mb-2" style="font-size: 12px">Choose a depth to explore</p>
+        <p class="text-muted mb-2" style="font-size: 12px">Choose a depth to explore <InfoTooltip text="Deeper levels have tougher monsters but richer treasure and more XP." /></p>
 
         <div class="level-list">
           <button
