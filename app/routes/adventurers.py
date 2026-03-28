@@ -27,6 +27,8 @@ def _get_active_expedition_hps(keep: Keep, db: Session) -> dict[str, int]:
 
 
 def add_progression_data(adventurer, current_hps=None):
+    from app.class_config import get_class_config, get_combat_hd, get_thac0, get_to_hit_bonus
+
     if current_hps and adventurer.name in current_hps:
         adventurer.hp_current = current_hps[adventurer.name]
 
@@ -38,10 +40,31 @@ def add_progression_data(adventurer, current_hps=None):
         xp_needed_for_next = next_level_xp - current_level_xp
         progress = (xp_for_current_level / xp_needed_for_next) * 100 if xp_needed_for_next > 0 else 100
     else:
+        current_level_xp = calculate_xp_for_next_level(adventurer.level - 1, adventurer.adventurer_class) or 0
         progress = 100
 
     adventurer.next_level_xp = next_level_xp
+    adventurer.current_level_xp = current_level_xp
     adventurer.xp_progress = min(100, max(0, progress))
+
+    # Combat stats
+    cls = adventurer.adventurer_class.value if hasattr(adventurer.adventurer_class, 'value') else adventurer.adventurer_class
+    adventurer.thac0 = get_thac0(cls, adventurer.level)
+    adventurer.hit_dice = get_combat_hd(cls, adventurer.level)
+    adventurer.to_hit_bonus = get_to_hit_bonus(cls)
+
+    # Class ability summary
+    cfg = get_class_config(cls)
+    abilities = cfg.get("abilities", {})
+    if abilities:
+        ability_name = next(iter(abilities))
+        adventurer.class_ability = abilities[ability_name].get("description", "")
+    else:
+        adventurer.class_ability = None
+
+    # Party name
+    adventurer.party_name = adventurer.parties[0].name if adventurer.parties else None
+
     return adventurer
 
 
@@ -105,6 +128,23 @@ def get_debtors_prison(keep: Keep = Depends(get_current_keep), db: Session = Dep
         Adventurer.is_bankrupt == True,
     ).all()
     return [add_progression_data(a) for a in bankrupt]
+
+
+@router.get("/adventurers/by-name/{name}", response_model=AdventurerOut)
+def get_adventurer_by_name(
+    name: str,
+    keep: Keep = Depends(get_current_keep),
+    db: Session = Depends(get_db),
+):
+    """Get a specific adventurer by name (including dead/bankrupt)."""
+    adventurer = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.name == name,
+    ).first()
+    if not adventurer:
+        raise HTTPException(status_code=404, detail="Adventurer not found")
+    current_hps = _get_active_expedition_hps(keep, db)
+    return add_progression_data(adventurer, current_hps)
 
 
 @router.get("/adventurers/{adventurer_id}", response_model=AdventurerOut)

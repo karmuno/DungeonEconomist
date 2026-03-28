@@ -72,7 +72,13 @@ export interface AdventurerOut {
   bankruptcy_day?: number | null
   magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
   next_level_xp?: number | null
+  current_level_xp?: number | null
   xp_progress?: number | null
+  thac0?: number | null
+  hit_dice?: number | null
+  to_hit_bonus?: number | null
+  class_ability?: string | null
+  party_name?: string | null
 }
 
 export interface AdventurerCreate {

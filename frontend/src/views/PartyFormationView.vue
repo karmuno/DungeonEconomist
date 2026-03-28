@@ -6,6 +6,7 @@ import * as adventurersApi from '../api/adventurers'
 import * as partiesApi from '../api/parties'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
 
 const router = useRouter()
 const notifications = useNotificationsStore()
@@ -111,7 +112,7 @@ async function formParty() {
           class="adv-row"
         >
           <div class="adv-main">
-            <span class="adv-name">{{ adv.name }}</span>
+            <AdventurerLink :name="adv.name" class="adv-name" />
             <span class="badge">{{ adv.adventurer_class }}</span>
           </div>
           <div class="adv-stats">
@@ -148,7 +149,7 @@ async function formParty() {
           class="adv-row"
         >
           <div class="adv-main">
-            <span class="adv-name">{{ member.name }}</span>
+            <AdventurerLink :name="member.name" class="adv-name" />
             <span class="badge">{{ member.adventurer_class }}</span>
           </div>
           <div class="adv-stats">

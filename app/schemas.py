@@ -53,7 +53,14 @@ class AdventurerOut(BaseModel):
     bankruptcy_day: int | None = None
     magic_items: list[dict[str, Any]] = []
     next_level_xp: int | None = None
+    current_level_xp: int | None = None
     xp_progress: float | None = None
+    # Combat stats (enriched by add_progression_data)
+    thac0: int | None = None
+    hit_dice: int | None = None
+    to_hit_bonus: int | None = None
+    class_ability: str | None = None
+    party_name: str | None = None
 
     @field_validator('magic_items', mode='before')
     @classmethod

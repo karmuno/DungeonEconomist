@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PartyOut } from '../../types'
 import StatusBadge from '../shared/StatusBadge.vue'
+import AdventurerLink from '../adventurers/AdventurerLink.vue'
 
 defineProps<{
   party: PartyOut
@@ -27,7 +28,7 @@ const emit = defineEmits<{
           :key="member.id"
           class="badge"
         >
-          {{ member.name }} ({{ member.adventurer_class }})
+          <AdventurerLink :name="member.name" /> ({{ member.adventurer_class }})
         </span>
         <span v-if="party.members.length > 4" class="text-muted">
           +{{ party.members.length - 4 }} more

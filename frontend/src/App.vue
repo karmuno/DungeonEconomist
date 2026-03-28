@@ -4,10 +4,15 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useGameTimeStore } from './stores/gameTime'
 import { usePlayerStore } from './stores/player'
+import { useAdventurerSheet } from './composables/useAdventurerSheet'
 import AppHeader from './components/layout/AppHeader.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 import AdminConsole from './components/layout/AdminConsole.vue'
 import MetricsPanel from './components/layout/MetricsPanel.vue'
+import ModalDialog from './components/shared/ModalDialog.vue'
+import AdventurerDetail from './components/adventurers/AdventurerDetail.vue'
+
+const { showSheet, sheetAdventurer, sheetLoading, closeSheet, levelUp } = useAdventurerSheet()
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -51,5 +56,22 @@ onMounted(async () => {
     </div>
     <AdminConsole />
     <MetricsPanel />
+
+    <!-- Global Character Sheet Modal -->
+    <ModalDialog
+      :is-open="showSheet"
+      :title="sheetAdventurer?.name ?? 'Character Sheet'"
+      @close="closeSheet"
+    >
+      <div v-if="sheetLoading" style="text-align: center; padding: 1rem; color: var(--text-muted)">
+        Loading...
+      </div>
+      <AdventurerDetail
+        v-else-if="sheetAdventurer"
+        :adventurer="sheetAdventurer"
+        @close="closeSheet"
+        @level-up="levelUp"
+      />
+    </ModalDialog>
   </template>
 </template>

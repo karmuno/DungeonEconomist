@@ -120,7 +120,7 @@
       ],
       "abilities": {
         "sleep_spell": {
-          "description": "Same spell progression as Magic-User.",
+          "description": "Instantly kills a group of monsters with HD at or below caster level.",
           "uses_per_expedition": "level",
           "effect": "instant_kill_at_or_below_level",
           "flavor_by_level": {
