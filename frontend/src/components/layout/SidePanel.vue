@@ -7,6 +7,7 @@ import { useNotificationsStore, type Notification } from '../../stores/notificat
 import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 import ModalDialog from '../shared/ModalDialog.vue'
+import ExpeditionEventModal from '../expeditions/ExpeditionEventModal.vue'
 import * as expeditionsApi from '../../api/expeditions'
 import eventBus from '../../eventBus'
 
@@ -45,6 +46,10 @@ function checkChoiceQueue() {
 const showLevelUpPopup = ref(false)
 const levelUpMessage = ref('')
 
+// Stairs discovered popup
+const showStairsPopup = ref(false)
+const stairsMessage = ref('')
+
 
 function handleAction(notification: Notification) {
   if (notification.action?.callback) {
@@ -74,6 +79,13 @@ function processEvents(events: Array<{ type: string; message: string; expedition
     if (event.type === 'level_up' && event.first_time) {
       levelUpMessage.value = event.message
       showLevelUpPopup.value = true
+      continue
+    }
+
+    // Stairs discovered — ALWAYS show popup, no exceptions
+    if (event.type === 'stairs_discovered') {
+      stairsMessage.value = event.message
+      showStairsPopup.value = true
       continue
     }
 
@@ -109,22 +121,28 @@ async function popupChoice(choice: string) {
   choosingInPopup.value = true
   try {
     const result = await expeditionsApi.choose(choiceExpeditionId.value, choice)
-    showChoicePopup.value = false
 
-    for (const evt of result.events ?? []) {
-      const evtTypeMap: Record<string, string> = {
-        death: 'error', loot: 'info', stairs: 'success',
-        upkeep: 'warning', expedition_complete: 'success',
-      }
-      notifications.add(evt.message, { type: (evtTypeMap[evt.type] ?? 'info') as any })
+    // Route events through processEvents so stairs/level-ups get their popups
+    if (result.events?.length) {
+      processEvents(result.events)
     }
 
-    if (result.status === 'in_progress') {
-      const msg = result.auto_choice
-        ? `The party decided to press on!`
-        : 'The expedition presses on...'
-      notifications.add(msg, 'info')
+    if (result.status === 'next_event' && result.next_event) {
+      // Show next event in same modal without advancing the day
+      gameTime.expeditionVersion++
+      choiceMessage.value = result.next_event.message
+      choiceEventType.value = result.next_event.event_type
+      choosingInPopup.value = false
+      return
+    } else if (result.status === 'in_progress') {
+      // No more events this expedition — just close modal
+      gameTime.expeditionVersion++
+      showChoicePopup.value = false
+      choosingInPopup.value = false
+      checkChoiceQueue()
+      return
     } else if (result.status === 'completed') {
+      showChoicePopup.value = false
       await player.fetchPlayer()
       const retMsg = result.auto_choice === 'retreat'
         ? 'The party decided to retreat!'
@@ -138,9 +156,13 @@ async function popupChoice(choice: string) {
           },
         },
       )
+    } else {
+      // Unknown status — close modal as fallback
+      showChoicePopup.value = false
     }
     gameTime.expeditionVersion++
-    
+    choosingInPopup.value = false
+
     // Check if more choices are in queue
     checkChoiceQueue()
   } catch (e: any) {
@@ -260,70 +282,16 @@ onUnmounted(() => {
     </div>
   </aside>
 
-  <!-- Expedition Choice Popup -->
-  <ModalDialog
+  <!-- Expedition Event Modal -->
+  <ExpeditionEventModal
     :is-open="showChoicePopup"
-    title="Expedition Event"
+    :expedition-id="choiceExpeditionId"
+    :event-message="choiceMessage"
+    :event-type="choiceEventType"
+    :choosing="choosingInPopup"
+    @choose="popupChoice"
     @close="viewExpedition"
-  >
-    <div class="choice-popup">
-      <p class="choice-popup-msg">{{ choiceMessage }}</p>
-      <div class="choice-popup-buttons">
-        <template v-if="choiceEventType === 'stairs'">
-          <button
-            class="btn btn-primary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('press_on_same')"
-          >
-            Continue This Level
-          </button>
-          <button
-            class="btn btn-success"
-            :disabled="choosingInPopup"
-            @click="popupChoice('press_on_next')"
-          >
-            Descend Deeper
-          </button>
-          <button
-            class="btn btn-secondary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('retreat')"
-          >
-            Retreat (Level Saved)
-          </button>
-        </template>
-        <template v-else>
-          <button
-            class="btn btn-primary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('press_on')"
-          >
-            Press On
-          </button>
-          <button
-            class="btn btn-secondary"
-            :disabled="choosingInPopup"
-            @click="popupChoice('retreat')"
-          >
-            Retreat
-          </button>
-        </template>
-        <button
-          class="btn btn-secondary"
-          :disabled="choosingInPopup"
-          @click="popupChoice('auto')"
-        >
-          You Decide
-        </button>
-      </div>
-      <button
-        class="btn btn-sm choice-popup-view"
-        @click="viewExpedition"
-      >
-        View Expedition Details
-      </button>
-    </div>
-  </ModalDialog>
+  />
 
   <!-- Level-Up Popup -->
   <ModalDialog
@@ -339,6 +307,25 @@ onUnmounted(() => {
           @click="showLevelUpPopup = false"
         >
           Awesome!
+        </button>
+      </div>
+    </div>
+  </ModalDialog>
+
+  <!-- Stairs Discovered Popup -->
+  <ModalDialog
+    :is-open="showStairsPopup"
+    title="Stairs Discovered!"
+    @close="showStairsPopup = false"
+  >
+    <div class="choice-popup">
+      <p class="choice-popup-msg">{{ stairsMessage }}</p>
+      <div class="choice-popup-buttons">
+        <button
+          class="btn btn-success"
+          @click="showStairsPopup = false"
+        >
+          Excellent!
         </button>
       </div>
     </div>
@@ -582,8 +569,4 @@ onUnmounted(() => {
   min-width: 120px;
 }
 
-.choice-popup-view {
-  color: var(--text-muted);
-  text-decoration: underline;
-}
 </style>

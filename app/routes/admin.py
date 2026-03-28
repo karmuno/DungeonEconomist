@@ -150,54 +150,29 @@ def _handle_give(args: list[str], keep: Keep, db: Session) -> dict:
 
 
 def _handle_test_stairs(keep: Keep, db: Session) -> dict:
-    """Force a stairs event on the current active expedition for testing."""
+    """Force a stairs_discovered event immediately for testing the popup."""
     from app.dungeons import DUNGEON_LEVEL_NAMES
-    from app.models import Expedition, Party
 
-    active = (
-        db.query(Expedition)
-        .join(Party, Expedition.party_id == Party.id)
-        .filter(
-            Party.keep_id == keep.id,
-            Expedition.result.in_(["in_progress", "awaiting_choice"]),
-        )
-        .first()
-    )
-
-    if not active:
-        raise HTTPException(status_code=400, detail="No active expedition found. Launch a party first.")
-
-    dungeon_level = active.dungeon_level or 1
+    dungeon_level = keep.max_dungeon_level or 1
     total_levels = len(DUNGEON_LEVEL_NAMES)
     next_level = dungeon_level + 1
 
     if next_level > total_levels:
-        raise HTTPException(status_code=400, detail="Party is at max dungeon level — no stairs possible.")
+        raise HTTPException(status_code=400, detail="Already at max dungeon level — no stairs possible.")
 
     next_name = DUNGEON_LEVEL_NAMES[dungeon_level] if dungeon_level < total_levels else "the unknown depths"
 
-    stairs_event = {
-        "type": "stairs",
-        "message": f"Your party discovered stairs down to {next_name}! (Level {next_level}) [TEST]",
-        "new_level": next_level,
-        "new_level_name": next_name,
-        "options": ["press_on_same", "press_on_next", "retreat"],
-    }
-
-    active.result = "awaiting_choice"
-    active.pending_event = stairs_event
+    # Unlock the level
+    keep.max_dungeon_level = next_level
     db.commit()
 
-    party_name = active.party.name if active.party else "Unknown"
     return {
         "ok": True,
-        "message": f"Stairs injected into '{party_name}'s expedition.",
+        "message": f"Unlocked level {next_level}: {next_name}",
         "events": [
             {
-                "type": "expedition_choice",
-                "message": f"Party '{party_name}': {stairs_event['message']}",
-                "expedition_id": active.id,
-                "event_subtype": "stairs",
+                "type": "stairs_discovered",
+                "message": f"Your party discovered stairs down to {next_name}! (Level {next_level}) New dungeon level unlocked! [TEST]",
             }
         ],
     }

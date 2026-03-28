@@ -38,7 +38,9 @@ def list_parties(
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    return db.query(Party).filter(Party.keep_id == keep.id).offset(skip).limit(limit).all()
+    all_parties = db.query(Party).filter(Party.keep_id == keep.id).offset(skip).limit(limit).all()
+    # Hide wiped parties (empty and not on expedition)
+    return [p for p in all_parties if p.members or p.on_expedition]
 
 
 @router.put("/parties/{party_id}", response_model=PartyOut)

@@ -27,11 +27,25 @@ export const useGameTimeStore = defineStore('gameTime', () => {
   }
 
   async function skipToEvent(): Promise<AdvanceDayResult> {
+    const oldDay = currentDay.value
     const data = await gameApi.skipToEvent()
-    currentDay.value = data.current_day
     dayStartedAt.value = data.day_started_at
     lastUpdated.value = data.last_updated
     expeditionVersion.value++
+
+    // Animate the day counter ticking up
+    const newDay = data.current_day
+    const gap = newDay - oldDay
+    if (gap > 1) {
+      const delay = Math.min(80, 400 / gap) // faster tick for bigger jumps
+      for (let d = oldDay + 1; d <= newDay; d++) {
+        currentDay.value = d
+        await new Promise(r => setTimeout(r, delay))
+      }
+    } else {
+      currentDay.value = newDay
+    }
+
     return data
   }
 

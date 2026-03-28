@@ -138,28 +138,16 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
         party = expedition.party
 
         # Auto-decide if party has auto_decide_events
-        # (never auto-decide stairs — always prompt the player)
         if party and party.auto_decide_events:
             from app.expedition_events import auto_decide
             while resolved < len(decision_points):
                 dp = decision_points[resolved]
-                if dp.get("type") == "stairs":
-                    break  # stairs always require player input
                 choice = auto_decide(dp.get("type", ""), party.members if party else [])
                 if choice == "retreat":
                     return _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
-                if choice == "press_on_next" and dp.get("new_level"):
-                    expedition.dungeon_level = dp["new_level"]
                 resolved += 1
                 expedition.resolved_phases = resolved
-            # If we stopped at a stairs decision, pause for player input
-            if resolved < len(decision_points):
-                dp = decision_points[resolved]
-                expedition.result = "awaiting_choice"
-                expedition.pending_event = dp
-                expedition.decision_day = expedition.return_day
-                return {"events": [], "awaiting_choice": True, "pending_event": dp}
-            # All decisions auto-resolved with press_on, finalize normally
+            # All decisions auto-resolved, finalize normally
             return _finalize_expedition(expedition, sim_result, db, keep)
 
         # Otherwise pause for player input
@@ -328,15 +316,13 @@ def _finalize_expedition(
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
-        # TPK cleanup: if no members remain, disable auto-delve flags so the
-        # ghost party doesn't silently block the auto-delve loop forever.
+        # TPK cleanup: disable auto-delve so a ghost party doesn't keep launching.
         if not party.members:
-            party.auto_delve = False
             party.auto_delve_healed = False
             party.auto_delve_full = False
             events.append({
                 "type": "death",
-                "message": f"Party '{party.name}' was wiped out. Auto-delve disabled.",
+                "message": f"Party '{party.name}' was wiped out!",
             })
 
     # Magic item discovery (Library Tier I + general discovery)
@@ -493,17 +479,20 @@ def _finalize_expedition(
                             db.delete(item)
                             consumed += 1
 
-    # Apply stairs discovery — finding stairs always unlocks the next level,
-    # regardless of whether the party pressed on or retreated.
-    for dp in sim_result.get("decision_points", []):
-        if dp["type"] == "stairs":
-            new_level = dp.get("new_level", 0)
-            if new_level > keep.max_dungeon_level:
-                keep.max_dungeon_level = new_level
-                events.append({
-                    "type": "stairs",
-                    "message": dp["message"],
-                })
+    # Stairs discovery — always fires at expedition completion, never mid-expedition.
+    # Unlocks the next level and emits a stairs_discovered event that the frontend
+    # ALWAYS shows as a popup, regardless of auto-decide settings.
+    stairs = sim_result.get("stairs_found") or effective_result.get("stairs_found")
+    if stairs:
+        new_level = stairs["new_level"]
+        new_name = stairs["new_level_name"]
+        if new_level > (keep.max_dungeon_level or 0):
+            keep.max_dungeon_level = new_level
+            party_name = party.name if party else "Your party"
+            events.append({
+                "type": "stairs_discovered",
+                "message": f"{party_name} discovered stairs down to {new_name}! (Level {new_level}) New dungeon level unlocked!",
+            })
 
     if retreat:
         events.insert(0, {"type": "expedition_complete", "message": "The party retreated from the dungeon"})
@@ -524,7 +513,7 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             return None
 
     if dungeon_level is None:
-        dungeon_level = keep.max_dungeon_level or 1
+        dungeon_level = 1
     dungeon_level = min(dungeon_level, keep.max_dungeon_level or 1)
 
     from app.magic_items import get_scroll_count, get_spell_multiplier, has_potion
@@ -820,13 +809,19 @@ def make_expedition_choice(
     auto_choice_label = choice if was_auto else None
 
     if expedition.resolved_phases < len(decision_points):
-        expedition.decision_day = expedition.return_day
-        expedition.result = "in_progress"
+        # Immediately present the next decision point — no day advance needed
+        next_dp = decision_points[expedition.resolved_phases]
+        expedition.result = "awaiting_choice"
+        expedition.pending_event = next_dp
         db.commit()
         return {
-            "status": "in_progress",
+            "status": "next_event",
             "auto_choice": auto_choice_label,
-            "message": "The expedition continues...",
+            "next_event": {
+                "message": next_dp.get("message", "A decision awaits"),
+                "expedition_id": expedition.id,
+                "event_type": next_dp.get("type", ""),
+            },
             "events": [],
         }
 
@@ -1094,12 +1089,16 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
 
     # Calculate totals from phases resolved so far + current phase
     total_loot = 0
+    total_silver = 0
+    total_copper = 0
     total_xp = 0
     all_deaths = []
     for i, phase in enumerate(phases):
         if i > resolved:
             break
         total_loot += phase.get("loot", 0)
+        total_silver += phase.get("silver", 0)
+        total_copper += phase.get("copper", 0)
         total_xp += phase.get("xp", 0)
         all_deaths.extend(phase.get("deaths", []))
 
@@ -1143,6 +1142,23 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     if expedition.result == "awaiting_choice" and expedition.pending_event:
         pending_event = expedition.pending_event
 
+    # Spells/heals at the current decision point (not end-of-expedition)
+    spells_left = sim.get("spells_left", 0)
+    heals_left = sim.get("heals_left", 0)
+    if events_log:
+        last_turn = events_log[-1]
+        if "spells_left" in last_turn:
+            spells_left = last_turn["spells_left"]
+        if "heals_left" in last_turn:
+            heals_left = last_turn["heals_left"]
+
+    # Filter turn summaries to only include turns the player has seen
+    all_summaries = sim.get("turn_summaries", [])
+    if cutoff_turn is not None and cutoff_turn <= len(all_summaries):
+        visible_summaries = all_summaries[:cutoff_turn]
+    else:
+        visible_summaries = all_summaries
+
     return {
         "expedition_id": expedition.id,
         "party_id": expedition.party_id,
@@ -1154,12 +1170,16 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "dungeon_level": expedition.dungeon_level,
         "member_results": member_results,
         "total_loot": total_loot,
+        "total_silver": total_silver,
+        "total_copper": total_copper,
         "total_xp": total_xp,
         "events_log": events_log,
         "estimated_readiness_day": None,
         "pending_event": pending_event,
-        "spells_left": sim.get("spells_left", 0),
-        "heals_left": sim.get("heals_left", 0),
+        "spells_left": spells_left,
+        "heals_left": heals_left,
+        "turn_summaries": visible_summaries,
+        "stairs_found": sim.get("stairs_found"),
     }
 
 
@@ -1243,6 +1263,7 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "pending_event": None,
         "spells_left": sim.get("spells_left", 0),
         "heals_left": sim.get("heals_left", 0),
+        "stairs_found": sim.get("stairs_found"),
     }
 
 

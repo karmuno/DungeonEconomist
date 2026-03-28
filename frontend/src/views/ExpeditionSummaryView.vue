@@ -197,6 +197,7 @@ interface TurnLog {
     }
     treasure?: { gold: number; silver: number; copper: number; xp_value: number; name: string }
     trap_damage?: number
+    trap_victims?: Array<{ name: string; damage: number }>
   }>
 }
 
@@ -216,7 +217,11 @@ function sideSummary(attacks: AttackEntry[]): string {
 
 function roundLabel(r: RoundEntry): string {
   if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
-  if (r.halfling_pre_round) return `Halflings pre-round`
+  if (r.halfling_pre_round) {
+    const hits = r.halfling_pre_round.filter(a => a.hit)
+    const dmg = hits.reduce((s, a) => s + a.damage, 0)
+    return `Halflings pre-round — ${hits.length}/${r.halfling_pre_round.length} hits, ${dmg} dmg`
+  }
   const initiative = r.initiative_winner ?? r.initiative
   const label = initiative === 'party' ? 'party first' : initiative === 'monsters' ? 'monsters first' : 'simultaneous'
   const base = `Round ${r.round} (${label})`
@@ -261,6 +266,13 @@ const turnsWithActivity = computed(() => {
     (turn) => (turn.events && turn.events.length > 0) || (turn.deaths && turn.deaths.length > 0)
   )
 })
+
+function pluralMonster(name: string, count: number): string {
+  if (count <= 1) return name
+  if (name.endsWith('f')) return `${count} ${name.slice(0, -1)}ves`
+  if (name.endsWith('fe')) return `${count} ${name.slice(0, -2)}ves`
+  return `${count} ${name}s`
+}
 
 function outcomeClass(outcome: string): string {
   if (outcome === 'Clear Victory' || outcome === 'Victory') return 'badge-success'
@@ -318,6 +330,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
           <span>XP: {{ summary.total_xp }}</span>
           <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
           <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
+          <span v-if="summary.stairs_found" class="text-stairs">Stairs to {{ summary.stairs_found.new_level_name }} found!</span>
           <template v-if="summary.estimated_readiness_day">
             <span class="text-muted">Ready by: {{ formatGameDayShort(summary.estimated_readiness_day) }}</span>
           </template>
@@ -406,7 +419,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
               <template v-if="event.type === 'Monster'">
                 <div class="combat-summary">
                   <span class="combat-toggle">{{ isCombatExpanded(turn.turn, idx) ? '\u25BC' : '\u25B6' }}</span>
-                  <span>Encountered <strong>{{ (event.combat?.monster_count ?? 1) > 1 ? `${event.combat?.monster_count} ${event.combat?.monster_type}s` : event.combat?.monster_type }}</strong></span>
+                  <span>Encountered <strong>{{ pluralMonster(event.combat?.monster_type ?? 'monsters', event.combat?.monster_count ?? 1) }}</strong></span>
                   <span :class="['badge', outcomeClass(event.combat?.outcome ?? '')]">
                     {{ event.combat?.outcome }}
                   </span>
@@ -504,6 +517,9 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
               <template v-else-if="event.type === 'Trap' || event.type === 'Trap/Hazard'">
                 <span class="badge badge-warning">Trap</span>
                 <span>{{ event.trap_damage }} damage dealt to party</span>
+                <span v-if="event.trap_victims?.length" class="text-muted">
+                  ({{ event.trap_victims.map(v => `${v.name} ${v.damage}`).join(', ') }})
+                </span>
               </template>
               <template v-else-if="event.type === 'Unguarded Treasure'">
                 <span class="badge badge-success">Treasure</span>
@@ -778,5 +794,10 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
 .monster-fate.fled {
   background: rgba(241, 196, 15, 0.12);
   color: #f1c40f;
+}
+
+.text-stairs {
+  color: #fbbf24;
+  font-weight: 700;
 }
 </style>

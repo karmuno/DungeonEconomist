@@ -375,11 +375,10 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 </label>
                 <select
                   class="form-select auto-level-select"
-                  :value="p.auto_delve_level ?? ''"
+                  :value="p.auto_delve_level ?? 1"
                   @click.stop
-                  @change="setAutoDelveLevel(p.id, ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null)"
+                  @change="setAutoDelveLevel(p.id, Number(($event.target as HTMLSelectElement).value) || 1)"
                 >
-                  <option value="">Deepest</option>
                   <option v-for="n in (stats?.max_dungeon_level ?? 1)" :key="n" :value="n">Depth {{ n }}</option>
                 </select>
                 <span class="auto-delve-label" style="margin-left: 8px">|</span>
