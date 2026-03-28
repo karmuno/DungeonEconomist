@@ -5,6 +5,7 @@ import type { ExpeditionSummaryDetail, ExpeditionMemberResult } from '../../api/
 import { formatCurrency } from '../../utils/currency'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ProgressBar from '../shared/ProgressBar.vue'
+import AdventurerLink from '../adventurers/AdventurerLink.vue'
 
 const props = defineProps<{
   isOpen: boolean
@@ -126,7 +127,7 @@ function getPastSummaries(): string[] {
               class="member-row"
               :class="{ dead: !member.alive }"
             >
-              <span class="member-name">{{ member.name }}</span>
+              <AdventurerLink :name="member.name" class="member-name" />
               <span class="member-class">{{ member.adventurer_class }}</span>
               <template v-if="member.alive">
                 <ProgressBar
@@ -204,7 +205,7 @@ function getPastSummaries(): string[] {
               class="turn-detail death-line"
             >
               <span class="detail-badge death">Death</span>
-              <strong>{{ dead }}</strong> has fallen
+              <strong><AdventurerLink :name="dead" :dead="true" /></strong> has fallen
             </div>
           </div>
         </div>
@@ -220,7 +221,15 @@ function getPastSummaries(): string[] {
       </template>
 
       <!-- Action Buttons -->
-      <div class="action-buttons">
+      <div v-if="eventType === 'tpk'" class="action-buttons">
+        <button
+          class="btn btn-secondary"
+          @click="emit('close')"
+        >
+          Rest in Peace
+        </button>
+      </div>
+      <div v-else class="action-buttons">
         <button
           class="btn btn-primary"
           :disabled="choosing"
@@ -244,6 +253,7 @@ function getPastSummaries(): string[] {
         </button>
       </div>
       <button
+        v-if="eventType !== 'tpk'"
         class="btn btn-sm view-details-link"
         @click="emit('close')"
       >

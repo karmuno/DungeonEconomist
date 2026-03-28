@@ -177,8 +177,17 @@ async function popupChoice(choice: string) {
   }
 }
 
-function viewExpedition() {
+async function viewExpedition() {
   showChoicePopup.value = false
+  // If this was a TPK, auto-resolve the decision point so the expedition isn't stuck
+  if (choiceEventType.value === 'tpk' && choiceExpeditionId.value) {
+    try {
+      const result = await expeditionsApi.choose(choiceExpeditionId.value, 'press_on')
+      if (result.events?.length) processEvents(result.events)
+      if (result.status === 'completed') await player.fetchPlayer()
+      gameTime.expeditionVersion++
+    } catch { /* expedition may already be resolved */ }
+  }
   if (choiceExpeditionId.value) {
     router.push(`/expedition/${choiceExpeditionId.value}/summary`)
   }

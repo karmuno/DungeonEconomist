@@ -208,19 +208,17 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
         if not events and not deaths:
             continue
 
-        # Skip TPK turns — expedition ends naturally, no decision to make
-        if party_size > 0 and len(all_dead) >= party_size:
-            continue
-
         event_type, message = _classify_turn(turn)
 
         # Skip trivial rooms (clues, empty) — not worth a popup
         if event_type in ("clue", "room"):
             continue
 
+        is_tpk = party_size > 0 and len(all_dead) >= party_size
+
         decision_points.append({
             "after_turn": turn_num,
-            "type": event_type,
+            "type": "tpk" if is_tpk else event_type,
             "message": message,
             "options": ["press_on", "retreat"],
         })

@@ -10,6 +10,10 @@ export function getById(id: number): Promise<AdventurerOut> {
   return get<AdventurerOut>(`/adventurers/${id}`)
 }
 
+export function getByName(name: string): Promise<AdventurerOut> {
+  return get<AdventurerOut>(`/adventurers/by-name/${encodeURIComponent(name)}`)
+}
+
 export function create(data: AdventurerCreate): Promise<AdventurerOut> {
   return post<AdventurerOut>('/adventurers/', data)
 }

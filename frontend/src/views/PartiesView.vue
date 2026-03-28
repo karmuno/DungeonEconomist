@@ -8,6 +8,7 @@ import * as expeditionsApi from '../api/expeditions'
 import * as gameApi from '../api/game'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -218,7 +219,7 @@ async function deleteParty() {
             class="adv-row"
           >
             <div class="adv-main">
-              <span class="adv-name">{{ adv.name }}</span>
+              <AdventurerLink :name="adv.name" class="adv-name" />
               <span class="badge">{{ adv.adventurer_class }}</span>
             </div>
             <div class="adv-stats">
@@ -262,7 +263,7 @@ async function deleteParty() {
             class="adv-row"
           >
             <div class="adv-main">
-              <span class="adv-name">{{ member.name }}</span>
+              <AdventurerLink :name="member.name" class="adv-name" />
               <span class="badge">{{ member.adventurer_class }}</span>
             </div>
             <div class="adv-stats">

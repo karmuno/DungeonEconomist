@@ -8,6 +8,7 @@ import * as expeditionsApi from '../api/expeditions'
 import * as gameApi from '../api/game'
 import { useNotificationsStore } from '../stores/notifications'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -114,7 +115,7 @@ async function launchExpedition() {
         <template v-if="selectedParty">
           <div class="member-list">
             <div v-for="member in selectedParty.members" :key="member.id" class="member-row">
-              <span class="member-name">{{ member.name }}</span>
+              <AdventurerLink :name="member.name" class="member-name" />
               <span class="badge">{{ member.adventurer_class }}</span>
               <span class="stat">Lv {{ member.level }}</span>
               <span class="stat" :style="{ color: hpColor(member.hp_current, member.hp_max) }">
