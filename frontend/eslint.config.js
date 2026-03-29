@@ -16,6 +16,7 @@ export default [
       },
       globals: {
         ...globals.browser,
+        __APP_VERSION__: 'readonly',
       },
     },
   },
@@ -24,6 +25,7 @@ export default [
     languageOptions: {
       globals: {
         ...globals.browser,
+        __APP_VERSION__: 'readonly',
       },
     },
   },
