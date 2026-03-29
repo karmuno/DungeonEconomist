@@ -11,6 +11,7 @@ import AdminConsole from './components/layout/AdminConsole.vue'
 import MetricsPanel from './components/layout/MetricsPanel.vue'
 import ModalDialog from './components/shared/ModalDialog.vue'
 import AdventurerDetail from './components/adventurers/AdventurerDetail.vue'
+import VersionBadge from './components/shared/VersionBadge.vue'
 
 const { showSheet, sheetAdventurer, sheetLoading, closeSheet, levelUp } = useAdventurerSheet()
 
@@ -74,4 +75,5 @@ onMounted(async () => {
       />
     </ModalDialog>
   </template>
+  <VersionBadge />
 </template>
