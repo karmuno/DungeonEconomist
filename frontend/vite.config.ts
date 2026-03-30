@@ -1,8 +1,22 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { execSync } from 'child_process'
+import { resolve } from 'path'
+
+function getAppVersion(): string {
+  try {
+    const repoRoot = resolve(__dirname, '..')
+    return execSync('bash scripts/get-version.sh', { cwd: repoRoot, encoding: 'utf-8' }).trim()
+  } catch {
+    return 'v0.0.0-unknown'
+  }
+}
 
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    __APP_VERSION__: JSON.stringify(getAppVersion()),
+  },
   server: {
     port: 5173,
     proxy: {

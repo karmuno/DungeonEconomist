@@ -13,6 +13,29 @@ From brand-new Ubuntu VPS to production instance with custom domain and HTTPS.
 
 ---
 
+## User Account Model
+
+This guide uses **two accounts** with distinct roles:
+
+| Account | Purpose | Sudo? |
+|---------|---------|-------|
+| **Your personal user** (e.g. `yourname`) | System administration — installing packages, configuring Nginx, managing certificates | Yes |
+| **`venturekeep`** (service account) | Running the app — Docker, git, backups | No |
+
+The `venturekeep` user never gets sudo. If the app or its environment is compromised, the attacker is confined to the service account and cannot escalate to root. System administration always goes through your personal account.
+
+**Switching between accounts:**
+
+```bash
+# From your personal account → venturekeep (app tasks)
+sudo su - venturekeep
+
+# Back to your personal account (system tasks)
+exit
+```
+
+---
+
 ## Step 1: Initial Server Setup
 
 SSH into your VPS:
@@ -28,11 +51,17 @@ apt update && apt upgrade -y
 apt install -y curl git ufw fail2ban
 ```
 
-Create a non-root user:
+Create your personal admin user (skip if your VPS provider already set one up):
+
+```bash
+adduser yourname
+usermod -aG sudo yourname
+```
+
+Create the service account for the app — **no sudo**:
 
 ```bash
 adduser venturekeep
-usermod -aG sudo venturekeep
 ```
 
 Set up the firewall:
@@ -44,28 +73,32 @@ ufw allow 443
 ufw enable
 ```
 
-Switch to the new user for all remaining steps:
+Log out of root and SSH back in as your personal user:
 
 ```bash
-su - venturekeep
+exit
+ssh yourname@YOUR_SERVER_IP
 ```
 
 ---
 
 ## Step 2: Install Docker
 
+Run these from **your personal account** (they need sudo):
+
 ```bash
 # Docker's official install script
 curl -fsSL https://get.docker.com | sudo sh
 
-# Let your user run Docker without sudo
+# Let the venturekeep service account run Docker
 sudo usermod -aG docker venturekeep
+```
 
-# Log out and back in for the group change to take effect
-exit
-su - venturekeep
+Switch to venturekeep and verify (the group change takes effect on new login):
 
-# Verify
+```bash
+sudo su - venturekeep
+
 docker --version
 docker compose version
 ```
@@ -73,6 +106,8 @@ docker compose version
 ---
 
 ## Step 3: Create Docker Network and Start PostgreSQL
+
+All remaining Docker/app commands run as the **venturekeep** service account. If you're not already switched, run `sudo su - venturekeep` from your personal account first.
 
 Both containers must share a Docker network so they can reach each other by name. Do **not** rely on `172.17.0.1` or `host.docker.internal` — those are unreliable across Linux Docker configurations.
 
@@ -191,6 +226,8 @@ If `docker ps` shows the container was created a while ago but "Up" for only a f
 
 ## Step 7: Install Nginx as Reverse Proxy
 
+Switch back to **your personal account** for system administration (`exit` from venturekeep, or open a new SSH session):
+
 ```bash
 sudo apt install -y nginx
 ```
@@ -269,6 +306,8 @@ Wait until this resolves before proceeding to the next step.
 
 ## Step 9: Enable HTTPS with Let's Encrypt
 
+Run from **your personal account** (needs sudo):
+
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
 
@@ -318,7 +357,7 @@ docker logs --tail 50 venturekeep-app
 
 ## Updating the App
 
-When you push new code:
+When you push new code, switch to the venturekeep account (`sudo su - venturekeep`):
 
 ```bash
 cd ~/venturekeep
@@ -340,7 +379,7 @@ Migrations run automatically on container start. Downtime is ~10 seconds.
 
 ## Database Backups
 
-Set up a daily cron job:
+Set up a daily cron job as the **venturekeep** user (`sudo su - venturekeep`):
 
 ```bash
 mkdir -p ~/venturekeep-data/backups

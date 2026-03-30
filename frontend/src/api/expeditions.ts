@@ -44,6 +44,8 @@ export interface ExpeditionSummaryDetail {
   estimated_readiness_day: number | null
   pending_event?: PendingEvent | null
   turn_summaries?: string[]
+  spells_left?: number
+  heals_left?: number
   stairs_found?: { new_level: number; new_level_name: string } | null
 }
 

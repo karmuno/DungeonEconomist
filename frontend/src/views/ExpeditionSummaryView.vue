@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as expeditionsApi from '../api/expeditions'
-import type { PendingEvent } from '../api/expeditions'
+import type { ExpeditionSummaryDetail } from '../api/expeditions'
 import { useNotificationsStore } from '../stores/notifications'
 import { useGameTimeStore } from '../stores/gameTime'
 import { usePlayerStore } from '../stores/player'
@@ -20,37 +20,7 @@ const gameTime = useGameTimeStore()
 const player = usePlayerStore()
 const tutorial = useTutorialStore()
 
-interface SummaryData {
-  expedition_id: number
-  party_id: number
-  party_name: string
-  start_day: number
-  return_day: number
-  duration_days: number
-  result: string
-  dungeon_level?: number
-  member_results: Array<{
-    name: string
-    adventurer_class: string
-    level: number
-    alive: boolean
-    hp_current: number
-    hp_max: number
-    xp_gained: number
-    gold: number
-    silver: number
-    copper: number
-  }>
-  total_loot: number
-  total_xp: number
-  events_log: unknown[]
-  estimated_readiness_day: number | null
-  pending_event?: PendingEvent | null
-  spells_left?: number
-  heals_left?: number
-}
-
-const summary = ref<SummaryData | null>(null)
+const summary = ref<ExpeditionSummaryDetail | null>(null)
 const loading = ref(true)
 const choosing = ref(false)
 
@@ -64,7 +34,7 @@ const hasPendingChoice = computed(() =>
 
 async function fetchSummary() {
   const id = Number(route.params.id)
-  summary.value = await expeditionsApi.getSummary(id) as SummaryData
+  summary.value = await expeditionsApi.getSummary(id) as ExpeditionSummaryDetail
 }
 
 watch(() => gameTime.currentDay, () => fetchSummary())
