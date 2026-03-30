@@ -703,14 +703,16 @@ def get_dashboard_stats(
     )
 
     if tutorial_step < 7:
-        # Auto-advance tutorial based on game state
-        if tutorial_step < 2 and party_count > 0:
+        # Auto-advance tutorial ONE step at a time based on game state.
+        # Step 3→4 is frontend-only (SidePanel on expedition_choice);
+        # step 6→7 is frontend-only (leaving expedition summary).
+        if tutorial_step in (0, 1) and party_count > 0:
             tutorial_step = 2
-        if tutorial_step < 3 and len(active_expeditions) > 0:
+        elif tutorial_step == 2 and len(active_expeditions) > 0:
             tutorial_step = 3
-        if tutorial_step < 5 and len(recent_expeditions) > 0:
+        elif tutorial_step in (3, 4) and len(recent_expeditions) > 0:
             tutorial_step = 5
-        if tutorial_step < 6 and len(recent_expeditions) > 0 and has_wounded:
+        elif tutorial_step == 5 and has_wounded:
             tutorial_step = 6
 
         # Persist auto-advancement
