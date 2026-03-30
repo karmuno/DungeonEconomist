@@ -1,19 +1,65 @@
 <script setup lang="ts">
+import { ref, nextTick } from 'vue'
+
 defineProps<{
   text: string
 }>()
+
+const iconRef = ref<HTMLElement | null>(null)
+const tooltipRef = ref<HTMLElement | null>(null)
+const visible = ref(false)
+
+async function show() {
+  visible.value = true
+  await nextTick()
+  positionTooltip()
+}
+
+function hide() {
+  visible.value = false
+}
+
+function positionTooltip() {
+  if (!iconRef.value || !tooltipRef.value) return
+  const rect = iconRef.value.getBoundingClientRect()
+  const tt = tooltipRef.value
+
+  // Position above the icon, centered
+  let left = rect.left + rect.width / 2
+  const top = rect.top - 6
+
+  // Measure the tooltip to clamp it within the viewport
+  const ttRect = tt.getBoundingClientRect()
+  const halfWidth = ttRect.width / 2
+  const margin = 8
+
+  // Clamp so left/right edges don't spill off screen
+  if (left - halfWidth < margin) {
+    left = halfWidth + margin
+  } else if (left + halfWidth > window.innerWidth - margin) {
+    left = window.innerWidth - halfWidth - margin
+  }
+
+  tt.style.left = `${left}px`
+  tt.style.top = `${top}px`
+}
 </script>
 
 <template>
-  <span class="info-tooltip">
-    <span class="info-icon">?</span>
-    <span class="tooltip-text">{{ text }}</span>
+  <span class="info-tooltip" @mouseenter="show" @mouseleave="hide">
+    <span ref="iconRef" class="info-icon">?</span>
+    <Teleport to="body">
+      <span
+        v-if="visible"
+        ref="tooltipRef"
+        class="info-tooltip-text"
+      >{{ text }}</span>
+    </Teleport>
   </span>
 </template>
 
 <style scoped>
 .info-tooltip {
-  position: relative;
   display: inline-flex;
   align-items: center;
   cursor: help;
@@ -39,14 +85,12 @@ defineProps<{
   border-color: var(--accent-blue, #60a5fa);
   color: var(--accent-blue, #60a5fa);
 }
+</style>
 
-.tooltip-text {
-  visibility: hidden;
-  opacity: 0;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+<style>
+.info-tooltip-text {
+  position: fixed;
+  transform: translate(-50%, -100%);
   width: max-content;
   max-width: 250px;
   padding: 6px 10px;
@@ -58,14 +102,8 @@ defineProps<{
   line-height: 1.4;
   font-weight: 400;
   font-family: var(--font-mono);
-  z-index: 1000;
+  z-index: 99999;
   pointer-events: none;
-  transition: opacity 0.15s;
   white-space: normal;
-}
-
-.info-tooltip:hover .tooltip-text {
-  visibility: visible;
-  opacity: 1;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as expeditionsApi from '../api/expeditions'
 import type { PendingEvent } from '../api/expeditions'
@@ -11,12 +11,14 @@ import { formatGameDayShort } from '../utils/calendar'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
+import { useTutorialStore } from '../stores/tutorial'
 
 const router = useRouter()
 const route = useRoute()
 const notifications = useNotificationsStore()
 const gameTime = useGameTimeStore()
 const player = usePlayerStore()
+const tutorial = useTutorialStore()
 
 interface SummaryData {
   expedition_id: number
@@ -126,6 +128,13 @@ async function makeChoice(choice: string) {
     choosing.value = false
   }
 }
+
+// Tutorial step 6 → 7: advance when leaving the expedition summary
+onUnmounted(() => {
+  if (tutorial.currentStep === 6) {
+    tutorial.advance(7)
+  }
+})
 
 function lootCopper(total: number): { gold: number; silver: number; copper: number } {
   const copper_total = total * 100

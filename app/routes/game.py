@@ -290,7 +290,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             exp_result = _auto_launch_expedition(party, keep, db, dungeon_level=target_level)
             if exp_result:
                 events.append(GameEvent(
-                    type="expedition_complete",
+                    type="expedition_launched",
                     message=f"Party '{party.name}' auto-launched to depth {target_level}!",
                     expedition_id=exp_result.get("expedition_id"),
                 ))
@@ -712,11 +712,6 @@ def get_dashboard_stats(
             tutorial_step = 5
         if tutorial_step < 6 and len(recent_expeditions) > 0 and has_wounded:
             tutorial_step = 6
-        if tutorial_step == 6 and not has_wounded:
-            # Healed up — check if they can afford a building
-            cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
-            if not built_types and keep.treasury_total_copper() >= cheapest_cost_copper:
-                tutorial_step = 7
 
         # Persist auto-advancement
         if tutorial_step > account.tutorial_step:

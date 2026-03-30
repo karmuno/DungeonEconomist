@@ -8,7 +8,6 @@ import * as adventurersApi from '../api/adventurers'
 import type { DashboardStats, AdventurerOut } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
-import { useTutorialStore } from '../stores/tutorial'
 import { formatCurrency } from '../utils/currency'
 import { itemEmoji, itemBonusLabel } from '../utils/adventurer'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
@@ -20,7 +19,6 @@ import eventBus from '../eventBus'
 const router = useRouter()
 const gameTime = useGameTimeStore()
 const notifications = useNotificationsStore()
-const tutorial = useTutorialStore()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(true)
 
@@ -39,12 +37,6 @@ async function handleLevelUp() {
   await fetchStats()
 }
 
-function dismissTutorialHint() {
-  if (stats.value) {
-    tutorial.advance(stats.value.tutorial_step + 1)
-    stats.value.tutorial_hint = null
-  }
-}
 
 // Expand state
 const expandedPartyId = ref<number | null>(null)
@@ -252,13 +244,8 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
       </div>
       <h1 v-else>Dashboard</h1>
 
-      <!-- Tutorial hint -->
-      <div v-if="stats.tutorial_hint && !tutorial.isTutorialComplete" class="hint-bar tutorial-hint mb-2">
-        <span>{{ stats.tutorial_hint }}</span>
-        <button class="hint-dismiss" @click="dismissTutorialHint">Got it</button>
-      </div>
       <!-- Contextual hint (post-tutorial) -->
-      <div v-else-if="stats.hint && stats.hint !== 'launch_expedition'" class="hint-bar mb-2">{{ stats.hint }}</div>
+      <div v-if="stats.hint && stats.hint !== 'launch_expedition'" class="hint-bar mb-2">{{ stats.hint }}</div>
 
 
       <!-- Active Expeditions -->
@@ -493,17 +480,6 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
   border: 1px solid rgba(96, 165, 250, 0.2); border-radius: var(--border-radius);
   color: var(--accent-blue, #60a5fa); font-size: 13px;
 }
-.hint-bar.tutorial-hint {
-  background: rgba(251, 191, 36, 0.08);
-  border-color: rgba(251, 191, 36, 0.25);
-  color: #fbbf24;
-}
-.hint-dismiss {
-  background: none; border: 1px solid currentColor; border-radius: 3px;
-  color: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer;
-  white-space: nowrap; opacity: 0.7;
-}
-.hint-dismiss:hover { opacity: 1; }
 .text-green { color: var(--accent-green); }
 .text-dead { color: var(--accent-red, #e74c3c); }
 
