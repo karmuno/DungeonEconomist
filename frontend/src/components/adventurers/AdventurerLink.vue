@@ -12,9 +12,9 @@ const { openByName } = useAdventurerSheet()
 <template>
   <span
     class="adv-link"
-    :class="{ dead }"
+    :class="{ dead: props.dead }"
     @click.stop="openByName(props.name)"
-  >{{ name }}</span>
+  >{{ props.name }}</span>
 </template>
 
 <style scoped>

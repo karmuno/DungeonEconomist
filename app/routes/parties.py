@@ -2,7 +2,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.auth import get_current_keep
 from app.database import get_db
@@ -10,6 +10,15 @@ from app.models import Adventurer, Keep, Party
 from app.schemas import PartyCreate, PartyMemberOperation, PartyOut
 
 router = APIRouter()
+
+
+def _query_party_with_members(db: Session, party_id: int, keep_id: int) -> Party | None:
+    return (
+        db.query(Party)
+        .options(joinedload(Party.members))
+        .filter(Party.id == party_id, Party.keep_id == keep_id)
+        .first()
+    )
 
 
 @router.post("/parties/", response_model=PartyOut)
@@ -38,7 +47,14 @@ def list_parties(
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    all_parties = db.query(Party).filter(Party.keep_id == keep.id).offset(skip).limit(limit).all()
+    all_parties = (
+        db.query(Party)
+        .options(joinedload(Party.members))
+        .filter(Party.keep_id == keep.id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     # Hide wiped parties (empty and not on expedition)
     return [p for p in all_parties if p.members or p.on_expedition]
 
@@ -51,12 +67,13 @@ def update_party(
     db: Session = Depends(get_db),
 ):
     """Update party details"""
-    party = db.query(Party).filter(Party.id == party_id, Party.keep_id == keep.id).first()
+    party = _query_party_with_members(db, party_id, keep.id)
     if not party:
         raise HTTPException(status_code=404, detail="Party not found")
     party.name = party_data.name
     db.commit()
     db.refresh(party)
+    _ = party.members
     return party
 
 
@@ -66,7 +83,7 @@ def get_party(
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    party = db.query(Party).filter(Party.id == party_id, Party.keep_id == keep.id).first()
+    party = _query_party_with_members(db, party_id, keep.id)
     if party is None:
         raise HTTPException(status_code=404, detail="Party not found")
     return party
@@ -128,7 +145,7 @@ def add_adventurer_to_party(
     db: Session = Depends(get_db),
 ):
     """Add an adventurer to a party."""
-    party = db.query(Party).filter(Party.id == operation.party_id, Party.keep_id == keep.id).first()
+    party = _query_party_with_members(db, operation.party_id, keep.id)
     if party is None:
         raise HTTPException(status_code=404, detail="Party not found")
     if party.on_expedition:
@@ -147,6 +164,7 @@ def add_adventurer_to_party(
     party.members.append(adventurer)
     db.commit()
     db.refresh(party)
+    _ = party.members
     return party
 
 
@@ -156,7 +174,7 @@ def remove_adventurer_from_party(
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    party = db.query(Party).filter(Party.id == operation.party_id, Party.keep_id == keep.id).first()
+    party = _query_party_with_members(db, operation.party_id, keep.id)
     if party is None:
         raise HTTPException(status_code=404, detail="Party not found")
 
@@ -199,6 +217,7 @@ def remove_adventurer_from_party(
 
     db.commit()
     db.refresh(party)
+    _ = party.members
     return party
 
 
