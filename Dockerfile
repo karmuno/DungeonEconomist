@@ -1,5 +1,7 @@
 # -- Build frontend --
 FROM node:20-slim AS frontend-build
+ARG APP_VERSION=v0.0.0-unknown
+ENV APP_VERSION=${APP_VERSION}
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci

@@ -4,6 +4,11 @@ import { execSync } from 'child_process'
 import { resolve } from 'path'
 
 function getAppVersion(): string {
+  // In Docker builds, version is passed as APP_VERSION env var since
+  // .git/ and scripts/ aren't available in the frontend build stage.
+  if (process.env.APP_VERSION) {
+    return process.env.APP_VERSION
+  }
   try {
     const repoRoot = resolve(__dirname, '..')
     return execSync('bash scripts/get-version.sh', { cwd: repoRoot, encoding: 'utf-8' }).trim()
