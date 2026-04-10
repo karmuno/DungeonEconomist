@@ -226,47 +226,68 @@ If `docker ps` shows the container was created a while ago but "Up" for only a f
 
 ## Step 7: Install Nginx as Reverse Proxy
 
-Switch back to **your personal account** for system administration (`exit` from venturekeep, or open a new SSH session):
+Switch back to **your personal account** for system administration (`exit` from venturekeep, or open a new SSH session).
+
+Install nginx if it isn't already running:
 
 ```bash
 sudo apt install -y nginx
 ```
 
-Create the site config:
+Create the HTTP config (redirects to HTTPS):
 
 ```bash
-sudo tee /etc/nginx/sites-available/venturekeep << 'EOF'
+sudo tee /etc/nginx/conf.d/venturekeep.yourdomain.com.conf << 'EOF'
 server {
     listen 80;
+    server_name venturekeep.yourdomain.com;
 
-    # For a root domain:
-    server_name yourdomain.com www.yourdomain.com;
-    # For a subdomain (replace the line above):
-    # server_name game.yourdomain.com;
+    location ~ /\.(?!well-known\/) {
+        deny all;
+        return 404;
+    }
 
     location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support (if needed later)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        return 301 https://$host$request_uri;
     }
 }
 EOF
 ```
 
-Enable the site and restart Nginx:
+Create the HTTPS config (proxies to your Docker container — fill in after Step 9 when you have a cert):
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/venturekeep /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl restart nginx
+sudo tee /etc/nginx/conf.d/venturekeep.yourdomain.com.ssl.conf << 'EOF'
+server {
+    listen 443 ssl;
+    server_name venturekeep.yourdomain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/venturekeep.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/venturekeep.yourdomain.com/privkey.pem;
+
+    location ~ /\.(?!well-known\/) {
+        deny all;
+        return 404;
+    }
+
+    location / {
+        proxy_pass         http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+    }
+}
+EOF
+```
+
+Test and reload:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ---
@@ -309,28 +330,27 @@ Wait until this resolves before proceeding to the next step.
 Run from **your personal account** (needs sudo):
 
 ```bash
-sudo apt install -y certbot python3-certbot-nginx
+sudo apt install -y certbot
 
-# For a root domain:
-sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
-
-# For a subdomain:
-# sudo certbot --nginx -d game.yourdomain.com
+# For a subdomain like venturekeep.yourdomain.com:
+sudo certbot certonly --webroot -w /var/www/html -d venturekeep.yourdomain.com
 ```
 
-Certbot will:
-1. Verify you own the domain via HTTP challenge
-2. Obtain a free TLS certificate
-3. Automatically modify your Nginx config to redirect HTTP -> HTTPS
-4. Set up auto-renewal (runs via systemd timer)
+`certonly` obtains the certificate without modifying your nginx config (you've already written that in Step 7). The `-w` flag points to a directory nginx can serve for the HTTP challenge — `/var/www/html` is the default.
 
-Verify auto-renewal works:
+Certbot sets up auto-renewal via a systemd timer. Verify it works:
 
 ```bash
 sudo certbot renew --dry-run
 ```
 
-Your site is now live at `https://yourdomain.com`.
+Now go back and create the HTTPS config from Step 7 (or if you already created it, reload nginx):
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Your site is now live at `https://venturekeep.yourdomain.com`.
 
 ---
 
