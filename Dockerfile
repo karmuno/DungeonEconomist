@@ -1,12 +1,20 @@
+# -- Compute version from git --
+FROM alpine:3 AS version-info
+RUN apk add --no-cache bash git
+WORKDIR /repo
+COPY .git .git
+COPY VERSION VERSION
+COPY scripts scripts
+RUN bash scripts/get-version.sh > /version.txt
+
 # -- Build frontend --
 FROM node:20-slim AS frontend-build
-ARG APP_VERSION=v0.0.0-unknown
-ENV APP_VERSION=${APP_VERSION}
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
-RUN npm run build
+COPY --from=version-info /version.txt /tmp/version.txt
+RUN APP_VERSION=$(cat /tmp/version.txt) npm run build
 
 # -- Production image --
 FROM python:3.11-slim
