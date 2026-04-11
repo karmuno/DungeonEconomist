@@ -23,8 +23,7 @@ const isDev = import.meta.env.DEV
   color: var(--text-muted, #6b7280);
   opacity: 0.5;
   z-index: 9999;
-  pointer-events: none;
-  user-select: none;
+  user-select: text;
 }
 
 .dev-indicator {
