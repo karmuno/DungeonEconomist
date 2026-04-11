@@ -10,7 +10,6 @@ import { formatCurrency } from '../utils/currency'
 import { formatGameDayShort } from '../utils/calendar'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
-import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -361,7 +360,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
               :key="member.name"
               :class="{ 'text-danger': !member.alive }"
             >
-              <td><AdventurerLink :adv-name="member.name" :dead="!member.alive" /></td>
+              <td><span :class="{ 'adv-dead': !member.alive }">{{ member.name }}</span></td>
               <td>{{ member.adventurer_class }}</td>
               <td>{{ member.level }}</td>
               <td>
@@ -518,6 +517,11 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
 </template>
 
 <style scoped>
+.adv-dead {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
 .summary-stats {
   display: flex;
   gap: 12px;

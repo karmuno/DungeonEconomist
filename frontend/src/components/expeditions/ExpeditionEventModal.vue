@@ -5,7 +5,6 @@ import type { ExpeditionSummaryDetail, ExpeditionMemberResult } from '../../api/
 import { formatCurrency } from '../../utils/currency'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ProgressBar from '../shared/ProgressBar.vue'
-import AdventurerLink from '../adventurers/AdventurerLink.vue'
 
 const props = defineProps<{
   isOpen: boolean
@@ -127,7 +126,7 @@ function getPastSummaries(): string[] {
               class="member-row"
               :class="{ dead: !member.alive }"
             >
-              <AdventurerLink :adv-name="member.name" class="member-name" />
+              <span class="member-name">{{ member.name }}</span>
               <span class="member-class">{{ member.adventurer_class }}</span>
               <template v-if="member.alive">
                 <ProgressBar
@@ -205,7 +204,7 @@ function getPastSummaries(): string[] {
               class="turn-detail death-line"
             >
               <span class="detail-badge death">Death</span>
-              <strong><AdventurerLink :adv-name="dead" :dead="true" /></strong> has fallen
+              <strong class="adv-dead">{{ dead }}</strong> has fallen
             </div>
           </div>
         </div>
@@ -264,6 +263,11 @@ function getPastSummaries(): string[] {
 </template>
 
 <style scoped>
+.adv-dead {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
 .event-modal {
   padding: 0.25rem 0;
 }
