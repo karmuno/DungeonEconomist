@@ -4,7 +4,6 @@ import type { PartyOut, AdventurerOut } from '../../types'
 import * as adventurersApi from '../../api/adventurers'
 import * as partiesApi from '../../api/parties'
 import ConfirmButton from '../shared/ConfirmButton.vue'
-import AdventurerLink from '../adventurers/AdventurerLink.vue'
 
 const props = defineProps<{
   party: PartyOut
@@ -61,7 +60,7 @@ async function removeMember(adventurerId: number) {
       <div v-if="party.members.length === 0" class="text-muted">No members yet</div>
       <div v-for="member in party.members" :key="member.id" class="flex flex-between mb-1">
         <span>
-          <AdventurerLink :adv-name="member.name" />
+          {{ member.name }}
           <span class="badge">{{ member.adventurer_class }}</span>
           <span class="text-muted">Lv {{ member.level }}</span>
         </span>
@@ -90,7 +89,7 @@ async function removeMember(adventurerId: number) {
       <div v-else-if="availableAdventurers.length === 0" class="text-muted">No available adventurers</div>
       <div v-for="adv in availableAdventurers" :key="adv.id" class="flex flex-between mb-1">
         <span>
-          <AdventurerLink :adv-name="adv.name" />
+          {{ adv.name }}
           <span class="badge">{{ adv.adventurer_class }}</span>
           <span class="text-muted">Lv {{ adv.level }}</span>
         </span>

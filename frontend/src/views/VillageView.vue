@@ -7,7 +7,6 @@ import type { AdventurerOut } from '../types'
 import { useNotificationsStore } from '../stores/notifications'
 import { usePlayerStore } from '../stores/player'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
-import AdventurerLink from '../components/adventurers/AdventurerLink.vue'
 
 const notifications = useNotificationsStore()
 const player = usePlayerStore()
@@ -155,7 +154,7 @@ async function unassignAdventurer(buildingId: number, advId: number) {
               :key="adv.id"
               class="assigned-row"
             >
-              <AdventurerLink :adv-name="adv.name" class="assigned-name" />
+              <span class="assigned-name">{{ adv.name }}</span>
               <span class="stat">Lv {{ adv.level }}</span>
               <button
                 class="btn btn-sm btn-danger"
