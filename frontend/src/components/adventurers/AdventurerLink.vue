@@ -19,6 +19,7 @@ const { openByName } = useAdventurerSheet()
 
 <style scoped>
 .adv-link {
+  display: inline;
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: transparent;
