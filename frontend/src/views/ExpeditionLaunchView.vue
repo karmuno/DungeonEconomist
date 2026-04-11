@@ -115,7 +115,7 @@ async function launchExpedition() {
         <template v-if="selectedParty">
           <div class="member-list">
             <div v-for="member in selectedParty.members" :key="member.id" class="member-row">
-              <AdventurerLink :name="member.name" class="member-name" />
+              <AdventurerLink :adv-name="member.name" class="member-name" />
               <span class="badge">{{ member.adventurer_class }}</span>
               <span class="stat">Lv {{ member.level }}</span>
               <span class="stat" :style="{ color: hpColor(member.hp_current, member.hp_max) }">

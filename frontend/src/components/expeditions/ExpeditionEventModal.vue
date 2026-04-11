@@ -127,7 +127,7 @@ function getPastSummaries(): string[] {
               class="member-row"
               :class="{ dead: !member.alive }"
             >
-              <AdventurerLink :name="member.name" class="member-name" />
+              <AdventurerLink :adv-name="member.name" class="member-name" />
               <span class="member-class">{{ member.adventurer_class }}</span>
               <template v-if="member.alive">
                 <ProgressBar
@@ -205,7 +205,7 @@ function getPastSummaries(): string[] {
               class="turn-detail death-line"
             >
               <span class="detail-badge death">Death</span>
-              <strong><AdventurerLink :name="dead" :dead="true" /></strong> has fallen
+              <strong><AdventurerLink :adv-name="dead" :dead="true" /></strong> has fallen
             </div>
           </div>
         </div>
