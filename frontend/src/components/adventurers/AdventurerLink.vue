@@ -14,8 +14,7 @@ const { openByName } = useAdventurerSheet()
     class="adv-link"
     :class="{ dead }"
     @click.stop="openByName(adventurerName)"
-  :title="adventurerName || '(empty)'"
-  >{{ adventurerName || '[?]' }}</span>
+  >{{ adventurerName }}</span>
 </template>
 
 <style scoped>
