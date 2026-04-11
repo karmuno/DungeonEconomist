@@ -28,7 +28,7 @@ const emit = defineEmits<{
           :key="member.id"
           class="badge"
         >
-          <AdventurerLink :name="member.name" /> ({{ member.adventurer_class }})
+          <AdventurerLink :adv-name="member.name" /> ({{ member.adventurer_class }})
         </span>
         <span v-if="party.members.length > 4" class="text-muted">
           +{{ party.members.length - 4 }} more

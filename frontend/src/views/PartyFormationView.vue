@@ -112,7 +112,7 @@ async function formParty() {
           class="adv-row"
         >
           <div class="adv-main">
-            <AdventurerLink :name="adv.name" class="adv-name" />
+            <AdventurerLink :adv-name="adv.name" class="adv-name" />
             <span class="badge">{{ adv.adventurer_class }}</span>
           </div>
           <div class="adv-stats">
@@ -149,7 +149,7 @@ async function formParty() {
           class="adv-row"
         >
           <div class="adv-main">
-            <AdventurerLink :name="member.name" class="adv-name" />
+            <AdventurerLink :adv-name="member.name" class="adv-name" />
             <span class="badge">{{ member.adventurer_class }}</span>
           </div>
           <div class="adv-stats">
