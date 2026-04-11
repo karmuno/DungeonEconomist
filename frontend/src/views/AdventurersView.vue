@@ -18,7 +18,7 @@ const router = useRouter()
 const notifications = useNotificationsStore()
 const gameTime = useGameTimeStore()
 
-watch(() => gameTime.currentDay, () => {
+watch(() => gameTime.expeditionVersion, () => {
   fetchAll()
 })
 
