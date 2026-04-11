@@ -5,8 +5,6 @@ import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
 import { formatCurrency } from '../../utils/currency'
 import { displayStatus, itemEmoji, itemBonusLabel } from '../../utils/adventurer'
-import AdventurerLink from './AdventurerLink.vue'
-
 const props = defineProps<{
   adventurers: AdventurerOut[]
   partyNameMap?: Record<number, string>
@@ -45,7 +43,7 @@ function partyDisplay(adv: AdventurerOut): string {
         style="cursor: pointer"
         @click="emit('select', adv.id)"
       >
-        <td><AdventurerLink :adv-name="adv.name" :dead="adv.is_dead" /></td>
+        <td><span :class="{ 'adv-dead': adv.is_dead }">{{ adv.name }}</span></td>
         <td>
           <span v-for="item in (adv.magic_items || [])" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
         </td>
@@ -65,6 +63,11 @@ function partyDisplay(adv: AdventurerOut): string {
 </template>
 
 <style scoped>
+.adv-dead {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
 .item-tag {
   font-size: 11px;
   font-family: var(--font-mono);
