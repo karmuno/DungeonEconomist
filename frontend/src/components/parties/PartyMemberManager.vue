@@ -61,7 +61,7 @@ async function removeMember(adventurerId: number) {
       <div v-if="party.members.length === 0" class="text-muted">No members yet</div>
       <div v-for="member in party.members" :key="member.id" class="flex flex-between mb-1">
         <span>
-          <AdventurerLink :name="member.name" />
+          <AdventurerLink :adv-name="member.name" />
           <span class="badge">{{ member.adventurer_class }}</span>
           <span class="text-muted">Lv {{ member.level }}</span>
         </span>
@@ -90,7 +90,7 @@ async function removeMember(adventurerId: number) {
       <div v-else-if="availableAdventurers.length === 0" class="text-muted">No available adventurers</div>
       <div v-for="adv in availableAdventurers" :key="adv.id" class="flex flex-between mb-1">
         <span>
-          <AdventurerLink :name="adv.name" />
+          <AdventurerLink :adv-name="adv.name" />
           <span class="badge">{{ adv.adventurer_class }}</span>
           <span class="text-muted">Lv {{ adv.level }}</span>
         </span>

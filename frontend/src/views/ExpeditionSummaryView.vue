@@ -361,7 +361,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
               :key="member.name"
               :class="{ 'text-danger': !member.alive }"
             >
-              <td><AdventurerLink :name="member.name" :dead="!member.alive" /></td>
+              <td><AdventurerLink :adv-name="member.name" :dead="!member.alive" /></td>
               <td>{{ member.adventurer_class }}</td>
               <td>{{ member.level }}</td>
               <td>

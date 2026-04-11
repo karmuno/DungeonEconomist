@@ -45,7 +45,7 @@ function partyDisplay(adv: AdventurerOut): string {
         style="cursor: pointer"
         @click="emit('select', adv.id)"
       >
-        <td><AdventurerLink :name="adv.name" :dead="adv.is_dead" /><span style="color:red;font-size:9px">{{ adv.name }}</span></td>
+        <td><AdventurerLink :adv-name="adv.name" :dead="adv.is_dead" /></td>
         <td>
           <span v-for="item in (adv.magic_items || [])" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
         </td>

@@ -155,7 +155,7 @@ async function unassignAdventurer(buildingId: number, advId: number) {
               :key="adv.id"
               class="assigned-row"
             >
-              <AdventurerLink :name="adv.name" class="assigned-name" />
+              <AdventurerLink :adv-name="adv.name" class="assigned-name" />
               <span class="stat">Lv {{ adv.level }}</span>
               <button
                 class="btn btn-sm btn-danger"
