@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAdventurerSheet } from '../../composables/useAdventurerSheet'
 
-const props = defineProps<{
+const { name: adventurerName, dead } = defineProps<{
   name: string
   dead?: boolean
 }>()
@@ -12,9 +12,9 @@ const { openByName } = useAdventurerSheet()
 <template>
   <span
     class="adv-link"
-    :class="{ dead: props.dead }"
-    @click.stop="openByName(props.name)"
-  >{{ props.name }}</span>
+    :class="{ dead }"
+    @click.stop="openByName(adventurerName)"
+  >{{ adventurerName }}</span>
 </template>
 
 <style scoped>
