@@ -4,16 +4,18 @@ A retro RPG party management simulation. Manage a pool of adventurers, form part
 
 Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired by classic tabletop RPG resource management.
 
-**[Try the live demo](https://venturekeep.onrender.com/)** — hosted on Render's free tier, so the first load may take a minute to spin up. Data may be reset at any time.
+**[Try the live demo](https://venturekeep.stahlsystems.com/)** — This is a highly experimental project. Data may be reset at any time.
 
 ## Features
 
-- **Adventurer Management** — Create and manage adventurers across 6 classic classes (Fighter, Cleric, Magic-User, Elf, Dwarf, Hobbit). Track XP, HP, gold, and equipment.
-- **Party System** — Form parties of 2-9 adventurers with shared funds and supply inventories.
+- **Adventurer Management** — Manage adventurers across 6 classic classes (Fighter, Cleric, Magic-User, Elf, Dwarf, Halfling). Track XP, HP, gold, and magic items.
+- **Village Buildings** — Construct and upgrade buildings like the **Temple**, **Smithy**, **Library**, and **Training Grounds**. Assign adventurers to buildings to unlock passive bonuses, craft magic items, and boost recruitment.
+- **Party System** — Form parties of 1-6 adventurers.
 - **Dungeon Expeditions** — Send parties into dungeons with scaling difficulty (levels 1-6). Combat, traps, treasure, and special items are resolved through a turn-based simulation engine.
-- **Character Progression** — 10-level progression system with class-specific HP gains, bonuses, and XP thresholds following classic RPG curves.
-- **Economy** — Loot splits (70% adventurers / 30% treasury), upkeep costs every 30 game days, bankruptcy mechanics, and equipment purchasing.
-- **Game Time** — Advance days to trigger expedition returns, upkeep cycles, and healing.
+- **Auto-Delve System** — Configure parties to automatically re-enter dungeons when healed or fully recovered, with customizable auto-decision settings for expedition events.
+- **Character Progression** — 10-level progression system with class-specific HP rolls, bonuses, and XP thresholds following classic RPG curves.
+- **Economy** — Loot splits, monthly upkeep costs (1cp per XP), building construction, and bankruptcy mechanics.
+- **Game Time** — Advance days to trigger recruitment, expedition returns, upkeep cycles, and healing.
 
 ## Getting Started
 
@@ -86,16 +88,18 @@ uvicorn app.main:app --port 8000
 
 The FastAPI server serves the Vue build from `frontend/dist/` automatically. Open [http://localhost:8000](http://localhost:8000).
 
-### Seeding Data
+### Starting a Game
 
-```bash
-python -m app.seed_adventurers   # Creates 20 starting adventurers
-python -m app.seed_equipment     # Creates equipment and supply catalogs
-```
+Venturekeep uses a multi-keep system. Once registered, you can create a new **Keep**. Every new Keep starts with:
+- A randomly generated dungeon.
+- Six starting adventurers (one of each class).
+- 0 gold in the treasury.
+
+Use the **Advance Day** button to trigger recruitment and progress time.
 
 ### Resetting the Database
 
-The game uses a SQLite database at `./data/db.sqlite`. To start fresh:
+The game uses a SQLite database at `./data/db.sqlite` by default. To start fresh:
 
 ```bash
 rm -f data/db.sqlite    # or delete the file manually
@@ -113,20 +117,22 @@ app/
 ├── simulator.py         # Dungeon simulation engine
 ├── expedition.py        # Expedition mechanics and combat resolution
 ├── progression.py       # XP thresholds and level-up system
-├── seed_adventurers.py  # Initial adventurer pool (20 characters)
-├── seed_equipment.py    # Equipment and supply seed data
+├── buildings.py         # Building configuration and bonuses
+├── class_config.py      # Per-class HP, THAC0, and XP tables
 ├── routes/
-│   ├── adventurers.py   # Adventurer CRUD + level-up + equipment
-│   ├── players.py       # Player CRUD
-│   ├── parties.py       # Party management, members, supplies, funds
-│   ├── equipment.py     # Equipment catalog endpoints
-│   ├── expeditions.py   # Expedition launch, results, and turn advancement
-│   └── game.py          # Game time, upkeep, and dashboard stats
+│   ├── auth.py          # Authentication and account management
+│   ├── keeps.py         # Keep CRUD and initialization
+│   ├── buildings.py     # Building purchase, upgrade, and assignment
+│   ├── adventurers.py   # Adventurer CRUD + level-up
+│   ├── parties.py       # Party management, members, and auto-delve settings
+│   ├── expeditions.py   # Expedition launch, results, and event resolution
+│   ├── game.py          # Game time, recruitment, upkeep, and stats
+│   └── admin.py         # Admin console commands (gp, xp, items)
 
 frontend/                # Vue 3 + Vite + TypeScript SPA
 ├── src/
 │   ├── api/             # Typed API client modules
-│   ├── assets/          # CSS (retro terminal theme)
+│   ├── assets/          # CSS and global styles
 │   ├── components/      # Vue components (layout, shared, domain)
 │   ├── composables/     # Reusable composition functions
 │   ├── router/          # Vue Router configuration
@@ -146,7 +152,7 @@ pytest
 
 ## Tech Stack
 
-- **Backend**: [FastAPI](https://fastapi.tiangolo.com/) + [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite
+- **Backend**: [FastAPI](https://fastapi.tiangolo.com/) + [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite/Postgres
 - **Frontend**: [Vue 3](https://vuejs.org/) + [Vite](https://vite.dev/) + [TypeScript](https://www.typescriptlang.org/) + [Pinia](https://pinia.vuejs.org/) + [Vue Router](https://router.vuejs.org/)
 - **Testing**: [pytest](https://pytest.org/) + [httpx](https://www.python-httpx.org/)
 
