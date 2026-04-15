@@ -28,7 +28,7 @@ Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired 
 ### Installation
 
 ```bash
-git clone https://github.com/Cody-Jane-Stahl/DungeonEconomist.git
+git clone https://github.com/karmuno/DungeonEconomist.git
 cd DungeonEconomist
 
 # Backend: create virtual environment and install dependencies
