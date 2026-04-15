@@ -2,6 +2,7 @@ import random
 import sys
 from enum import Enum
 
+from app.class_config import get_combat_hd, get_thac0, get_to_hit_bonus
 from app.monsters import (
     get_monster_ac,
     get_monster_count,
@@ -11,40 +12,13 @@ from app.monsters import (
     is_monster_undead,
 )
 
+# Re-export with old names for backward compatibility
+get_pc_hd = get_combat_hd
+get_pc_thac0 = get_thac0
+
 # ─── PC combat constants ──────────────────────────────────────────────────────
 
 PC_AC = 7  # All PCs in leather-equivalent armor (descending AC system)
-
-
-def get_pc_hd(character_class: str, level: int) -> int:
-    """HD count for a PC: determines attacks per round and HP rolling."""
-    if character_class in ("Fighter", "Dwarf", "Halfling", "Elf"):
-        return level
-    if character_class == "Cleric":
-        return max(1, level // 2)
-    if character_class == "Magic-User":
-        return max(1, level // 3)
-    return level  # fallback
-
-
-def get_pc_thac0(character_class: str, level: int) -> int:
-    """THAC0 for a PC (descending AC). Lower = easier to hit."""
-    if character_class == "Magic-User":
-        return 17 if level >= 7 else 19
-    if character_class == "Cleric":
-        if level <= 4:
-            return 19
-        if level <= 8:
-            return 17
-        return 14
-    # Fighter, Dwarf, Halfling, Elf
-    if level <= 3:
-        return 19
-    if level <= 6:
-        return 17
-    if level <= 9:
-        return 14
-    return 12
 
 
 def get_monster_thac0(hit_dice: float) -> int:
@@ -175,10 +149,7 @@ def get_spell_name(level: int) -> str:
 def _do_attack(attacker: dict, target: dict) -> dict:
     """Resolve one attack. Mutates target['current_hp']. Returns log dict."""
     thac0 = attacker["thac0"]
-    # Fighter L1 only: +1 to-hit (lower THAC0 = easier to hit)
-    if attacker.get("character_class") == "Fighter" and attacker.get("level", 1) == 1:
-        thac0 -= 1
-    # Building bonus: to_hit_bonus lowers THAC0 (Training Grounds Tier I)
+    # Building bonus & class inherent bonus: to_hit_bonus lowers THAC0 (Training Grounds Tier I, etc.)
     thac0 -= attacker.get("to_hit_bonus", 0)
     needed = thac0 - target["ac"]
     roll = random.randint(1, 20)
@@ -602,9 +573,10 @@ class Expedition:
                 member["current_hp"] = member.get("hit_points", 1)
             cls = member.get("character_class", "")
             level = member.get("level", 1)
-            member["hd"] = get_pc_hd(cls, level)
+            member["hd"] = get_combat_hd(cls, level)
             member["ac"] = PC_AC
-            member["thac0"] = get_pc_thac0(cls, level)
+            member["thac0"] = get_thac0(cls, level)
+            member["to_hit_bonus"] = get_to_hit_bonus(cls)
             if cls == "Cleric":
                 member.setdefault("turn_attempts_remaining", level)
                 member.setdefault("revivals_remaining", level // 2)

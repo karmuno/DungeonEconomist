@@ -5,7 +5,7 @@ import ProgressBar from '../shared/ProgressBar.vue'
 import { formatCurrency } from '../../utils/currency'
 import { displayStatus } from '../../utils/adventurer'
 
-const props = defineProps<{
+defineProps<{
   adventurer: AdventurerOut
   partyName?: string
 }>()

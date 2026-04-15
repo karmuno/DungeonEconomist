@@ -1,6 +1,7 @@
 """Tests for the round-based combat engine (expedition.py)."""
 from unittest.mock import patch
 
+from app.class_config import get_to_hit_bonus
 from app.expedition import (
     PC_AC,
     Expedition,
@@ -29,6 +30,7 @@ def make_pc(name="Hero", cls="Fighter", level=1, hp=20,
         "ac": PC_AC,
         "hd": hd,
         "thac0": get_pc_thac0(cls, level),
+        "to_hit_bonus": get_to_hit_bonus(cls),
     }
     if turns is not None:
         pc["turn_attempts_remaining"] = turns
@@ -65,9 +67,9 @@ def test_get_pc_hd_fighter():
 
 
 def test_get_pc_hd_cleric():
-    assert get_pc_hd("Cleric", 1) == 1   # max(1, 1//2)
+    assert get_pc_hd("Cleric", 1) == 1   # ceil(1 * 1/2)
     assert get_pc_hd("Cleric", 4) == 2
-    assert get_pc_hd("Cleric", 5) == 2
+    assert get_pc_hd("Cleric", 5) == 3   # ceil(5 * 1/2) = 3
 
 
 def test_get_pc_hd_magic_user():
@@ -90,7 +92,7 @@ def test_get_pc_thac0_fighter_levels():
 
 
 def test_get_pc_thac0_magic_user():
-    assert get_pc_thac0("Magic-User", 6) == 19
+    assert get_pc_thac0("Magic-User", 6) == 17
     assert get_pc_thac0("Magic-User", 7) == 17
 
 
@@ -123,14 +125,14 @@ def test_fighter_l1_to_hit_bonus():
     assert hits_with_bonus == rolls
 
 
-def test_fighter_l2_no_to_hit_bonus():
-    """Fighter level 2 does NOT get the +1 bonus."""
-    attacker = make_pc("F2", "Fighter", level=2, hp=10)
+def test_magic_user_no_to_hit_bonus():
+    """Magic-User does NOT get the +1 to-hit bonus."""
+    attacker = make_pc("M1", "Magic-User", level=1, hp=5)
     attacker["thac0"] = 19
     target = make_monster(hp=100)
     target["ac"] = 7
 
-    # needed = 19 - 7 = 12; roll exactly 11 should miss for L2
+    # needed = 19 - 7 = 12; roll exactly 11 should miss
     with patch("app.expedition.random") as mock_rng:
         mock_rng.randint.side_effect = [11, 1]
         result = _do_attack(attacker, target)

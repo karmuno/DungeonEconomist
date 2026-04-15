@@ -59,7 +59,7 @@ async function advance(days: number) {
     }
 
     emit('day-advanced')
-  } catch (err) {
+  } catch {
     notifications.add('Failed to advance time', 'error')
   } finally {
     loading.value = false
