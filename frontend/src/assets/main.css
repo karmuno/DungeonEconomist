@@ -5,12 +5,12 @@
 /* ---------- Custom Properties ---------- */
 :root {
   --bg-primary: #000000;
-  --bg-secondary: #000000;
-  --bg-card: #1a1a1a;
-  --bg-input: #1f2937;
+  --bg-secondary: #0f1419;
+  --bg-card: #1f2937;
+  --bg-input: #111827;
   --bg-hover: #111111;
-  --text-primary: #e5e7eb;
-  --text-secondary: #d1d5db;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
   --text-muted: #6b7280;
   --accent-green: #4ade80;
   --accent-green-dark: #22c55e;
@@ -20,7 +20,9 @@
   --accent-gold: #fbbf24;
   --accent-purple: #a78bfa;
   --border-color: #4b5563;
+  --border-subtle: #374151;
   --border-radius: 6px;
+  --radius: 6px;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas',
     'Monaco', 'Courier New', monospace;

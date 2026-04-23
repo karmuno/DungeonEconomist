@@ -302,3 +302,35 @@ export interface DashboardStats {
     xp_earned: number
   }>
 }
+
+// Day Report
+
+export type DayReportEntryType = 'info' | 'combat' | 'loot' | 'choice' | 'healing' | 'upkeep' | 'tavern'
+
+export interface DayReportEntry {
+  t: DayReportEntryType
+  text: string
+  detail?: string
+  choice?: boolean
+}
+
+export interface DayReportSection {
+  title: string
+  subtitle?: string
+  kind: 'expedition' | 'keep'
+  entries: DayReportEntry[]
+}
+
+export interface DayReportTreasury {
+  g: number
+  s: number
+  c: number
+}
+
+export interface DayReport {
+  day: number
+  calendar: string
+  treasuryBefore: DayReportTreasury
+  treasuryAfter: DayReportTreasury
+  sections: DayReportSection[]
+}

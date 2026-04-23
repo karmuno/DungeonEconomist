@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGameTimeStore } from '../stores/gameTime'
@@ -17,6 +17,9 @@ const newKeepName = ref('')
 const creating = ref(false)
 const loading = ref(false)
 const confirmDeleteId = ref<number | null>(null)
+const deleteButtonRect = ref<{ top: number; right: number } | null>(null)
+
+const confirmingKeep = computed(() => keeps.value.find(k => k.id === confirmDeleteId.value))
 
 onMounted(async () => {
   try {
@@ -24,7 +27,42 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+
+  document.addEventListener('keydown', handleEscapeKey)
+  document.addEventListener('click', handleOutsideClick)
 })
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscapeKey)
+  document.removeEventListener('click', handleOutsideClick)
+})
+
+function handleEscapeKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    confirmDeleteId.value = null
+  }
+}
+
+function handleOutsideClick(e: MouseEvent) {
+  const popover = document.querySelector('.delete-popover')
+  if (popover && !popover.contains(e.target as Node)) {
+    confirmDeleteId.value = null
+  }
+}
+
+function openDeleteConfirm(e: MouseEvent, keepId: number) {
+  e.stopPropagation()
+  const button = e.currentTarget as HTMLElement
+  const rect = button.getBoundingClientRect()
+  const keepsCard = (button.closest('.keeps-card') || document.querySelector('.keeps-card')) as HTMLElement
+  const cardRect = keepsCard.getBoundingClientRect()
+
+  deleteButtonRect.value = {
+    top: rect.bottom - cardRect.top + 8,
+    right: cardRect.right - (rect.left + rect.width / 2) - 120,
+  }
+  confirmDeleteId.value = keepId
+}
 
 async function createKeep() {
   if (!newKeepName.value.trim()) return
@@ -73,8 +111,7 @@ async function handleDelete(keep: KeepOut) {
             v-for="keep in keeps"
             :key="keep.id"
             class="keep-item"
-            :class="{ 'keep-item-confirming': confirmDeleteId === keep.id }"
-            @click="confirmDeleteId === keep.id ? null : selectKeep(keep)"
+            @click="selectKeep(keep)"
           >
             <div class="keep-info">
               <div class="keep-name-row">
@@ -91,16 +128,10 @@ async function handleDelete(keep: KeepOut) {
               </div>
             </div>
             <div class="keep-actions" @click.stop>
-              <template v-if="confirmDeleteId === keep.id">
-                <span class="delete-warning">This is permanent.</span>
-                <button class="btn-delete-confirm" @click="handleDelete(keep)">Delete Forever</button>
-                <button class="btn-delete-cancel" @click="confirmDeleteId = null">Cancel</button>
-              </template>
               <button
-                v-else
                 class="delete-btn"
                 title="Delete keep"
-                @click="confirmDeleteId = keep.id"
+                @click="openDeleteConfirm($event, keep.id)"
               >
                 Delete
               </button>
@@ -126,6 +157,26 @@ async function handleDelete(keep: KeepOut) {
           </button>
         </form>
       </div>
+
+      <!-- Delete Confirm Popover -->
+      <div v-if="confirmingKeep && deleteButtonRect" class="delete-popover-overlay" @click="confirmDeleteId = null" />
+      <div
+        v-if="confirmingKeep && deleteButtonRect"
+        class="delete-popover"
+        :style="{ top: deleteButtonRect.top + 'px', right: Math.max(0, deleteButtonRect.right) + 'px' }"
+      >
+        <div class="popover-title">
+          Delete <span class="keep-name-red">{{ confirmingKeep.name }}</span>?
+        </div>
+        <div class="popover-body">
+          This is permanent. All adventurers, parties, and progress in <strong>{{ confirmingKeep.name }}</strong> will be lost.
+        </div>
+        <div class="popover-actions">
+          <button class="btn btn-secondary btn-sm" @click.stop="confirmDeleteId = null">Cancel</button>
+          <button class="btn btn-danger btn-sm" @click.stop="handleDelete(confirmingKeep)">Delete Forever</button>
+        </div>
+        <div class="popover-arrow" />
+      </div>
     </div>
   </div>
 </template>
@@ -142,6 +193,7 @@ async function handleDelete(keep: KeepOut) {
   max-width: 500px;
   width: 100%;
   text-align: center;
+  position: relative;
 }
 
 .keeps-card h1 {
@@ -174,7 +226,7 @@ async function handleDelete(keep: KeepOut) {
   padding: 12px 16px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border-radius: var(--radius);
   cursor: pointer;
   transition: border-color 0.15s;
 }
@@ -224,61 +276,76 @@ async function handleDelete(keep: KeepOut) {
   flex-shrink: 0;
 }
 
-.keep-item-confirming {
-  border-color: var(--accent-red, #e74c3c);
-  cursor: default;
-}
-
-.delete-warning {
-  font-size: 11px;
-  color: var(--accent-red, #e74c3c);
-  white-space: nowrap;
-}
-
 .delete-btn {
   background: none;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border-radius: var(--radius);
   color: var(--text-muted);
   font-size: 11px;
   cursor: pointer;
   padding: 3px 8px;
+  font-family: inherit;
 }
 
 .delete-btn:hover {
-  border-color: var(--accent-red, #e74c3c);
-  color: var(--accent-red, #e74c3c);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
 }
 
-.btn-delete-confirm {
-  background: var(--accent-red, #e74c3c);
-  border: none;
-  border-radius: var(--border-radius);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 4px 10px;
-  white-space: nowrap;
+.delete-popover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
 }
 
-.btn-delete-confirm:hover {
-  opacity: 0.85;
+.delete-popover {
+  position: absolute;
+  z-index: 11;
+  background: #111827;
+  border: 1px solid var(--accent-red);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+  padding: 12px;
+  width: 260px;
 }
 
-.btn-delete-cancel {
-  background: none;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  color: var(--text-muted);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 3px 8px;
-}
-
-.btn-delete-cancel:hover {
-  border-color: var(--text-muted);
+.popover-title {
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.keep-name-red {
+  color: var(--accent-red);
+}
+
+.popover-body {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.popover-body strong {
+  color: var(--text-secondary);
+}
+
+.popover-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.popover-arrow {
+  position: absolute;
+  top: -6px;
+  right: 115px;
+  width: 10px;
+  height: 10px;
+  background: #111827;
+  border-left: 1px solid var(--accent-red);
+  border-top: 1px solid var(--accent-red);
+  transform: rotate(45deg);
 }
 
 .create-form {
