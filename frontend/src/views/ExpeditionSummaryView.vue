@@ -6,10 +6,10 @@ import type { ExpeditionSummaryDetail } from '../api/expeditions'
 import { useNotificationsStore } from '../stores/notifications'
 import { useGameTimeStore } from '../stores/gameTime'
 import { usePlayerStore } from '../stores/player'
-import { formatCurrency } from '../utils/currency'
 import { formatGameDayShort } from '../utils/calendar'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import Purse from '../components/shared/Purse.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -295,7 +295,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
           ({{ summary.duration_days }} days)
         </p>
         <div class="summary-stats">
-          <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
+          <span>Loot: <Purse :g="lootCopper(summary.total_loot).gold" :s="lootCopper(summary.total_loot).silver" :c="lootCopper(summary.total_loot).copper" /></span>
           <span>XP: {{ summary.total_xp }}</span>
           <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
           <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
@@ -372,7 +372,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                 <span v-else>&mdash;</span>
               </td>
               <td v-if="!isActive">+{{ member.xp_gained }}</td>
-              <td v-if="!isActive" class="text-gold">{{ formatCurrency(member.gold, member.silver, member.copper) }}</td>
+              <td v-if="!isActive"><Purse :g="member.gold" :s="member.silver" :c="member.copper" /></td>
             </tr>
           </tbody>
         </table>
@@ -396,8 +396,8 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
                   <span v-if="event.combat?.monsters_killed" class="monster-fate killed">{{ event.combat.monsters_killed }} killed</span>
                   <span v-if="event.combat?.monsters_fled" class="monster-fate fled">{{ event.combat.monsters_fled }} fled</span>
                   <span v-if="event.combat?.party_fled" class="monster-fate fled">party fled</span>
-                  <span v-if="event.treasure" class="text-gold">
-                    Loot: {{ formatCurrency(event.treasure.gold, event.treasure.silver ?? 0, event.treasure.copper ?? 0) }}
+                  <span v-if="event.treasure">
+                    Loot: <Purse :g="event.treasure.gold" :s="event.treasure.silver ?? 0" :c="event.treasure.copper ?? 0" />
                   </span>
                 </div>
                 <div v-if="isCombatExpanded(turn.turn, idx)" class="combat-details">
@@ -492,7 +492,7 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
               </template>
               <template v-else-if="event.type === 'Unguarded Treasure'">
                 <span class="badge badge-success">Treasure</span>
-                <span class="text-gold">Found {{ formatCurrency(event.treasure?.gold ?? 0, event.treasure?.silver ?? 0, event.treasure?.copper ?? 0) }}</span>
+                <span>Found <Purse :g="event.treasure?.gold ?? 0" :s="event.treasure?.silver ?? 0" :c="event.treasure?.copper ?? 0" /></span>
               </template>
               <template v-else>
                 <span class="badge">{{ event.type }}</span>

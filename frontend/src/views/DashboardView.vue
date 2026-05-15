@@ -8,10 +8,10 @@ import * as adventurersApi from '../api/adventurers'
 import type { DashboardStats, AdventurerOut } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
 import { useNotificationsStore } from '../stores/notifications'
-import { formatCurrency } from '../utils/currency'
 import { itemEmoji, itemBonusLabel } from '../utils/adventurer'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import ModalDialog from '../components/shared/ModalDialog.vue'
+import Purse from '../components/shared/Purse.vue'
 import AdventurerDetail from '../components/adventurers/AdventurerDetail.vue'
 import eventBus from '../eventBus'
 
@@ -302,7 +302,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
             <span class="stat">Lv {{ a.level }}</span>
             <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
             <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
-            <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
+            <span class="stat gold"><Purse :g="a.gold" :s="a.silver" :c="a.copper" /></span>
           </div>
         </div>
       </div>
@@ -346,7 +346,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 <span class="stat">Lv {{ m.level }}</span>
                 <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
                 <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp">/{{ m.next_level_xp }}</template> XP</span>
-                <span class="stat gold">{{ formatCurrency(m.gold, m.silver, m.copper) }}</span>
+                <span class="stat gold"><Purse :g="m.gold" :s="m.silver" :c="m.copper" /></span>
                 <button v-if="!p.on_expedition" class="remove-btn" @click.stop="removeFromParty(p.id, m.id, m.name)">&times;</button>
               </div>
               <div v-if="p.members.length === 0" class="text-muted" style="font-size: 12px; padding: 4px 0">Drop adventurers here</div>
@@ -436,7 +436,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                   <span class="stat">Lv {{ a.level }}</span>
                   <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
                   <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
-                  <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
+                  <span class="stat gold"><Purse :g="a.gold" :s="a.silver" :c="a.copper" /></span>
                   <button class="remove-btn" @click.stop="unassignFromBuilding(b.id, a.id, a.name)">&times;</button>
                 </div>
               </div>

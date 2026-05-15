@@ -162,6 +162,7 @@ class GameEvent(BaseModel):
     type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep'
     message: str
     expedition_id: int | None = None
+    party_name: str | None = None  # set for expedition-scoped events so the UI can group by party
     first_time: bool = False
     event_subtype: str | None = None  # e.g. 'stairs', 'death', 'big_haul' for expedition_choice events
 

@@ -4,12 +4,15 @@ import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
 import { useNotificationsStore, type Notification } from '../../stores/notifications'
-import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
+import { buildDayReport } from '../../utils/dayReport'
 import ModalDialog from '../shared/ModalDialog.vue'
+import DayReportModal from '../shared/DayReportModal.vue'
+import Purse from '../shared/Purse.vue'
 import ExpeditionEventModal from '../expeditions/ExpeditionEventModal.vue'
 import * as expeditionsApi from '../../api/expeditions'
 import eventBus from '../../eventBus'
+import type { DayReport, GameEvent } from '../../types'
 
 const router = useRouter()
 const gameTime = useGameTimeStore()
@@ -20,6 +23,7 @@ const notifications = useNotificationsStore()
 const showChoicePopup = ref(false)
 const choiceMessage = ref('')
 const choiceExpeditionId = ref<number | null>(null)
+const choicePartyName = ref<string | null>(null)
 const choiceEventType = ref('')
 const choosingInPopup = ref(false)
 
@@ -27,16 +31,18 @@ const choosingInPopup = ref(false)
 interface PendingChoice {
   message: string;
   expeditionId: number;
+  partyName: string | null;
   eventType: string;
 }
 const choiceQueue = ref<PendingChoice[]>([])
 
 function checkChoiceQueue() {
   if (showChoicePopup.value || choiceQueue.value.length === 0) return
-  
+
   const next = choiceQueue.value.shift()!
   choiceMessage.value = next.message
   choiceExpeditionId.value = next.expeditionId
+  choicePartyName.value = next.partyName
   choiceEventType.value = next.eventType
   showChoicePopup.value = true
 }
@@ -49,6 +55,21 @@ const levelUpMessage = ref('')
 // Stairs discovered popup
 const showStairsPopup = ref(false)
 const stairsMessage = ref('')
+
+// Day Report modal
+const showDayReport = ref(false)
+const dayReport = ref<DayReport | null>(null)
+
+// Pending accumulator for the in-flight advance-day / skip-to-event tick.
+// Events from the initial advance and from every choice resolution land here;
+// the Day Report modal only opens once all expedition-choice popups have closed
+// and the choice queue has drained.
+interface PendingTick {
+  day: number
+  treasuryBefore: { g: number; s: number; c: number }
+  events: GameEvent[]
+}
+const pendingTick = ref<PendingTick | null>(null)
 
 
 function handleAction(notification: Notification) {
@@ -73,47 +94,43 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   level_up: 'success',
 }
 
-function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null }>) {
+/**
+ * Route events that need their own popup (level-up, stairs, expedition choice)
+ * to those modals, and return the remaining "regular" events.
+ */
+function extractSpecialEvents(events: GameEvent[]): GameEvent[] {
+  const regular: GameEvent[] = []
   for (const event of events) {
-    // First-time level up — show popup
     if (event.type === 'level_up' && event.first_time) {
       levelUpMessage.value = event.message
       showLevelUpPopup.value = true
       continue
     }
-
-    // Stairs discovered — ALWAYS show popup, no exceptions
     if (event.type === 'stairs_discovered') {
       stairsMessage.value = event.message
       showStairsPopup.value = true
       continue
     }
-
-    // Expedition choice — queue it
     if (event.type === 'expedition_choice' && event.expedition_id) {
       choiceQueue.value.push({
         message: event.message,
         expeditionId: event.expedition_id,
+        partyName: event.party_name ?? null,
         eventType: event.event_subtype ?? '',
       })
       gameTime.expeditionVersion++
       continue
     }
-
-    const opts: Parameters<typeof notifications.add>[1] = {
-      type: typeMap[event.type] ?? 'info',
-    }
-    if (event.type === 'expedition_complete' && event.expedition_id) {
-      opts.action = {
-        label: 'View Summary',
-        route: `/expedition/${event.expedition_id}/summary`,
-      }
-    }
-    notifications.add(event.message, opts)
+    regular.push(event)
   }
-  
-  // Try showing the first one in queue if nothing is showing
   checkChoiceQueue()
+  return regular
+}
+
+// Delegates to ingestEvents (declared below). Kept as a separate binding so
+// the eventBus handler has a stable reference to register / unregister.
+function processEvents(events: GameEvent[]) {
+  ingestEvents(events)
 }
 
 async function popupChoice(choice: string) {
@@ -122,9 +139,8 @@ async function popupChoice(choice: string) {
   try {
     const result = await expeditionsApi.choose(choiceExpeditionId.value, choice)
 
-    // Route events through processEvents so stairs/level-ups get their popups
     if (result.events?.length) {
-      processEvents(result.events)
+      ingestEvents(result.events)
     }
 
     if (result.status === 'next_event' && result.next_event) {
@@ -140,22 +156,31 @@ async function popupChoice(choice: string) {
       showChoicePopup.value = false
       choosingInPopup.value = false
       checkChoiceQueue()
+      tryFinalizeDayReport()
       return
     } else if (result.status === 'completed') {
       showChoicePopup.value = false
       await player.fetchPlayer()
+      const who = choicePartyName.value ?? 'The party'
       const retMsg = result.auto_choice === 'retreat'
-        ? 'The party decided to retreat!'
-        : result.retreated ? 'The party retreated safely' : 'The expedition is complete!'
-      notifications.add(retMsg,
-        {
+        ? `${who} decided to retreat!`
+        : result.retreated ? `${who} retreated safely` : `${who}'s expedition is complete!`
+      if (pendingTick.value) {
+        pendingTick.value.events.push({
+          type: result.retreated ? 'info' : 'expedition_complete',
+          message: retMsg,
+          expedition_id: choiceExpeditionId.value,
+          party_name: choicePartyName.value,
+        })
+      } else {
+        notifications.add(retMsg, {
           type: result.retreated ? 'info' : 'success',
           action: {
             label: 'View Summary',
             route: `/expedition/${choiceExpeditionId.value}/summary`,
           },
-        },
-      )
+        })
+      }
     } else {
       // Unknown status — close modal as fallback
       showChoicePopup.value = false
@@ -163,15 +188,15 @@ async function popupChoice(choice: string) {
     gameTime.expeditionVersion++
     choosingInPopup.value = false
 
-    // Check if more choices are in queue
     checkChoiceQueue()
+    tryFinalizeDayReport()
   } catch (e: any) {
     const detail = (e as any)?.data?.detail ?? 'Failed to submit choice'
     notifications.add(detail, 'error')
     showChoicePopup.value = false
-    
-    // Check if more choices are in queue even on error
+
     checkChoiceQueue()
+    tryFinalizeDayReport()
   } finally {
     choosingInPopup.value = false
   }
@@ -183,27 +208,108 @@ async function viewExpedition() {
   if (choiceEventType.value === 'tpk' && choiceExpeditionId.value) {
     try {
       const result = await expeditionsApi.choose(choiceExpeditionId.value, 'press_on')
-      if (result.events?.length) processEvents(result.events)
+      if (result.events?.length) ingestEvents(result.events)
       if (result.status === 'completed') await player.fetchPlayer()
       gameTime.expeditionVersion++
     } catch { /* expedition may already be resolved */ }
   }
   if (choiceExpeditionId.value) {
+    // Player is navigating away; discard the pending report so it doesn't pop
+    // over the expedition summary screen.
+    discardPendingTick()
     router.push(`/expedition/${choiceExpeditionId.value}/summary`)
   }
-  // Check queue if they just closed the modal to navigate away
-  // but they probably want to see the other popups later
   checkChoiceQueue()
 }
 
 const skipping = ref(false)
 
+function snapshotTreasury() {
+  return { g: player.treasuryGold, s: player.treasurySilver, c: player.treasuryCopper }
+}
+
+function beginTick(day: number, treasuryBefore: { g: number; s: number; c: number }) {
+  pendingTick.value = { day, treasuryBefore, events: [] }
+}
+
+/**
+ * Route special events (level-up, stairs, expedition-choice) to their popups
+ * and append the remaining regular events to the in-flight tick buffer.
+ * If there is no active tick (e.g. eventBus fan-in from AdminConsole), fall
+ * back to the notification feed.
+ */
+function ingestEvents(events: GameEvent[]) {
+  const regular = extractSpecialEvents(events)
+  if (pendingTick.value) {
+    pendingTick.value.events.push(...regular)
+    return
+  }
+  for (const event of regular) {
+    const opts: Parameters<typeof notifications.add>[1] = {
+      type: typeMap[event.type] ?? 'info',
+    }
+    if (event.type === 'expedition_complete' && event.expedition_id) {
+      opts.action = {
+        label: 'View Summary',
+        route: `/expedition/${event.expedition_id}/summary`,
+      }
+    }
+    notifications.add(event.message, opts)
+  }
+}
+
+/**
+ * Finalize the pending tick if nothing is blocking: no expedition-choice popup
+ * is open and the queue is drained. Opens the Day Report modal with every
+ * regular event accumulated across the initial advance and any subsequent
+ * choice resolutions.
+ */
+function tryFinalizeDayReport() {
+  const tick = pendingTick.value
+  if (!tick) return
+  if (showChoicePopup.value || choiceQueue.value.length > 0) return
+
+  const after = snapshotTreasury()
+  const before = tick.treasuryBefore
+  const treasuryUnchanged =
+    before.g === after.g && before.s === after.s && before.c === after.c
+
+  pendingTick.value = null
+
+  if (tick.events.length === 0 && treasuryUnchanged) return
+
+  dayReport.value = buildDayReport(tick.day, tick.events, before, after)
+  showDayReport.value = true
+}
+
+function discardPendingTick() {
+  pendingTick.value = null
+}
+
+function onDayReportClose() {
+  showDayReport.value = false
+  dayReport.value = null
+}
+
+function onDayReportAdvance() {
+  onDayReportClose()
+  advanceDay()
+}
+
+function onDayReportSkip() {
+  onDayReportClose()
+  skipToEvent()
+}
+
 async function advanceDay() {
+  const before = snapshotTreasury()
   try {
     const result = await gameTime.advanceDay()
     await player.fetchPlayer()
-    notifications.onDayAdvanced(result.current_day) // Moved here
-    processEvents(result.events) // Pass only events
+    notifications.onDayAdvanced(result.current_day)
+    beginTick(result.current_day, before)
+    ingestEvents(result.events)
+    tryFinalizeDayReport()
   } catch {
     notifications.add('Failed to advance time', 'error')
   }
@@ -211,12 +317,15 @@ async function advanceDay() {
 
 async function skipToEvent() {
   skipping.value = true
+  const before = snapshotTreasury()
   try {
     const result = await gameTime.skipToEvent()
     await player.fetchPlayer()
     notifications.onDayAdvanced(result.current_day)
-    processEvents(result.events)
-  } catch (e) {
+    beginTick(result.current_day, before)
+    ingestEvents(result.events)
+    tryFinalizeDayReport()
+  } catch {
     notifications.add('Failed to skip time', 'error')
   } finally {
     skipping.value = false
@@ -225,10 +334,12 @@ async function skipToEvent() {
 
 onMounted(() => {
   eventBus.on('game-events', processEvents)
+  eventBus.on('advance-day-requested', advanceDay)
 })
 
 onUnmounted(() => {
   eventBus.off('game-events', processEvents)
+  eventBus.off('advance-day-requested', advanceDay)
 })
 </script>
 
@@ -244,7 +355,9 @@ onUnmounted(() => {
 
     <div class="panel-section">
       <h3 class="section-label">Treasury</h3>
-      <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
+      <div class="treasury-value">
+        <Purse :g="player.treasuryGold" :s="player.treasurySilver" :c="player.treasuryCopper" />
+      </div>
     </div>
 
     <div class="time-controls">
@@ -311,6 +424,15 @@ onUnmounted(() => {
       </div>
     </div>
   </ModalDialog>
+
+  <!-- Day Report Modal -->
+  <DayReportModal
+    :is-open="showDayReport"
+    :report="dayReport"
+    @dismiss="onDayReportClose"
+    @advance="onDayReportAdvance"
+    @skip="onDayReportSkip"
+  />
 
   <!-- Stairs Discovered Popup -->
   <ModalDialog

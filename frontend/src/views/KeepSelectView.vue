@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGameTimeStore } from '../stores/gameTime'
 import { usePlayerStore } from '../stores/player'
 import * as keepsApi from '../api/keeps'
+import Purse from '../components/shared/Purse.vue'
 import type { KeepOut } from '../types'
 
 const router = useRouter()
@@ -121,7 +122,12 @@ async function handleDelete(keep: KeepOut) {
               </div>
               <div class="keep-meta">
                 Day {{ keep.current_day }}
-                &middot; {{ keep.treasury_gold }}gp
+                &middot;
+                <Purse
+                  :g="keep.treasury_gold"
+                  :s="keep.treasury_silver"
+                  :c="keep.treasury_copper"
+                />
                 <template v-if="keep.building_types.length">
                   &middot; {{ keep.building_types.join(', ') }}
                 </template>

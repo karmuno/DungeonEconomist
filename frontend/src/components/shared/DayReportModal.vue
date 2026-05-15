@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import type { DayReport } from '../../types'
+import { ref, computed, onUnmounted, watch } from 'vue'
+import type { DayReport, DayReportTreasury } from '../../types'
 import Purse from './Purse.vue'
 
 const props = defineProps<{
@@ -11,7 +11,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   dismiss: []
   advance: []
-  close: []
+  skip: []
 }>()
 
 const revealedCount = ref(0)
@@ -23,32 +23,65 @@ const totalEntries = computed(() => {
   return props.report.sections.reduce((sum, section) => sum + section.entries.length, 0)
 })
 
-const allEntriesRevealed = computed(() => revealedCount.value >= totalEntries.value)
+const allEntriesRevealed = computed(
+  () => totalEntries.value > 0 && revealedCount.value >= totalEntries.value,
+)
 
 const visibleSections = computed(() => {
   if (!props.report) return []
+  let idx = 0
   return props.report.sections.map((section) => {
-    let entryCount = 0
     const visibleEntries = section.entries.filter(() => {
-      const isVisible = entryCount < revealedCount.value
-      entryCount++
+      const isVisible = idx < revealedCount.value
+      idx++
       return isVisible
     })
     return { ...section, entries: visibleEntries }
   })
 })
 
+function toCp(t: DayReportTreasury): number {
+  return t.g * 100 + t.s * 10 + t.c
+}
+
+function normalizeCp(cp: number): string {
+  const gp = cp / 100
+  const abs = Math.abs(gp)
+  if (abs >= 10) return gp.toFixed(0)
+  if (abs >= 1) return gp.toFixed(1)
+  return gp.toFixed(2)
+}
+
+const deltaString = computed(() => {
+  if (!props.report) return ''
+  const delta = toCp(props.report.treasuryAfter) - toCp(props.report.treasuryBefore)
+  const sign = delta > 0 ? '+' : delta < 0 ? '−' : ''
+  return `${sign}${normalizeCp(Math.abs(delta))}gp`
+})
+
+const deltaClass = computed(() => {
+  if (!props.report) return ''
+  const delta = toCp(props.report.treasuryAfter) - toCp(props.report.treasuryBefore)
+  if (delta > 0) return 'delta-positive'
+  if (delta < 0) return 'delta-negative'
+  return 'delta-zero'
+})
+
 function startReveal() {
-  if (animationRunning.value) return
+  stopReveal()
   animationRunning.value = true
   revealedCount.value = 0
 
-  let currentEntry = 0
+  if (totalEntries.value === 0) {
+    animationRunning.value = false
+    return
+  }
+
   revealInterval = window.setInterval(() => {
-    if (currentEntry < totalEntries.value) {
-      revealedCount.value = currentEntry + 1
-      currentEntry++
-    } else {
+    if (revealedCount.value < totalEntries.value) {
+      revealedCount.value += 1
+    }
+    if (revealedCount.value >= totalEntries.value) {
       stopReveal()
     }
   }, 250)
@@ -68,13 +101,12 @@ function skipAnimation() {
 }
 
 function replayAnimation() {
-  stopReveal()
   startReveal()
 }
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && props.isOpen) {
-    // Don't close on Escape - explicit action required
+    // Explicit action required - Escape does not dismiss
     e.preventDefault()
   }
 }
@@ -89,12 +121,24 @@ function onAdvance() {
   emit('advance')
 }
 
-onMounted(() => {
-  if (props.isOpen && props.report) {
-    startReveal()
-    document.addEventListener('keydown', handleKeydown)
-  }
-})
+function onSkip() {
+  stopReveal()
+  emit('skip')
+}
+
+watch(
+  () => [props.isOpen, props.report] as const,
+  ([open, report]) => {
+    if (open && report) {
+      document.addEventListener('keydown', handleKeydown)
+      startReveal()
+    } else {
+      document.removeEventListener('keydown', handleKeydown)
+      stopReveal()
+    }
+  },
+  { immediate: true },
+)
 
 onUnmounted(() => {
   stopReveal()
@@ -103,15 +147,15 @@ onUnmounted(() => {
 
 function getEntryColor(type: string): string {
   const colors: Record<string, string> = {
-    info: '#6b7280',
-    combat: '#ef4444',
-    loot: '#fbbf24',
-    choice: '#60a5fa',
-    healing: '#4ade80',
-    upkeep: '#fbbf24',
-    tavern: '#4ade80',
+    info: 'var(--text-muted, #6b7280)',
+    combat: 'var(--accent-red, #ef4444)',
+    loot: 'var(--accent-gold, #fbbf24)',
+    choice: 'var(--accent-blue, #60a5fa)',
+    healing: 'var(--accent-green, #4ade80)',
+    upkeep: 'var(--accent-gold, #fbbf24)',
+    tavern: 'var(--accent-green, #4ade80)',
   }
-  return colors[type] || '#6b7280'
+  return colors[type] || 'var(--text-muted, #6b7280)'
 }
 </script>
 
@@ -123,9 +167,10 @@ function getEntryColor(type: string): string {
         <div class="report-header">
           <div>
             <div class="report-eyebrow">Day Report</div>
-            <h2 class="report-title">
-              Day {{ report.day }} <span class="calendar-text">{{ report.calendar }}</span>
-            </h2>
+            <div class="report-title-row">
+              <h2 class="report-title">Day {{ report.day }}</h2>
+              <span class="calendar-text">{{ report.calendar }}</span>
+            </div>
           </div>
           <button class="btn btn-secondary btn-sm" @click="replayAnimation">⟲ Replay</button>
         </div>
@@ -133,10 +178,12 @@ function getEntryColor(type: string): string {
         <!-- Body -->
         <div class="report-body">
           <div v-for="(section, sIdx) in visibleSections" :key="`section-${sIdx}`" class="report-section">
-            <h3 :class="{ 'section-expedition': section.kind === 'expedition', 'section-keep': section.kind === 'keep' }">
-              {{ section.title }}
+            <div class="section-header">
+              <h3 :class="{ 'section-expedition': section.kind === 'expedition', 'section-keep': section.kind === 'keep' }">
+                {{ section.title }}
+              </h3>
               <span v-if="section.subtitle" class="section-subtitle">· {{ section.subtitle }}</span>
-            </h3>
+            </div>
 
             <div class="section-entries">
               <div
@@ -164,51 +211,41 @@ function getEntryColor(type: string): string {
           </div>
 
           <!-- Skip animation button (while animating) -->
-          <button
-            v-if="animationRunning && !allEntriesRevealed"
-            class="btn btn-secondary btn-sm skip-animation-btn"
-            @click="skipAnimation"
-          >
-            Skip animation
-          </button>
+          <div v-if="animationRunning && !allEntriesRevealed" class="skip-animation-wrap">
+            <button class="btn btn-secondary btn-sm" @click="skipAnimation">
+              Skip animation
+            </button>
+          </div>
 
           <!-- Treasury footer (after all entries revealed) -->
-          <transition name="fadeIn">
-            <div v-if="allEntriesRevealed" class="report-footer">
-              <div class="treasury-info">
-                <div class="treasury-eyebrow">Treasury</div>
-                <div class="treasury-values">
-                  <span class="treasury-before">
-                    <Purse
-                      :g="report.treasuryBefore.g"
-                      :s="report.treasuryBefore.s"
-                      :c="report.treasuryBefore.c"
-                    />
-                  </span>
-                  <span class="treasury-arrow">→</span>
-                  <span class="treasury-after">
-                    <Purse
-                      :g="report.treasuryAfter.g"
-                      :s="report.treasuryAfter.s"
-                      :c="report.treasuryAfter.c"
-                    />
-                  </span>
-                  <span class="treasury-delta">
-                    <span class="delta-sign">+</span
-                    ><Purse
-                      :g="report.treasuryAfter.g - report.treasuryBefore.g"
-                      :s="report.treasuryAfter.s - report.treasuryBefore.s"
-                      :c="report.treasuryAfter.c - report.treasuryBefore.c"
-                    />
-                  </span>
-                </div>
-              </div>
-              <div class="footer-actions">
-                <button class="btn btn-secondary btn-sm" @click="onDismiss">Dismiss</button>
-                <button class="btn btn-primary btn-sm" @click="onAdvance">Advance Day ▸</button>
+          <div v-if="allEntriesRevealed" class="report-footer">
+            <div class="treasury-info">
+              <div class="treasury-eyebrow">Treasury</div>
+              <div class="treasury-values">
+                <span class="treasury-before">
+                  <Purse
+                    :g="report.treasuryBefore.g"
+                    :s="report.treasuryBefore.s"
+                    :c="report.treasuryBefore.c"
+                  />
+                </span>
+                <span class="treasury-arrow">→</span>
+                <span class="treasury-after">
+                  <Purse
+                    :g="report.treasuryAfter.g"
+                    :s="report.treasuryAfter.s"
+                    :c="report.treasuryAfter.c"
+                  />
+                </span>
+                <span class="treasury-delta" :class="deltaClass">{{ deltaString }}</span>
               </div>
             </div>
-          </transition>
+            <div class="footer-actions">
+              <button class="btn btn-secondary btn-sm" @click="onDismiss">Dismiss</button>
+              <button class="btn btn-secondary btn-sm" @click="onSkip">Skip to Event</button>
+              <button class="btn btn-primary btn-sm" @click="onAdvance">Advance Day ▸</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -231,14 +268,16 @@ function getEntryColor(type: string): string {
   border: 1px solid var(--border-color, #4b5563);
   border-radius: var(--radius, 6px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  width: 100%;
   max-width: 560px;
   max-height: 90vh;
+  margin: 20px;
   display: flex;
   flex-direction: column;
-  animation: modalIn 300ms ease-out;
+  animation: dayIn 300ms ease-out;
 }
 
-@keyframes modalIn {
+@keyframes dayIn {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -265,16 +304,22 @@ function getEntryColor(type: string): string {
   margin-bottom: 2px;
 }
 
+.report-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .report-title {
   font-size: 1.4rem;
   color: var(--accent-green, #4ade80);
   margin: 0;
+  line-height: 1;
 }
 
 .calendar-text {
   font-size: 11px;
   color: var(--text-muted, #6b7280);
-  margin-left: 6px;
 }
 
 .report-body {
@@ -287,11 +332,19 @@ function getEntryColor(type: string): string {
   margin-bottom: 16px;
 }
 
-.report-section h3 {
-  font-size: 1rem;
-  margin: 0 0 4px 0;
+.report-section .section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border-color, #4b5563);
+}
+
+.report-section h3 {
+  font-size: 13px;
+  margin: 0;
+  font-weight: 700;
 }
 
 .section-expedition {
@@ -357,14 +410,13 @@ function getEntryColor(type: string): string {
   font-style: italic;
 }
 
-.skip-animation-btn {
+.skip-animation-wrap {
   margin-top: 10px;
-  width: 100%;
-  justify-content: center;
+  text-align: center;
 }
 
 .report-footer {
-  margin-top: 12px;
+  margin-top: 16px;
   padding: 10px;
   background: var(--bg-secondary, #0f1419);
   border: 1px solid var(--border-color, #4b5563);
@@ -372,42 +424,39 @@ function getEntryColor(type: string): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  animation: fadeInFooter 300ms ease-out;
-}
-
-@keyframes fadeInFooter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  gap: 12px;
+  flex-wrap: wrap;
+  animation: dayIn 300ms ease-out;
 }
 
 .treasury-info {
   flex: 1;
+  min-width: 0;
 }
 
 .treasury-eyebrow {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--text-muted, #6b7280);
   margin-bottom: 3px;
 }
 
 .treasury-values {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  align-items: baseline;
+  gap: 0;
+  font-size: 13px;
+  flex-wrap: wrap;
 }
 
 .treasury-before {
   color: var(--text-muted, #6b7280);
-  text-decoration: line-through;
+}
+
+.treasury-before :deep(.purse-trigger) {
+  color: var(--text-muted, #6b7280);
+  border-bottom-color: var(--text-muted, #6b7280);
 }
 
 .treasury-arrow {
@@ -416,33 +465,30 @@ function getEntryColor(type: string): string {
 }
 
 .treasury-after {
-  color: var(--accent-gold, #fbbf24);
   font-weight: 700;
 }
 
 .treasury-delta {
-  color: var(--accent-green, #4ade80);
   font-size: 11px;
   margin-left: 8px;
+  font-weight: 600;
 }
 
-.delta-sign {
-  margin-right: 2px;
+.delta-positive {
+  color: var(--accent-green, #4ade80);
+}
+
+.delta-negative {
+  color: var(--accent-red, #ef4444);
+}
+
+.delta-zero {
+  color: var(--text-muted, #6b7280);
 }
 
 .footer-actions {
   display: flex;
   gap: 6px;
-}
-
-.fadeIn-enter-active,
-.fadeIn-leave-active {
-  transition: all 300ms ease-out;
-}
-
-.fadeIn-enter-from,
-.fadeIn-leave-to {
-  opacity: 0;
-  transform: translateY(4px);
+  flex-shrink: 0;
 }
 </style>

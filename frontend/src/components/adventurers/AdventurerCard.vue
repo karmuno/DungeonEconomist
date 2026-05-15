@@ -2,7 +2,7 @@
 import type { AdventurerOut } from '../../types'
 import StatusBadge from '../shared/StatusBadge.vue'
 import ProgressBar from '../shared/ProgressBar.vue'
-import { formatCurrency } from '../../utils/currency'
+import Purse from '../shared/Purse.vue'
 import { displayStatus } from '../../utils/adventurer'
 
 defineProps<{
@@ -30,7 +30,7 @@ const emit = defineEmits<{
     </div>
     <div class="flex flex-between text-muted">
       <span>XP: {{ adventurer.xp }}</span>
-      <span class="text-gold">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</span>
+      <span><Purse :g="adventurer.gold" :s="adventurer.silver" :c="adventurer.copper" /></span>
     </div>
     <div v-if="adventurer.is_bankrupt" class="mt-1 text-muted">
       <strong>Bankrupt</strong>

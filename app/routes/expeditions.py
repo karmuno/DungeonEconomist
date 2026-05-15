@@ -495,7 +495,8 @@ def _finalize_expedition(
             })
 
     if retreat:
-        events.insert(0, {"type": "expedition_complete", "message": "The party retreated from the dungeon"})
+        retreat_name = party.name if party else "The party"
+        events.insert(0, {"type": "expedition_complete", "message": f"{retreat_name} retreated from the dungeon"})
 
     return {"events": events, "simulation_data": effective_result}
 
@@ -787,13 +788,18 @@ def make_expedition_choice(
     was_auto = data.choice == "auto"
 
     if choice == "retreat":
+        party_name = expedition.party.name if expedition.party else "The party"
         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
         db.commit()
+        tagged_events = [
+            {**evt, "expedition_id": expedition.id, "party_name": party_name}
+            for evt in result.get("events", [])
+        ]
         return {
             "status": "completed",
             "retreated": True,
             "auto_choice": "retreat" if was_auto else None,
-            "events": result.get("events", []),
+            "events": tagged_events,
         }
 
     # Press on (same level, next level, or generic press_on for non-stairs events)

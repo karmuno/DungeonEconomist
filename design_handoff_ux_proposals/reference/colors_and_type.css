@@ -1,0 +1,121 @@
+/* ============================================================
+   VentureKeep — Colors & Typography
+   Retro terminal theme: black canvas, phosphor green accents,
+   monospace type. Rooted in frontend/src/assets/main.css.
+   ============================================================ */
+
+:root {
+  /* ---------- Surfaces ---------- */
+  --bg-primary:    #000000;   /* app canvas, header, sidebar */
+  --bg-secondary:  #000000;   /* alias — same as primary */
+  --bg-card:       #1a1a1a;   /* lightest surface, rarely used */
+  --bg-panel:      #1f2937;   /* default card / stat-card fill */
+  --bg-input:      #1f2937;   /* form fields, selects */
+  --bg-modal:      #111827;   /* modal backdrop surface */
+  --bg-hover:      #111111;
+
+  /* ---------- Text ---------- */
+  --text-primary:   #e5e7eb;  /* body text */
+  --text-secondary: #d1d5db;  /* secondary copy, nav links */
+  --text-muted:     #6b7280;  /* labels, meta, placeholders */
+  --text-inverse:   #000000;  /* on-green buttons */
+
+  /* ---------- Accents (semantic) ---------- */
+  --accent-green:      #4ade80;  /* primary brand — phosphor */
+  --accent-green-dark: #22c55e;  /* default button fill */
+  --accent-green-dim:  #166534;  /* success notif border */
+  --accent-red:        #ef4444;  /* destructive, danger */
+  --accent-blue:       #60a5fa;  /* info, expedition cards */
+  --accent-gold:       #fbbf24;  /* warning, currency hints */
+  --accent-purple:     #a78bfa;  /* parties, metrics, Stahl tie-in */
+
+  /* ---------- Borders ---------- */
+  --border-color:  #4b5563;
+  --border-subtle: #374151;
+
+  /* ---------- Shape ---------- */
+  --border-radius: 6px;
+  --radius-sm:     3px;
+  --radius-md:     6px;
+  --radius-pill:   999px;
+
+  /* ---------- Shadow ---------- */
+  --shadow:        0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-modal:  0 0 40px rgba(0, 0, 0, 0.8);
+  --glow-green:    0 0 0 2px rgba(74, 222, 128, 0.15);
+
+  /* ---------- Spacing (rem) ---------- */
+  --space-1: 0.25rem;
+  --space-2: 0.375rem;
+  --space-3: 0.625rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+
+  /* ---------- Type families ---------- */
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas',
+               'Monaco', 'Courier New', monospace;
+  --font-ui:   var(--font-mono);  /* everything is mono */
+
+  /* ---------- Type scale ---------- */
+  --fs-h1:   1.5rem;   /* 24px */
+  --fs-h2:   1.2rem;   /* 19.2px */
+  --fs-h3:   1.05rem;
+  --fs-h4:   0.95rem;
+  --fs-body: 0.875rem;
+  --fs-sm:   0.825rem;
+  --fs-xs:   0.75rem;
+  --fs-label:0.7rem;
+  --fs-tiny: 0.65rem;
+
+  --fw-regular: 400;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --lh-tight: 1.2;
+  --lh-body:  1.6;
+
+  --tracking-label: 0.06em;
+  --tracking-sm:    0.04em;
+}
+
+/* ---------- Semantic element rules ---------- */
+body {
+  font-family: var(--font-mono);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: var(--lh-body);
+  font-size: var(--fs-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-mono);
+  color: var(--accent-green);
+  line-height: var(--lh-tight);
+  font-weight: var(--fw-bold);
+  margin-bottom: var(--space-2);
+}
+h1 { font-size: var(--fs-h1); }
+h2 { font-size: var(--fs-h2); }
+h3 { font-size: var(--fs-h3); }
+h4 { font-size: var(--fs-h4); }
+
+a { color: var(--accent-green); text-decoration: none; }
+a:hover { color: var(--accent-green-dark); text-decoration: underline; }
+
+code, pre, kbd { font-family: var(--font-mono); }
+
+.label, .form-label {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+}
+
+::selection {
+  background-color: rgba(74, 222, 128, 0.25);
+  color: var(--accent-green);
+}

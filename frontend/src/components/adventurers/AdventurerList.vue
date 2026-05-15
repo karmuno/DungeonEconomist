@@ -3,7 +3,7 @@ import type { AdventurerOut } from '../../types'
 import ProgressBar from '../shared/ProgressBar.vue'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
-import { formatCurrency } from '../../utils/currency'
+import Purse from '../shared/Purse.vue'
 import { displayStatus, itemEmoji, itemBonusLabel } from '../../utils/adventurer'
 const props = defineProps<{
   adventurers: AdventurerOut[]
@@ -54,7 +54,7 @@ function partyDisplay(adv: AdventurerOut): string {
           <ProgressBar :value="adv.hp_current" :max="adv.hp_max" />
         </td>
         <td>{{ adv.xp }}</td>
-        <td class="text-gold">{{ formatCurrency(adv.gold, adv.silver, adv.copper) }}</td>
+        <td><Purse :g="adv.gold" :s="adv.silver" :c="adv.copper" /></td>
         <td><StatusBadge :status="displayStatus(adv)" /></td>
       </tr>
     </tbody>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import type { DashboardStats } from '../../types'
-import { formatCurrency } from '../../utils/currency'
+import Purse from '../shared/Purse.vue'
 
 const router = useRouter()
 
@@ -25,7 +25,9 @@ defineProps<{
       <div class="stat-label">Expeditions</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value text-green">{{ formatCurrency(stats.treasury_gold, stats.treasury_silver, stats.treasury_copper) }}</div>
+      <div class="stat-value text-green">
+        <Purse :g="stats.treasury_gold" :s="stats.treasury_silver" :c="stats.treasury_copper" />
+      </div>
       <div class="stat-label">Treasury</div>
     </div>
     <div class="stat-card">

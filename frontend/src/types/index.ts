@@ -135,7 +135,9 @@ export interface GameEvent {
   type: 'recruitment' | 'healing' | 'expedition_complete' | 'auto_start' | 'upkeep' | 'expedition_choice' | string
   message: string
   expedition_id?: number | null
+  party_name?: string | null
   event_subtype?: string | null
+  first_time?: boolean
 }
 
 export interface GameTimeInfo {

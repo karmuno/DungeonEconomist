@@ -2,9 +2,9 @@
 import { ref, watch } from 'vue'
 import * as expeditionsApi from '../../api/expeditions'
 import type { ExpeditionSummaryDetail, ExpeditionMemberResult } from '../../api/expeditions'
-import { formatCurrency } from '../../utils/currency'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ProgressBar from '../shared/ProgressBar.vue'
+import Purse from '../shared/Purse.vue'
 
 const props = defineProps<{
   isOpen: boolean
@@ -181,8 +181,9 @@ function getPastSummaries(): string[] {
               </div>
               <div v-else-if="event.treasure" class="turn-detail">
                 <span class="detail-badge treasure">Treasure</span>
-                <span class="text-gold">
-                  Found {{ formatCurrency(event.treasure.gold, event.treasure.silver ?? 0, event.treasure.copper ?? 0) }}
+                <span>
+                  Found
+                  <Purse :g="event.treasure.gold" :s="event.treasure.silver ?? 0" :c="event.treasure.copper ?? 0" />
                 </span>
               </div>
               <div v-else-if="event.trap_damage" class="turn-detail">
@@ -211,7 +212,7 @@ function getPastSummaries(): string[] {
 
         <!-- Totals -->
         <div class="section totals">
-          <span class="text-gold">Loot: {{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
+          <span>Loot: <Purse :g="summary.total_loot" :s="summary.total_silver ?? 0" :c="summary.total_copper ?? 0" /></span>
           <span>XP: {{ summary.total_xp }}</span>
           <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
           <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>

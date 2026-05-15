@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ExpeditionSummary } from '../types'
 import * as expeditionsApi from '../api/expeditions'
 import { useGameTimeStore } from '../stores/gameTime'
-import { useNotificationsStore } from '../stores/notifications'
+import eventBus from '../eventBus'
 import ExpeditionList from '../components/expeditions/ExpeditionList.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 
 const router = useRouter()
 const gameTime = useGameTimeStore()
-const notifications = useNotificationsStore()
 
 const expeditions = ref<ExpeditionSummary[]>([])
 const loading = ref(false)
@@ -36,10 +35,18 @@ function onSelectExpedition(id: number) {
   router.push(`/expedition/${id}/summary`)
 }
 
-async function onAdvanceDay() {
-  await gameTime.advanceDay()
-  await fetchExpeditions()
-  notifications.add(`Advanced to day ${gameTime.currentDay}`, 'info')
+// Refresh the expedition list whenever the sidebar advances a day.
+const stopWatchDay = watch(() => gameTime.currentDay, fetchExpeditions)
+const stopWatchExpedition = watch(() => gameTime.expeditionVersion, fetchExpeditions)
+
+onUnmounted(() => {
+  stopWatchDay()
+  stopWatchExpedition()
+})
+
+function onAdvanceDay() {
+  // Delegate to SidePanel so the Day Report modal opens consistently.
+  eventBus.emit('advance-day-requested')
 }
 </script>
 
