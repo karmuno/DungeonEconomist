@@ -382,3 +382,27 @@ def test_create_party_successful_response(client: TestClient, db_session: Sessio
     assert data["members"] == []
     assert isinstance(data["id"], int)
     assert data["id"] > 0
+
+
+def test_admin_console_rejects_non_admin(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+
+    response = client.post(
+        "/admin/exec", json={"command": "add gp 5"}, headers=auth_headers(token, keep.id)
+    )
+    assert response.status_code == 403
+
+
+def test_admin_console_open_env_flag_allows_non_admin(client: TestClient, db_session: Session, monkeypatch):
+    monkeypatch.setenv("ADMIN_CONSOLE_OPEN", "true")
+    account, keep, token = create_account_and_keep(db_session)
+
+    response = client.post(
+        "/admin/exec", json={"command": "add gp 5"}, headers=auth_headers(token, keep.id)
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    me = client.get("/auth/me", headers=auth_headers(token, keep.id))
+    assert me.status_code == 200
+    assert me.json()["admin_console_open"] is True

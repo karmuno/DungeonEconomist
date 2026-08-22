@@ -15,7 +15,7 @@ const inputEl = ref<HTMLInputElement | null>(null)
 const submitting = ref(false)
 
 function toggle() {
-  if (!auth.account?.is_admin) return
+  if (!auth.account?.is_admin && !auth.account?.admin_console_open) return
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     nextTick(() => inputEl.value?.focus())

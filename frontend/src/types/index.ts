@@ -21,6 +21,7 @@ export interface AccountOut {
   id: number
   username: string
   is_admin: boolean
+  admin_console_open?: boolean
 }
 
 // Keeps
