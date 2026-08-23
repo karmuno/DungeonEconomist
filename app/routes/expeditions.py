@@ -1099,14 +1099,21 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     decision_points = sim.get("decision_points", [])
     resolved = expedition.resolved_phases or 0
 
-    # Calculate totals from phases resolved so far + current phase
+    # Totals and deaths follow the witnessed rule: the pending phase counts
+    # only once its event is on screen (awaiting_choice). Including it while
+    # the expedition is merely in_progress leaks the pre-simulated future.
+    if expedition.result == "awaiting_choice":
+        visible_phases = resolved + 1
+    else:
+        visible_phases = resolved
+
     total_loot = 0
     total_silver = 0
     total_copper = 0
     total_xp = 0
     all_deaths = []
     for i, phase in enumerate(phases):
-        if i > resolved:
+        if i >= visible_phases:
             break
         total_loot += phase.get("loot", 0)
         total_silver += phase.get("silver", 0)
@@ -1199,7 +1206,8 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "spells_left": spells_left,
         "heals_left": heals_left,
         "turn_summaries": visible_summaries,
-        "stairs_found": sim.get("stairs_found"),
+        # Passive stairs discovery is revealed at completion, not mid-run
+        "stairs_found": None,
     }
 
 

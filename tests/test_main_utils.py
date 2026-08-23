@@ -483,6 +483,7 @@ def test_active_summary_hides_unwitnessed_turns(client: TestClient, db_session: 
         "starting_heals": 2,
         "spells_left": 0,
         "heals_left": 0,
+        "phases": [{"loot": 5, "silver": 0, "copper": 0, "xp": 100, "deaths": ["Someone"]}],
     }
     exp = Expedition(
         party_id=party.id,
@@ -507,9 +508,14 @@ def test_active_summary_hides_unwitnessed_turns(client: TestClient, db_session: 
     # Resources show the launch snapshot, never end-of-run leftovers
     assert summary["spells_left"] == 4
     assert summary["heals_left"] == 2
+    # Pending phase totals and deaths stay hidden too
+    assert summary["total_xp"] == 0
+    assert summary["total_loot"] == 0
 
     # The decision point fires: its turn (and everything before) is visible
     exp.result = "awaiting_choice"
     summary = _build_active_summary(exp, party, keep)
     assert [t["turn"] for t in summary["events_log"]] == [1, 2]
     assert summary["turn_summaries"] == ["Turn 1: fight", "Turn 2: deaths"]
+    assert summary["total_xp"] == 100
+    assert summary["total_loot"] == 5
