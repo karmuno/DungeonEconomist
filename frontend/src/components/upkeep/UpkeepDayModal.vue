@@ -237,13 +237,13 @@ function fmtXp(xp: number): string {
 
 .ledger-grid {
   display: grid;
-  grid-template-columns: 1fr 84px 84px 84px 96px;
+  grid-template-columns: minmax(0, 1fr) 72px 104px 104px 104px;
   gap: 0 8px;
 }
 
 .deferred-grid {
   display: grid;
-  grid-template-columns: 1fr 84px 84px 180px;
+  grid-template-columns: minmax(0, 1fr) 72px 104px 180px;
   gap: 0 8px;
 }
 
@@ -270,6 +270,7 @@ function fmtXp(xp: number): string {
 
 .cell.num {
   justify-content: flex-end;
+  white-space: nowrap;
 }
 
 .name-cell {

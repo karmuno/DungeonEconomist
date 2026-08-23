@@ -173,7 +173,7 @@ function fmtXp(xp: number): string {
 /* Table — no column gaps; padding lives inside cells so row rules run unbroken */
 .forecast-grid {
   display: grid;
-  grid-template-columns: 176px 76px 40px 90px 56px 80px 72px;
+  grid-template-columns: minmax(0, 1fr) 70px 40px 90px 64px 100px 100px;
 }
 
 .fcell {
@@ -183,6 +183,7 @@ function fmtXp(xp: number): string {
   justify-content: flex-end;
   border-bottom: 1px solid rgba(55, 65, 81, 0.5);
   min-width: 0;
+  white-space: nowrap;
 }
 
 .fcell.left {
