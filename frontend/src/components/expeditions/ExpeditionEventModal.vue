@@ -3,9 +3,7 @@ import { computed, ref, watch } from 'vue'
 import * as expeditionsApi from '../../api/expeditions'
 import type { ExpeditionSummaryDetail, ExpeditionMemberResult } from '../../api/expeditions'
 import { useGameTimeStore } from '../../stores/gameTime'
-import { formatCurrency } from '../../utils/currency'
 import ModalDialog from '../shared/ModalDialog.vue'
-import ProgressBar from '../shared/ProgressBar.vue'
 import ExpeditionLogTree from './ExpeditionLogTree.vue'
 import type { TurnLog } from '../../types/expeditionLog'
 
@@ -83,17 +81,30 @@ const badgeTone = computed(() => {
 interface DamageTotals {
   dealt: Map<string, number>
   taken: Map<string, number>
+  casts: Map<string, number>
+  healed: Map<string, number>
 }
 
 function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
   const dealt = new Map<string, number>()
   const taken = new Map<string, number>()
+  const casts = new Map<string, number>()
+  const healed = new Map<string, number>()
   for (const turn of turns) {
     for (const ev of turn.events ?? []) {
       for (const v of ev.trap_victims ?? []) {
         if (names.has(v.name)) taken.set(v.name, (taken.get(v.name) ?? 0) + v.damage)
       }
+      for (const h of ev.combat?.healed_adventurers ?? []) {
+        if (names.has(h.name)) healed.set(h.name, (healed.get(h.name) ?? 0) + h.hp)
+      }
       for (const r of ev.combat?.round_log ?? []) {
+        if (r.event === 'spell' && r.caster && names.has(r.caster)) {
+          casts.set(r.caster, (casts.get(r.caster) ?? 0) + 1)
+        }
+        for (const sc of r.spell_casts ?? []) {
+          if (names.has(sc.caster)) casts.set(sc.caster, (casts.get(sc.caster) ?? 0) + 1)
+        }
         for (const a of [...(r.halfling_pre_round ?? []), ...(r.attacks ?? [])]) {
           if (!a.hit) continue
           if (names.has(a.attacker)) dealt.set(a.attacker, (dealt.get(a.attacker) ?? 0) + a.damage)
@@ -102,7 +113,7 @@ function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
       }
     }
   }
-  return { dealt, taken }
+  return { dealt, taken, casts, healed }
 }
 
 const memberNames = computed(() => summary.value?.member_results.map(m => m.name) ?? [])
@@ -152,17 +163,21 @@ interface LedgerRow {
   member: ExpeditionMemberResult
   dealt: number
   taken: number
+  casts: number
+  healed: number
 }
 
 const ledgerRows = computed<LedgerRow[]>(() => {
   const s = summary.value
   if (!s) return []
   const names = new Set(memberNames.value)
-  const { dealt, taken } = tallyTurns(turns.value, names)
+  const { dealt, taken, casts, healed } = tallyTurns(turns.value, names)
   return s.member_results.map(m => ({
     member: m,
     dealt: dealt.get(m.name) ?? 0,
     taken: taken.get(m.name) ?? 0,
+    casts: casts.get(m.name) ?? 0,
+    healed: healed.get(m.name) ?? 0,
   }))
 })
 
@@ -174,13 +189,15 @@ const ledgerTotals = computed(() => {
     atHalf,
     dealt: rows.reduce((sum, r) => sum + r.dealt, 0),
     taken: rows.reduce((sum, r) => sum + r.taken, 0),
+    casts: rows.reduce((sum, r) => sum + r.casts, 0),
+    healed: rows.reduce((sum, r) => sum + r.healed, 0),
   }
 })
 
-const totalKills = computed(() =>
-  turns.value.reduce((sum, t) =>
-    sum + t.events.reduce((s, ev) => s + (ev.combat?.monsters_killed ?? 0), 0), 0)
-)
+function hpPct(member: ExpeditionMemberResult): number {
+  if (!member.alive || member.hp_max <= 0) return 0
+  return Math.min(100, Math.round((member.hp_current / member.hp_max) * 100))
+}
 
 function hpColor(member: ExpeditionMemberResult): string {
   if (!member.alive) return '#ef4444'
@@ -231,12 +248,12 @@ function isWounded(member: ExpeditionMemberResult): boolean {
                 </div>
                 <div class="cell num dmg-cell">−{{ row.damage }}</div>
                 <div class="cell num hp-cell">
-                  <ProgressBar
-                    :value="row.member.hp_current"
-                    :max="row.member.hp_max"
-                    :color="hpColor(row.member)"
-                    class="hp-bar"
-                  />
+                  <div class="hp-track">
+                    <div
+                      class="hp-fill"
+                      :style="{ width: hpPct(row.member) + '%', backgroundColor: hpColor(row.member) }"
+                    ></div>
+                  </div>
                   <span class="hp-label" :style="{ color: hpColor(row.member) }">
                     {{ row.member.hp_current }}/{{ row.member.hp_max }}
                   </span>
@@ -259,47 +276,40 @@ function isWounded(member: ExpeditionMemberResult): boolean {
             <div class="grid-head">HP</div>
             <div class="grid-head num">Dmg Dealt</div>
             <div class="grid-head num">Dmg Taken</div>
-            <div class="grid-head num">Spells Left</div>
-            <div class="grid-head num">Cures Left</div>
+            <div class="grid-head num">Spells Cast</div>
+            <div class="grid-head num">HP Healed</div>
             <template v-for="row in ledgerRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
                 <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
                 <span class="member-class">{{ row.member.adventurer_class }}</span>
               </div>
               <div class="cell hp-cell">
-                <template v-if="row.member.alive">
-                  <ProgressBar
-                    :value="row.member.hp_current"
-                    :max="row.member.hp_max"
-                    :color="hpColor(row.member)"
-                    class="hp-bar"
-                  />
-                  <span class="hp-label" :style="{ color: hpColor(row.member) }">
-                    {{ row.member.hp_current }}/{{ row.member.hp_max }}
-                  </span>
-                </template>
-                <span v-else class="hp-label dead-label">0/{{ row.member.hp_max }}</span>
+                <div class="hp-track">
+                  <div
+                    class="hp-fill"
+                    :style="{ width: hpPct(row.member) + '%', backgroundColor: hpColor(row.member) }"
+                  ></div>
+                </div>
+                <span class="hp-label" :style="{ color: hpColor(row.member) }">
+                  {{ row.member.alive ? row.member.hp_current : 0 }}/{{ row.member.hp_max }}
+                </span>
               </div>
               <div class="cell num dealt-cell">{{ row.dealt || '—' }}</div>
               <div class="cell num taken-cell">{{ row.taken || '—' }}</div>
-              <div class="cell num spells-cell">—</div>
-              <div class="cell num cures-cell">—</div>
+              <div class="cell num spells-cell">{{ row.casts || '—' }}</div>
+              <div class="cell num cures-cell">{{ row.healed || '—' }}</div>
             </template>
             <!-- Totals row -->
             <div class="cell totals-cell totals-label">Expedition total</div>
             <div class="cell totals-cell muted">{{ ledgerTotals.atHalf }} at half or less</div>
             <div class="cell totals-cell num dealt-cell">{{ ledgerTotals.dealt }}</div>
             <div class="cell totals-cell num taken-cell">{{ ledgerTotals.taken }}</div>
-            <div class="cell totals-cell num spells-cell">{{ summary.spells_left ?? '—' }}</div>
-            <div class="cell totals-cell num cures-cell">{{ summary.heals_left ?? '—' }}</div>
+            <div class="cell totals-cell num spells-cell">{{ ledgerTotals.casts }}</div>
+            <div class="cell totals-cell num cures-cell">{{ ledgerTotals.healed }}</div>
           </div>
 
-          <div class="banked-line">
-            <span class="muted">Banked so far</span>
-            <span class="banked-gold">{{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
-            <span class="banked-xp">{{ summary.total_xp }} XP</span>
-            <span class="banked-kills">{{ totalKills }} kills</span>
-            <span v-if="summary.stairs_found" class="banked-stairs">Stairs found!</span>
+          <div class="ledger-footer">
+            <span v-if="summary.stairs_found" class="stairs-note">Stairs found!</span>
             <button class="log-toggle" @click="logOpen = !logOpen">
               Expedition Log {{ logOpen ? '▴' : '▾' }}
             </button>
@@ -315,6 +325,13 @@ function isWounded(member: ExpeditionMemberResult): boolean {
           />
         </div>
       </template>
+
+      <!-- Party resources — the read that informs the decision -->
+      <div v-if="summary && !loading && (summary.spells_left !== undefined || summary.heals_left !== undefined)" class="resources-line">
+        <span class="muted">Party resources</span>
+        <span v-if="summary.spells_left !== undefined" class="res-spells">{{ summary.spells_left }} {{ summary.spells_left === 1 ? 'spell' : 'spells' }} left</span>
+        <span v-if="summary.heals_left !== undefined" class="res-cures">{{ summary.heals_left }} {{ summary.heals_left === 1 ? 'cure' : 'cures' }} left</span>
+      </div>
 
       <!-- 5. Decision block -->
       <div v-if="eventType === 'tpk'" class="tpk-actions">
@@ -510,23 +527,23 @@ function isWounded(member: ExpeditionMemberResult): boolean {
   gap: 6px;
 }
 
-.hp-bar {
+.hp-track {
   flex: 1;
-}
-
-.hp-cell :deep(.progress-bar) {
   height: 6px;
   background: #0b1220;
   border-radius: 3px;
+  overflow: hidden;
+}
+
+.hp-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
 .hp-label {
   font-size: 11px;
   white-space: nowrap;
-}
-
-.dead-label {
-  color: #ef4444;
 }
 
 .untouched-line {
@@ -615,31 +632,34 @@ function isWounded(member: ExpeditionMemberResult): boolean {
   color: #6b7280;
 }
 
-/* Banked line */
-.banked-line {
+/* Ledger footer */
+.ledger-footer {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  flex-wrap: wrap;
   font-size: 12px;
   margin-top: 8px;
 }
 
-.banked-gold {
+.stairs-note {
   color: #fbbf24;
+  font-weight: 700;
 }
 
-.banked-xp {
+/* Party resources */
+.resources-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.res-spells {
   color: #60a5fa;
 }
 
-.banked-kills {
-  color: #4ade80;
-}
-
-.banked-stairs {
-  color: #fbbf24;
-  font-weight: 700;
+.res-cures {
+  color: #a78bfa;
 }
 
 .log-toggle {

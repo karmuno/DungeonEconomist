@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDashboardStats } from '../api/game'
+import * as expeditionsApi from '../api/expeditions'
 import * as partiesApi from '../api/parties'
 import * as buildingsApi from '../api/buildings'
 import * as adventurersApi from '../api/adventurers'
@@ -66,6 +67,23 @@ onUnmounted(() => {
 function progressPct(exp: DashboardStats['active_expeditions'][0]): number {
   if (exp.duration_days <= 0) return 100
   return Math.min(100, Math.round((exp.days_elapsed / exp.duration_days) * 100))
+}
+
+// Clicking the Decision badge re-opens the pending choice popup via the
+// SidePanel's expedition-choice queue.
+async function openDecision(expeditionId: number) {
+  try {
+    const pending = await expeditionsApi.getPending(expeditionId)
+    if (!pending.pending_event) return
+    eventBus.emit('game-events', [{
+      type: 'expedition_choice',
+      message: pending.pending_event.message,
+      expedition_id: expeditionId,
+      event_subtype: pending.pending_event.type,
+    }])
+  } catch {
+    notifications.add('Failed to load the pending decision', 'error')
+  }
 }
 
 function partyStatusClass(status: string): string {
@@ -259,7 +277,12 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
             <div class="active-exp-info">
               <span class="active-exp-party">{{ exp.party_name }}</span>
               <span class="active-exp-meta">Depth {{ exp.dungeon_level }}</span>
-              <span v-if="exp.result === 'awaiting_choice'" class="badge badge-warning">Decision</span>
+              <span
+                v-if="exp.result === 'awaiting_choice'"
+                class="badge badge-warning decision-badge"
+                title="Open the pending decision"
+                @click.stop="openDecision(exp.id)"
+              >Decision</span>
             </div>
             <div class="active-exp-progress">
               <div class="progress-track">
@@ -550,6 +573,8 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 }
 
 .badge-warning { background: rgba(241, 196, 15, 0.15); color: #fbbf24; }
+.decision-badge { cursor: pointer; }
+.decision-badge:hover { background: rgba(241, 196, 15, 0.3); }
 
 /* Auto-delve */
 .auto-delve-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--border-color); margin-top: 6px; }
