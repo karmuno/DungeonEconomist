@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import * as expeditionsApi from '../../api/expeditions'
 import type { ExpeditionSummaryDetail, ExpeditionMemberResult } from '../../api/expeditions'
+import { useGameTimeStore } from '../../stores/gameTime'
 import { formatCurrency } from '../../utils/currency'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ProgressBar from '../shared/ProgressBar.vue'
+import ExpeditionLogTree from './ExpeditionLogTree.vue'
+import type { TurnLog } from '../../types/expeditionLog'
 
 const props = defineProps<{
   isOpen: boolean
@@ -19,14 +22,18 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const gameTime = useGameTimeStore()
+
 const loading = ref(false)
 const summary = ref<ExpeditionSummaryDetail | null>(null)
+const logOpen = ref(false)
 
 // Fetch expedition summary whenever the modal opens or the event changes
 watch([() => props.isOpen, () => props.eventMessage], async ([open]) => {
   if (open && props.expeditionId) {
     loading.value = true
     summary.value = null
+    logOpen.value = false
     try {
       summary.value = await expeditionsApi.getSummary(props.expeditionId)
     } catch {
@@ -37,476 +44,691 @@ watch([() => props.isOpen, () => props.eventMessage], async ([open]) => {
   }
 })
 
-function pluralMonster(name: string, count: number): string {
-  if (count <= 1) return name
-  if (name.endsWith('f')) return `${count} ${name.slice(0, -1)}ves`
-  if (name.endsWith('fe')) return `${count} ${name.slice(0, -2)}ves`
-  return `${count} ${name}s`
+// --- Header meta -------------------------------------------------------------
+
+const daysElapsed = computed(() => {
+  const s = summary.value
+  if (!s) return 1
+  const elapsed = gameTime.currentDay - s.start_day + 1
+  return Math.min(Math.max(elapsed, 1), s.duration_days)
+})
+
+const headerMeta = computed(() => {
+  const s = summary.value
+  if (!s) return ''
+  const parts = [s.party_name]
+  const place = [s.dungeon_name, s.dungeon_level ? `Depth ${s.dungeon_level}` : null]
+    .filter(Boolean).join(', ')
+  if (place) parts.push(place)
+  parts.push(`Day ${daysElapsed.value} of ${s.duration_days}`)
+  return parts.join(' · ')
+})
+
+// --- Event badge -------------------------------------------------------------
+
+const badgeLabel = computed(() => {
+  const t = props.eventType || 'event'
+  return t.replace(/_/g, ' ').toUpperCase()
+})
+
+const badgeTone = computed(() => {
+  const t = props.eventType
+  if (t === 'tpk' || t === 'death') return 'badge-red'
+  if (t === 'treasure' || t === 'stairs' || t === 'big_haul') return 'badge-green'
+  return 'badge-gold'
+})
+
+// --- Damage bookkeeping ------------------------------------------------------
+
+interface DamageTotals {
+  dealt: Map<string, number>
+  taken: Map<string, number>
 }
 
-function hpColor(member: ExpeditionMemberResult): string {
-  if (!member.alive) return 'var(--accent-red, #e74c3c)'
-  const pct = member.hp_max > 0 ? member.hp_current / member.hp_max : 0
-  if (pct > 0.5) return 'var(--accent-green, #4ade80)'
-  if (pct > 0.25) return '#fbbf24'
-  return 'var(--accent-red, #e74c3c)'
-}
-
-interface TurnEvent {
-  type: string
-  combat?: {
-    outcome: string
-    monster_type: string
-    monster_count?: number
-    rounds_fought?: number
-    hp_lost: number
-    xp_earned: number
-    monsters_killed?: number
-    monsters_fled?: number
-    party_fled?: boolean
-    round_log?: unknown[]
-    healed_adventurers?: Array<{ name: string; hp: number }>
-  }
-  treasure?: { gold: number; silver: number; copper: number; xp_value: number; name: string }
-  trap_damage?: number
-  trap_victims?: Array<{ name: string; damage: number }>
-}
-
-interface TurnLog {
-  turn: number
-  deaths?: string[]
-  events: TurnEvent[]
-}
-
-// Get the current (latest) turn from events_log
-function getCurrentTurn(): TurnLog | null {
-  if (!summary.value?.events_log) return null
-  const log = summary.value.events_log as TurnLog[]
-  if (log.length === 0) return null
-  // Return last turn with activity
-  for (let i = log.length - 1; i >= 0; i--) {
-    if ((log[i].events?.length > 0) || (log[i].deaths?.length ?? 0) > 0) {
-      return log[i]
+function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
+  const dealt = new Map<string, number>()
+  const taken = new Map<string, number>()
+  for (const turn of turns) {
+    for (const ev of turn.events ?? []) {
+      for (const v of ev.trap_victims ?? []) {
+        if (names.has(v.name)) taken.set(v.name, (taken.get(v.name) ?? 0) + v.damage)
+      }
+      for (const r of ev.combat?.round_log ?? []) {
+        for (const a of [...(r.halfling_pre_round ?? []), ...(r.attacks ?? [])]) {
+          if (!a.hit) continue
+          if (names.has(a.attacker)) dealt.set(a.attacker, (dealt.get(a.attacker) ?? 0) + a.damage)
+          if (names.has(a.target)) taken.set(a.target, (taken.get(a.target) ?? 0) + a.damage)
+        }
+      }
     }
   }
-  return log[log.length - 1]
+  return { dealt, taken }
 }
 
-// Get turn summaries up to but not including the current turn
-function getPastSummaries(): string[] {
-  if (!summary.value?.turn_summaries) return []
-  const all = summary.value.turn_summaries
-  // Show all except the last non-empty one (which is the "current turn" shown in detail)
-  if (all.length <= 1) return []
-  return all.slice(0, -1)
+const memberNames = computed(() => summary.value?.member_results.map(m => m.name) ?? [])
+
+const turns = computed<TurnLog[]>(() => {
+  const log = (summary.value?.events_log ?? []) as TurnLog[]
+  return log.filter(t => (t.events?.length ?? 0) > 0 || (t.deaths?.length ?? 0) > 0)
+})
+
+const currentTurn = computed<TurnLog | null>(() =>
+  turns.value.length ? turns.value[turns.value.length - 1] : null
+)
+
+// --- "This Event" table ------------------------------------------------------
+
+interface TouchedRow {
+  member: ExpeditionMemberResult
+  damage: number
+}
+
+const touchedRows = computed<TouchedRow[]>(() => {
+  const s = summary.value
+  const turn = currentTurn.value
+  if (!s || !turn) return []
+  const names = new Set(memberNames.value)
+  const { taken } = tallyTurns([turn], names)
+  return s.member_results
+    .filter(m => (taken.get(m.name) ?? 0) > 0)
+    .map(m => ({ member: m, damage: taken.get(m.name)! }))
+})
+
+const untouchedLine = computed(() => {
+  const s = summary.value
+  if (!s || touchedRows.value.length === 0) return ''
+  const touched = new Set(touchedRows.value.map(r => r.member.name))
+  const rest = s.member_results.filter(m => !touched.has(m.name)).map(m => m.name)
+  if (rest.length === 0) return ''
+  const joined = rest.length === 1
+    ? rest[0]
+    : `${rest.slice(0, -1).join(', ')} and ${rest[rest.length - 1]}`
+  return `${joined} ${rest.length === 1 ? 'was' : 'were'} untouched.`
+})
+
+// --- "Expedition So Far" ledger ----------------------------------------------
+
+interface LedgerRow {
+  member: ExpeditionMemberResult
+  dealt: number
+  taken: number
+}
+
+const ledgerRows = computed<LedgerRow[]>(() => {
+  const s = summary.value
+  if (!s) return []
+  const names = new Set(memberNames.value)
+  const { dealt, taken } = tallyTurns(turns.value, names)
+  return s.member_results.map(m => ({
+    member: m,
+    dealt: dealt.get(m.name) ?? 0,
+    taken: taken.get(m.name) ?? 0,
+  }))
+})
+
+const ledgerTotals = computed(() => {
+  const rows = ledgerRows.value
+  const atHalf = rows.filter(r => r.member.alive && r.member.hp_max > 0
+    && r.member.hp_current / r.member.hp_max <= 0.5).length
+  return {
+    atHalf,
+    dealt: rows.reduce((sum, r) => sum + r.dealt, 0),
+    taken: rows.reduce((sum, r) => sum + r.taken, 0),
+  }
+})
+
+const totalKills = computed(() =>
+  turns.value.reduce((sum, t) =>
+    sum + t.events.reduce((s, ev) => s + (ev.combat?.monsters_killed ?? 0), 0), 0)
+)
+
+function hpColor(member: ExpeditionMemberResult): string {
+  if (!member.alive) return '#ef4444'
+  const pct = member.hp_max > 0 ? member.hp_current / member.hp_max : 0
+  if (pct > 0.5) return '#4ade80'
+  if (pct > 0.25) return '#fbbf24'
+  return '#ef4444'
+}
+
+function isWounded(member: ExpeditionMemberResult): boolean {
+  return member.alive && member.hp_max > 0 && member.hp_current / member.hp_max <= 0.5
 }
 </script>
 
 <template>
-  <ModalDialog
-    :is-open="isOpen"
-    title="Expedition Event"
-    @close="emit('close')"
-  >
+  <ModalDialog :is-open="isOpen" title="Expedition Event" width="760px" @close="emit('close')">
+    <template #header>
+      <div class="em-header">
+        <h3 class="em-title">Expedition Event</h3>
+        <span v-if="headerMeta" class="em-meta">{{ headerMeta }}</span>
+      </div>
+    </template>
+
     <div class="event-modal">
-      <!-- Event message -->
-      <p class="event-message">{{ eventMessage }}</p>
+      <!-- 1. Event line -->
+      <div class="event-line">
+        <span :class="['event-badge', badgeTone]">{{ badgeLabel }}</span>
+        <p class="event-narrative">{{ eventMessage }}</p>
+      </div>
 
       <!-- Loading -->
       <div v-if="loading" class="loading-text">Loading expedition data...</div>
 
       <template v-if="summary && !loading">
-        <!-- Party Status -->
+        <!-- 2. This Event -->
         <div class="section">
-          <h4 class="section-title">Party Status</h4>
-          <div class="party-roster">
-            <div
-              v-for="member in summary.member_results"
-              :key="member.name"
-              class="member-row"
-              :class="{ dead: !member.alive }"
-            >
-              <span class="member-name">{{ member.name }}</span>
-              <span class="member-class">{{ member.adventurer_class }}</span>
-              <template v-if="member.alive">
-                <ProgressBar
-                  :value="member.hp_current"
-                  :max="member.hp_max"
-                  :color="hpColor(member)"
-                  class="member-hp"
-                />
+          <div class="section-label">This Event</div>
+          <template v-if="touchedRows.length > 0">
+            <div class="this-event-grid">
+              <div class="grid-head">Party</div>
+              <div class="grid-head num">Dmg</div>
+              <div class="grid-head num">HP after</div>
+              <template v-for="row in touchedRows" :key="row.member.name">
+                <div class="cell name-cell">
+                  <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
+                  <span class="member-class">{{ row.member.adventurer_class }}</span>
+                  <span v-if="isWounded(row.member)" class="wounded-tag">wounded</span>
+                </div>
+                <div class="cell num dmg-cell">−{{ row.damage }}</div>
+                <div class="cell num hp-cell">
+                  <ProgressBar
+                    :value="row.member.hp_current"
+                    :max="row.member.hp_max"
+                    :color="hpColor(row.member)"
+                    class="hp-bar"
+                  />
+                  <span class="hp-label" :style="{ color: hpColor(row.member) }">
+                    {{ row.member.hp_current }}/{{ row.member.hp_max }}
+                  </span>
+                </div>
               </template>
-              <span v-else class="dead-badge">DEAD</span>
             </div>
-          </div>
+            <div v-if="untouchedLine" class="untouched-line">{{ untouchedLine }}</div>
+          </template>
+          <div v-else class="untouched-line">No one was harmed.</div>
         </div>
 
-        <!-- Turn Log (collapsed) -->
-        <details v-if="getPastSummaries().length > 0" class="section turn-log-details">
-          <summary class="section-title clickable">
-            Expedition Log ({{ getPastSummaries().length }} previous {{ getPastSummaries().length === 1 ? 'turn' : 'turns' }})
-          </summary>
-          <div class="turn-log">
-            <div
-              v-for="(line, idx) in getPastSummaries()"
-              :key="idx"
-              class="turn-line"
-            >
-              {{ line }}
-            </div>
+        <!-- 3. Expedition So Far -->
+        <div class="section ledger-section">
+          <div class="ledger-label-row">
+            <span class="section-label">Expedition So Far</span>
+            <span class="ledger-days">Days 1–{{ daysElapsed }}</span>
           </div>
-        </details>
-
-        <!-- Current Turn Detail -->
-        <div v-if="getCurrentTurn()" class="section">
-          <h4 class="section-title">This Turn</h4>
-          <div class="current-turn">
-            <template v-for="(event, idx) in getCurrentTurn()!.events" :key="idx">
-              <div v-if="event.combat" class="turn-detail">
-                <span class="detail-badge combat">Combat</span>
-                <span>
-                  {{ pluralMonster(event.combat.monster_type, event.combat.monster_count ?? 1) }}
-                  — <strong>{{ event.combat.outcome }}</strong>
-                </span>
-                <span class="detail-stat">{{ event.combat.hp_lost }} HP lost</span>
-                <span class="detail-stat xp">+{{ event.combat.xp_earned }} XP</span>
-                <span v-if="event.combat.monsters_killed" class="detail-stat killed">{{ event.combat.monsters_killed }} killed</span>
-                <span v-if="event.combat.monsters_fled" class="detail-stat fled">{{ event.combat.monsters_fled }} fled</span>
-                <span v-if="event.combat.party_fled" class="detail-stat fled">party fled</span>
-                <template v-if="event.combat.healed_adventurers?.length">
-                  <div v-for="(h, hi) in event.combat.healed_adventurers" :key="hi" class="heal-line">
-                    ✚ {{ h.name }} healed for {{ h.hp }} HP
-                  </div>
-                </template>
+          <div class="ledger-grid">
+            <div class="grid-head">Adventurer</div>
+            <div class="grid-head">HP</div>
+            <div class="grid-head num">Dmg Dealt</div>
+            <div class="grid-head num">Dmg Taken</div>
+            <div class="grid-head num">Spells Left</div>
+            <div class="grid-head num">Cures Left</div>
+            <template v-for="row in ledgerRows" :key="row.member.name">
+              <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
+                <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
+                <span class="member-class">{{ row.member.adventurer_class }}</span>
               </div>
-              <div v-else-if="event.treasure" class="turn-detail">
-                <span class="detail-badge treasure">Treasure</span>
-                <span class="text-gold">
-                  Found {{ formatCurrency(event.treasure.gold, event.treasure.silver ?? 0, event.treasure.copper ?? 0) }}
-                </span>
-              </div>
-              <div v-else-if="event.trap_damage" class="turn-detail">
-                <span class="detail-badge trap">Trap</span>
-                <span>{{ event.trap_damage }} total damage</span>
-                <template v-if="event.trap_victims?.length">
-                  <span class="trap-victims">
-                    ({{ event.trap_victims.map(v => `${v.name} ${v.damage}`).join(', ') }})
+              <div class="cell hp-cell">
+                <template v-if="row.member.alive">
+                  <ProgressBar
+                    :value="row.member.hp_current"
+                    :max="row.member.hp_max"
+                    :color="hpColor(row.member)"
+                    class="hp-bar"
+                  />
+                  <span class="hp-label" :style="{ color: hpColor(row.member) }">
+                    {{ row.member.hp_current }}/{{ row.member.hp_max }}
                   </span>
                 </template>
+                <span v-else class="hp-label dead-label">0/{{ row.member.hp_max }}</span>
               </div>
-              <div v-else class="turn-detail">
-                <span class="detail-badge">{{ event.type }}</span>
-              </div>
+              <div class="cell num dealt-cell">{{ row.dealt || '—' }}</div>
+              <div class="cell num taken-cell">{{ row.taken || '—' }}</div>
+              <div class="cell num spells-cell">—</div>
+              <div class="cell num cures-cell">—</div>
             </template>
-            <div
-              v-for="dead in (getCurrentTurn()!.deaths || [])"
-              :key="dead"
-              class="turn-detail death-line"
-            >
-              <span class="detail-badge death">Death</span>
-              <strong class="adv-dead">{{ dead }}</strong> has fallen
-            </div>
+            <!-- Totals row -->
+            <div class="cell totals-cell totals-label">Expedition total</div>
+            <div class="cell totals-cell muted">{{ ledgerTotals.atHalf }} at half or less</div>
+            <div class="cell totals-cell num dealt-cell">{{ ledgerTotals.dealt }}</div>
+            <div class="cell totals-cell num taken-cell">{{ ledgerTotals.taken }}</div>
+            <div class="cell totals-cell num spells-cell">{{ summary.spells_left ?? '—' }}</div>
+            <div class="cell totals-cell num cures-cell">{{ summary.heals_left ?? '—' }}</div>
           </div>
-        </div>
 
-        <!-- Totals -->
-        <div class="section totals">
-          <span class="text-gold">Loot: {{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
-          <span>XP: {{ summary.total_xp }}</span>
-          <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
-          <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
-          <span v-if="summary.stairs_found" class="text-stairs">Stairs found!</span>
+          <div class="banked-line">
+            <span class="muted">Banked so far</span>
+            <span class="banked-gold">{{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
+            <span class="banked-xp">{{ summary.total_xp }} XP</span>
+            <span class="banked-kills">{{ totalKills }} kills</span>
+            <span v-if="summary.stairs_found" class="banked-stairs">Stairs found!</span>
+            <button class="log-toggle" @click="logOpen = !logOpen">
+              Expedition Log {{ logOpen ? '▴' : '▾' }}
+            </button>
+          </div>
+
+          <!-- 4. Expedition Log -->
+          <ExpeditionLogTree
+            v-if="logOpen"
+            :turns="turns"
+            :member-names="memberNames"
+            :mark-current="true"
+            class="log-block"
+          />
         </div>
       </template>
 
-      <!-- Action Buttons -->
-      <div v-if="eventType === 'tpk'" class="action-buttons">
-        <button
-          class="btn btn-secondary"
-          @click="emit('close')"
-        >
-          Rest in Peace
-        </button>
+      <!-- 5. Decision block -->
+      <div v-if="eventType === 'tpk'" class="tpk-actions">
+        <button class="btn btn-secondary" @click="emit('close')">Rest in Peace</button>
       </div>
-      <div v-else class="action-buttons">
-        <button
-          class="btn btn-primary"
-          :disabled="choosing"
-          @click="emit('choose', 'press_on')"
-        >
-          Press On
-        </button>
-        <button
-          class="btn btn-secondary"
-          :disabled="choosing"
-          @click="emit('choose', 'retreat')"
-        >
-          Retreat
-        </button>
-        <button
-          class="btn btn-secondary"
-          :disabled="choosing"
-          @click="emit('choose', 'auto')"
-        >
-          You Decide
-        </button>
+      <div v-else class="decision-block">
+        <div class="decision-col">
+          <button
+            class="decide-btn primary"
+            :disabled="choosing"
+            title="Continue into the dungeon."
+            @click="emit('choose', 'press_on')"
+          >
+            Press On
+          </button>
+          <p class="decide-explain">Continue into the dungeon.</p>
+        </div>
+        <div class="decision-col">
+          <button
+            class="decide-btn"
+            :disabled="choosing"
+            title="Return early."
+            @click="emit('choose', 'retreat')"
+          >
+            Retreat
+          </button>
+          <p class="decide-explain">Return early.</p>
+        </div>
+        <div class="decision-col">
+          <button
+            class="decide-btn auto-hover"
+            :disabled="choosing"
+            title="The party decides whether to press on or retreat."
+            @click="emit('choose', 'auto')"
+          >
+            You Decide
+          </button>
+          <p class="decide-explain">The party decides whether to press on or retreat.</p>
+        </div>
       </div>
-      <button
-        v-if="eventType !== 'tpk'"
-        class="btn btn-sm view-details-link"
-        @click="emit('close')"
-      >
-        View Full Expedition Details
-      </button>
     </div>
   </ModalDialog>
 </template>
 
 <style scoped>
-.adv-dead {
-  text-decoration: line-through;
-  opacity: 0.6;
+.em-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.em-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #4ade80;
+  margin: 0;
+}
+
+.em-meta {
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .event-modal {
-  padding: 0.25rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0;
 }
 
-.event-message {
-  font-size: 1rem;
-  color: var(--text-secondary);
+/* 1. Event line */
+.event-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.event-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.badge-gold {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.badge-green {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.badge-red {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.event-narrative {
+  font-size: 15px;
   line-height: 1.5;
-  margin-bottom: 0.75rem;
-  text-align: center;
-  font-weight: 600;
+  color: #e5e7eb;
+  margin: 0;
+  text-wrap: pretty;
 }
 
 .loading-text {
   text-align: center;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  padding: 1rem 0;
+  color: #6b7280;
+  font-size: 12px;
+  padding: 12px 0;
 }
 
-.section {
-  margin-bottom: 0.75rem;
-}
-
-.section-title {
+/* Sections */
+.section-label {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-  margin: 0 0 4px;
+  letter-spacing: 0.12em;
+  color: #6b7280;
   font-weight: 600;
 }
 
-.section-title.clickable {
-  cursor: pointer;
+/* 2. This Event */
+.this-event-grid {
+  display: grid;
+  grid-template-columns: 1fr 52px 132px;
+  gap: 8px;
+  margin-top: 6px;
 }
 
-.section-title.clickable:hover {
-  color: var(--text-primary);
+.grid-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #374151;
 }
 
-/* Party Roster */
-.party-roster {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.grid-head.num {
+  text-align: right;
 }
 
-.member-row {
+.cell {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 3px;
-  background: var(--bg-secondary);
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+  min-width: 0;
 }
 
-.member-row.dead {
-  opacity: 0.5;
+.cell.num {
+  justify-content: flex-end;
+}
+
+.name-cell {
+  gap: 6px;
 }
 
 .member-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  min-width: 90px;
+  font-size: 13px;
+  color: #e5e7eb;
 }
 
 .member-class {
-  color: var(--text-muted);
-  font-size: 11px;
-  min-width: 70px;
-}
-
-.member-hp {
-  width: 140px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.dead-badge {
   font-size: 10px;
-  font-weight: 700;
-  color: var(--accent-red, #e74c3c);
-  background: rgba(231, 76, 60, 0.15);
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin-left: auto;
+  color: #6b7280;
 }
 
-/* Turn Log */
-.turn-log-details {
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  padding: 6px 8px;
-  background: var(--bg-secondary);
+.wounded-tag {
+  font-size: 10px;
+  color: #ef4444;
 }
 
-.turn-log {
-  max-height: 150px;
-  overflow-y: auto;
-  margin-top: 4px;
+.dmg-cell {
+  font-size: 13px;
+  color: #ef4444;
 }
 
-.turn-line {
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding: 1px 0;
-  font-family: var(--font-mono);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.turn-line:last-child {
-  border-bottom: none;
-}
-
-/* Current Turn */
-.current-turn {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.turn-detail {
-  display: flex;
-  align-items: center;
+.hp-cell {
   gap: 6px;
+}
+
+.hp-bar {
+  flex: 1;
+}
+
+.hp-cell :deep(.progress-bar) {
+  height: 6px;
+  background: #0b1220;
+  border-radius: 3px;
+}
+
+.hp-label {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dead-label {
+  color: #ef4444;
+}
+
+.untouched-line {
+  font-size: 11.5px;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+/* 3. Ledger */
+.ledger-section {
+  border-top: 1px solid #374151;
+  padding-top: 14px;
+}
+
+.ledger-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.ledger-days {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.ledger-grid {
+  display: grid;
+  grid-template-columns: 1fr 106px 78px 78px 78px 78px;
+  gap: 6px 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.ledger-grid .cell {
+  padding: 5px 0;
+}
+
+.row-dead {
+  opacity: 0.6;
+}
+
+.adv-dead {
+  text-decoration: line-through;
+  opacity: 0.7;
+  color: #ef4444;
+}
+
+.dealt-cell {
+  font-size: 13px;
+  color: #4ade80;
+}
+
+.taken-cell {
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.spells-cell {
+  font-size: 13px;
+  color: #60a5fa;
+}
+
+.cures-cell {
+  font-size: 13px;
+  color: #a78bfa;
+}
+
+.totals-cell {
+  border-bottom: none;
+  padding-top: 7px;
+}
+
+.totals-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+
+.totals-cell.num {
+  font-size: 12px;
+}
+
+.muted {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* Banked line */
+.banked-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   flex-wrap: wrap;
   font-size: 12px;
-  padding: 3px 4px;
-  border-radius: 3px;
-  background: var(--bg-secondary);
+  margin-top: 8px;
 }
 
-.detail-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 3px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+.banked-gold {
+  color: #fbbf24;
 }
 
-.detail-badge.combat {
-  background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
+.banked-xp {
+  color: #60a5fa;
 }
 
-.detail-badge.treasure {
-  background: rgba(74, 222, 128, 0.15);
+.banked-kills {
   color: #4ade80;
 }
 
-.detail-badge.trap {
-  background: rgba(241, 196, 15, 0.15);
-  color: #f1c40f;
-}
-
-.detail-badge.death {
-  background: rgba(231, 76, 60, 0.25);
-  color: #e74c3c;
-}
-
-.detail-stat {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.detail-stat.xp {
-  color: var(--accent-blue, #60a5fa);
-}
-
-.detail-stat.killed {
-  color: #e74c3c;
-}
-
-.detail-stat.fled {
-  color: #f1c40f;
-}
-
-.death-line {
-  color: var(--accent-red, #e74c3c);
-}
-
-.trap-victims {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.heal-line {
-  font-size: 11px;
-  color: #4ade80;
-  padding: 1px 0 1px 8px;
-}
-
-/* Totals */
-.totals {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  padding: 4px 6px;
-  background: var(--bg-secondary);
-  border-radius: 3px;
-}
-
-.text-gold {
-  color: var(--accent-green, #4ade80);
-}
-
-.text-info {
-  color: var(--accent-blue, #60a5fa);
-}
-
-.text-success {
-  color: #4ade80;
-}
-
-.text-stairs {
+.banked-stairs {
   color: #fbbf24;
   font-weight: 700;
 }
 
-/* Action Buttons */
-.action-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  margin: 0.75rem 0;
-}
-
-.action-buttons .btn {
-  min-width: 110px;
-}
-
-.view-details-link {
-  display: block;
-  margin: 0 auto;
-  color: var(--text-muted);
+.log-toggle {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #6b7280;
   text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.log-toggle:hover {
+  color: #e5e7eb;
+}
+
+.log-block {
+  margin-top: 8px;
+}
+
+/* 5. Decision block */
+.decision-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  border-top: 1px solid #374151;
+  padding-top: 14px;
+}
+
+.decision-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.decide-btn {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 12px;
+  border-radius: 6px;
+  text-align: center;
+  width: 100%;
+  cursor: pointer;
+  background: none;
+  border: 1px solid #4b5563;
+  color: #d1d5db;
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.decide-btn:hover:not(:disabled) {
+  border-color: #4ade80;
+  color: #e5e7eb;
+}
+
+.decide-btn.auto-hover:hover:not(:disabled) {
+  border-color: #60a5fa;
+}
+
+.decide-btn.primary {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #000;
+}
+
+.decide-btn.primary:hover:not(:disabled) {
+  background: #4ade80;
+  border-color: #4ade80;
+  color: #000;
+}
+
+.decide-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.decide-explain {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6b7280;
+  margin: 0;
+}
+
+.tpk-actions {
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid #374151;
+  padding-top: 14px;
 }
 </style>

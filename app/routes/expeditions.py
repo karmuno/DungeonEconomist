@@ -182,6 +182,9 @@ def _finalize_expedition(
         resolved = expedition.resolved_phases or 0
         partial = calculate_retreat_results(sim_result, resolved)
         effective_result = {**sim_result, **partial}
+        # Record the game day the party actually came home — return_day keeps
+        # the planned date, so early retreats can show PLANNED vs ACTUAL.
+        effective_result["actual_return_day"] = keep.current_day
         expedition.simulation_data = effective_result
     else:
         effective_result = sim_result
@@ -1168,6 +1171,8 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "duration_days": expedition.duration_days,
         "result": expedition.result,
         "dungeon_level": expedition.dungeon_level,
+        "dungeon_name": keep.dungeon_name,
+        "actual_return_day": None,
         "member_results": member_results,
         "total_loot": total_loot,
         "total_silver": total_silver,
@@ -1255,6 +1260,8 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "duration_days": expedition.duration_days,
         "result": expedition.result,
         "dungeon_level": expedition.dungeon_level,
+        "dungeon_name": keep.dungeon_name,
+        "actual_return_day": sim.get("actual_return_day"),
         "member_results": member_results,
         "total_loot": total_loot,
         "total_xp": total_xp,
