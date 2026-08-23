@@ -39,7 +39,9 @@ const pendingRefresh = ref(false)
 function maybeFlushRefresh() {
   if (!pendingRefresh.value) return
   pendingRefresh.value = false
-  eventBus.emit('refresh-dashboard')
+  // Bump the version (Dashboard, Tavern, Summary all watch it) now that the
+  // event is visible
+  gameTime.expeditionVersion++
 }
 
 function checkChoiceQueue() {

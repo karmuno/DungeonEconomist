@@ -17,12 +17,14 @@ export const useGameTimeStore = defineStore('gameTime', () => {
     lastUpdated.value = data.last_updated
   }
 
+  // NOTE: advanceDay/skipToEvent deliberately do NOT bump expeditionVersion —
+  // the SidePanel bumps it once the day's event popup is on screen, so party
+  // state never refreshes ahead of its event being shown.
   async function advanceDay(): Promise<AdvanceDayResult> {
     const data = await gameApi.advanceDay()
     currentDay.value = data.current_day
     dayStartedAt.value = data.day_started_at
     lastUpdated.value = data.last_updated
-    expeditionVersion.value++
     return data
   }
 
@@ -31,7 +33,6 @@ export const useGameTimeStore = defineStore('gameTime', () => {
     const data = await gameApi.skipToEvent()
     dayStartedAt.value = data.day_started_at
     lastUpdated.value = data.last_updated
-    expeditionVersion.value++
 
     // Animate the day counter ticking up
     const newDay = data.current_day
