@@ -31,14 +31,13 @@ interface PendingChoice {
 }
 const choiceQueue = ref<PendingChoice[]>([])
 
-// Dashboard state must not refresh while events the player hasn't seen are
-// still queued — the outcome would leak ahead of the story.
+// Dashboard state must not refresh before the event that caused it is ON
+// SCREEN. Once the popup appears the state may update — clicking out of an
+// unresolved popup should show the current party state.
 const pendingRefresh = ref(false)
 
 function maybeFlushRefresh() {
   if (!pendingRefresh.value) return
-  if (showChoicePopup.value || choiceQueue.value.length > 0) return
-  if (showStairsPopup.value || showLevelUpPopup.value) return
   pendingRefresh.value = false
   eventBus.emit('refresh-dashboard')
 }
@@ -55,6 +54,8 @@ function checkChoiceQueue() {
   choiceExpeditionId.value = next.expeditionId
   choiceEventType.value = next.eventType
   showChoicePopup.value = true
+  // The event is on screen — state may update now
+  maybeFlushRefresh()
 }
 
 

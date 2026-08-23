@@ -54,8 +54,8 @@ async function fetchStats() {
 }
 
 // Deliberately NOT watching gameTime.currentDay: the SidePanel emits
-// 'refresh-dashboard' only after all queued event popups have been seen,
-// so state never updates ahead of its event.
+// 'refresh-dashboard' once the day's event popup is on screen, so state
+// never updates ahead of its event being shown.
 watch(() => gameTime.expeditionVersion, fetchStats)
 onMounted(() => {
   fetchStats()
