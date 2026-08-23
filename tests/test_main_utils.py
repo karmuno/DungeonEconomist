@@ -406,3 +406,55 @@ def test_admin_console_open_env_flag_allows_non_admin(client: TestClient, db_ses
     me = client.get("/auth/me", headers=auth_headers(token, keep.id))
     assert me.status_code == 200
     assert me.json()["admin_console_open"] is True
+
+
+def test_tpk_finalize_marks_all_members_dead(client: TestClient, db_session: Session):
+    """Regression: mutating party.members while iterating skipped every other
+    member on a TPK, leaving 'survivors' the sim had killed."""
+    account, keep, token = create_account_and_keep(db_session)
+
+    party = Party(name="Doomed Six", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    db_session.refresh(party)
+
+    members = [
+        create_adventurer_db(db_session, keep.id, name=f"Doomed{i}", xp=0, gold=0)
+        for i in range(6)
+    ]
+    for m in members:
+        party.members.append(m)
+    db_session.commit()
+
+    from app.models import Expedition
+    exp = Expedition(
+        party_id=party.id,
+        start_day=keep.current_day,
+        duration_days=3,
+        return_day=keep.current_day + 2,
+        dungeon_level=1,
+        result="in_progress",
+    )
+    db_session.add(exp)
+    db_session.commit()
+    db_session.refresh(exp)
+
+    from app.routes.expeditions import _finalize_expedition
+    sim = {
+        "dead_members": [m.name for m in members],
+        "log": [],
+        "starting_hp": {},
+        "treasure_total": 0,
+        "treasure_silver": 0,
+        "treasure_copper": 0,
+        "xp_per_party_member": 0,
+        "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+
+    for m in members:
+        db_session.refresh(m)
+        assert m.is_dead, f"{m.name} should be dead after a TPK"
+    db_session.refresh(party)
+    assert len(party.members) == 0

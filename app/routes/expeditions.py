@@ -231,7 +231,9 @@ def _finalize_expedition(
 
         xp_per_member = int(effective_result.get("xp_per_party_member", 0))
 
-        for member in party.members:
+        # Iterate a snapshot: dead members are detached from the party inside
+        # the loop, and mutating party.members while iterating skips entries
+        for member in list(party.members):
             is_dead = member.name in dead_names
             replayed_hp = sim_hp.get(member.name, member.hp_current)
             # Clamp to real hp_max (armor buffer may have inflated starting_hp)

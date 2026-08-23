@@ -230,7 +230,14 @@ def build_phases(sim_result: dict, dungeon_level: int, max_dungeon_level: int) -
         if event_type in ("clue", "room"):
             continue
 
-        is_tpk = party_size > 0 and len(all_dead) >= party_size
+        # TPK = nobody left standing at the end of this turn. Prefer the turn's
+        # HP snapshot (revivals can bring the fallen back mid-run); fall back to
+        # the cumulative death set for logs that predate the snapshot.
+        party_hp = turn.get("party_hp")
+        if party_hp:
+            is_tpk = all(hp <= 0 for hp in party_hp.values())
+        else:
+            is_tpk = party_size > 0 and len(all_dead) >= party_size
 
         decision_points.append({
             "after_turn": turn_num,
