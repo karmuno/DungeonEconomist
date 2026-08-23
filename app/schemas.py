@@ -164,6 +164,7 @@ class GameEvent(BaseModel):
     expedition_id: int | None = None
     first_time: bool = False
     event_subtype: str | None = None  # e.g. 'stairs', 'death', 'big_haul' for expedition_choice events
+    data: dict | None = None  # structured payload, e.g. the upkeep-day ledger
 
 class GameTimeInfo(BaseModel):
     current_day: int

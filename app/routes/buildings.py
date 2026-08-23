@@ -24,6 +24,41 @@ from app.models import Adventurer, Building, Keep
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
 
+# Per-unit stat renderers: (bonus key, row label, value formatter). Values are
+# the numbers from config — per assigned adventurer, not aggregates.
+_STAT_RENDERERS = [
+    ("healing_per_assigned", "Healing", lambda v: f"+{v} HP/day per Cleric"),
+    ("to_hit_per_assigned", "To-hit", lambda v: f"+{v} per Fighter"),
+    ("damage_per_assigned", "Damage", lambda v: f"+{v} per Fighter"),
+    ("monster_morale_penalty", "Monster morale", lambda v: f"−{abs(v)}"),
+    ("healing_potion_chance_per_cleric", "Potion craft", lambda v: f"{v * 100:.0f}% per Cleric"),
+    ("resurrect_highest_dead", "Resurrection", lambda v: "On return"),
+    ("magic_item_discovery_per_assigned", "Item find", lambda v: f"+{v * 100:.0f}% per M-U"),
+    ("scroll_craft_chance_per_mu", "Scroll craft", lambda v: f"{v * 100:.0f}% per M-U"),
+    ("craft_artifact_cost", "Artifacts", lambda v: f"{v}gp"),
+    ("craft_weapon_slot", "Crafting", lambda v: "Weapon/Armor"),
+    ("masterwork_chance", "Masterwork", lambda v: f"{v * 100:.0f}%"),
+]
+
+
+def _stat_lines(btype: str, level: int) -> list[dict]:
+    """Labelled per-unit stat values for a building at a given level."""
+    if level <= 0:
+        return []
+    bonuses = get_all_building_bonuses(btype, level)
+    lines = []
+    for key, label, fmt in _STAT_RENDERERS:
+        if key in bonuses:
+            lines.append({"label": label, "value": fmt(bonuses[key])})
+    tier_slots = get_tier_slots(btype, level)
+    if tier_slots:
+        slot_str = ", ".join(f"{s} · Lv {ml}+" for _, s, ml in tier_slots)
+        lines.append({"label": "Slots", "value": slot_str})
+    if has_recruitment_bonus(btype):
+        lines.append({"label": "Recruitment", "value": f"2x {get_building_class(btype)}"})
+    return lines
+
+
 def _building_response(building: Building) -> dict:
     """Format a building for API response."""
     btype = building.building_type
@@ -90,6 +125,8 @@ def _building_response(building: Building) -> dict:
         ],
         "upgrade_cost": get_upgrade_cost(btype, building.level + 1) if building.level < get_max_building_level(btype) else None,
         "next_name": get_building_name(btype, building.level + 1) if building.level < get_max_building_level(btype) else None,
+        "current_stats": _stat_lines(btype, building.level),
+        "next_stats": _stat_lines(btype, building.level + 1) if building.level < get_max_building_level(btype) else None,
     }
 
 
@@ -123,7 +160,11 @@ def list_buildings(keep: Keep = Depends(get_current_keep), db: Session = Depends
                 "assigned_adventurers": [],
                 "buy_cost": get_upgrade_cost(btype, 1),
                 "upgrade_cost": None,
-                "next_name": None,
+                "next_name": get_building_name(btype, 1),
+                "allowed_classes": get_allowed_classes(btype),
+                "tier_slots": [],
+                "current_stats": [],
+                "next_stats": _stat_lines(btype, 1),
             })
 
     return result

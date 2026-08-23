@@ -135,6 +135,10 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
     ).all()
     total_copper_transferred = 0
     bankrupt_count = 0
+    treasury_before_cp = keep.treasury_total_copper()
+    ledger_rows: list[dict] = []
+    prison_names: list[str] = []
+    unpaid_cp = 0
 
     for adv in adventurers:
         # Upkeep cost: 1 copper per XP
@@ -142,6 +146,18 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
 
         if cost_copper <= 0:
             continue
+
+        row = {
+            "id": adv.id,
+            "name": adv.name,
+            "adventurer_class": adv.adventurer_class.value,
+            "level": adv.level,
+            "xp": adv.xp,
+            "upkeep_cp": cost_copper,
+            "purse_cp": adv.total_copper(),
+            "after_cp": adv.total_copper() - cost_copper,
+            "outcome": "paid",
+        }
 
         if adv.total_copper() >= cost_copper:
             adv.subtract_currency(cost_copper)
@@ -158,6 +174,9 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
                     type="upkeep",
                     message=f"{adv.name} sacrificed magic items to avoid debtor's prison: {', '.join(item_names)}"
                 ))
+                row["outcome"] = "sacrificed"
+                row["after_cp"] = row["purse_cp"]
+                ledger_rows.append(row)
                 continue
 
             # Bankruptcy is permanent — adventurer goes to debtor's prison
@@ -183,21 +202,67 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
             # Remove from all parties
             adv.parties = []
 
+            row["outcome"] = "prison"
+            prison_names.append(adv.name)
+            unpaid_cp += cost_copper - row["purse_cp"]
+
             events.append(GameEvent(
                 type="upkeep",
                 message=f"{adv.name} went bankrupt and was sent to debtor's prison"
             ))
+        ledger_rows.append(row)
+
+    # Deferred: members out on expedition owe on return
+    deferred_rows: list[dict] = []
+    on_expedition = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_dead == False,
+        Adventurer.is_bankrupt == False,
+        Adventurer.on_expedition == True,
+    ).all()
+    for adv in on_expedition:
+        cost_copper = math.floor(adv.xp * 1)
+        if cost_copper <= 0:
+            continue
+        party = adv.parties[0] if adv.parties else None
+        expedition = party.current_expedition if party else None
+        deferred_rows.append({
+            "id": adv.id,
+            "name": adv.name,
+            "adventurer_class": adv.adventurer_class.value,
+            "level": adv.level,
+            "xp": adv.xp,
+            "upkeep_cp": cost_copper,
+            "party_name": party.name if party else None,
+            "due_day": expedition.return_day if expedition else None,
+        })
+
+    upkeep_data = {
+        "day": keep.current_day,
+        "adventurer_count": len(ledger_rows) + len(deferred_rows),
+        "treasury_before_cp": treasury_before_cp,
+        "treasury_after_cp": keep.treasury_total_copper(),
+        "collected_cp": total_copper_transferred,
+        "collected_from": len([r for r in ledger_rows if r["outcome"] == "paid"]),
+        "unpaid_cp": unpaid_cp,
+        "prison_names": prison_names,
+        "rows": ledger_rows,
+        "deferred": deferred_rows,
+        "deferred_cp": sum(r["upkeep_cp"] for r in deferred_rows),
+    }
 
     if total_copper_transferred > 0:
         g, s, c = copper_to_parts(total_copper_transferred)
         events.insert(0, GameEvent(
             type="upkeep",
-            message=f"Upkeep day! {format_currency(g, s, c)} collected to treasury"
+            message=f"Upkeep day! {format_currency(g, s, c)} collected to treasury",
+            data=upkeep_data,
         ))
     else:
         events.insert(0, GameEvent(
             type="upkeep",
-            message="Upkeep day! No gold collected (adventurers have no XP costs yet)"
+            message="Upkeep day! No gold collected (adventurers have no XP costs yet)",
+            data=upkeep_data,
         ))
 
     return events
@@ -693,6 +758,40 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     ).all()
     unassigned_summary = [_adv_summary_local(a) for a in unassigned]
 
+    # Upkeep forecast: what the next upkeep day will collect, and who can't pay.
+    # Assigned adventurers are exempt; expedition members owe on return but
+    # appear in the single list (the day itself separates deferred).
+    next_upkeep_day = ((keep.current_day // 30) + 1) * 30
+    forecast_rows = []
+    payers = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_dead == False,
+        Adventurer.is_bankrupt == False,
+        Adventurer.is_assigned == False,
+    ).all()
+    for adv in payers:
+        cost_cp = math.floor(adv.xp * 1)
+        if cost_cp <= 0:
+            continue
+        purse_cp = adv.total_copper()
+        forecast_rows.append({
+            "id": adv.id,
+            "name": adv.name,
+            "adventurer_class": adv.adventurer_class.value,
+            "level": adv.level,
+            "xp": adv.xp,
+            "upkeep_cp": cost_cp,
+            "purse_cp": purse_cp,
+            "short_cp": max(0, cost_cp - purse_cp),
+        })
+    upkeep_forecast = {
+        "next_day": next_upkeep_day,
+        "days_until": next_upkeep_day - keep.current_day,
+        "total_cp": sum(r["upkeep_cp"] for r in forecast_rows),
+        "treasury_now_cp": keep.treasury_total_copper(),
+        "rows": forecast_rows,
+    }
+
     # Hint for new players
     hint = None
     if party_count == 0 and adventurer_count > 0:
@@ -720,6 +819,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "buildings": buildings_summary,
         "parties": parties_summary,
         "unassigned_adventurers": unassigned_summary,
+        "upkeep_forecast": upkeep_forecast,
         "hint": hint,
         "active_expeditions": [
             {
