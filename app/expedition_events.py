@@ -143,7 +143,23 @@ def _classify_turn(turn: dict) -> tuple[str, str]:
     treasure_label = _format_coins(treasure_gold, treasure_silver, treasure_copper)
 
     if deaths:
-        dead_names = ", ".join(deaths)
+        if len(deaths) == 1:
+            dead_names = deaths[0]
+        else:
+            dead_names = f"{', '.join(deaths[:-1])} and {deaths[-1]}"
+        if has_combat:
+            # Name the killers: plural species, or "a <monster>" for a lone one
+            if monster_count > 1:
+                if monster_name.endswith("fe"):
+                    killer_label = f"{monster_name[:-2]}ves"
+                elif monster_name.endswith("f"):
+                    killer_label = f"{monster_name[:-1]}ves"
+                else:
+                    killer_label = f"{monster_name}s"
+            else:
+                killer_label = f"a {monster_name}"
+            verb = "was" if len(deaths) == 1 else "were"
+            return "death", f"{dead_names} {verb} killed by {killer_label}!"
         return "death", f"{dead_names} {'has' if len(deaths) == 1 else 'have'} fallen in the dungeon!"
 
     if has_big_haul:
