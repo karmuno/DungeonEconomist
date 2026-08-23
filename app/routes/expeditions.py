@@ -255,6 +255,9 @@ def _finalize_expedition(
                 member.death_party_name = party.name if party else None
                 member.on_expedition = False
                 member.is_available = False
+                # The dead leave their party so its slots free up; an empty
+                # party stands until end of day, then disbands.
+                member.parties = []
                 events.append({"type": "death", "message": f"{member.name} died during the expedition"})
             else:
                 member.hp_current = final_hp
@@ -278,7 +281,8 @@ def _finalize_expedition(
             share_copper = total_loot_copper // max(1, living_count)
             g, s, c = copper_to_parts(share_copper)
             total_g, total_s, total_c = copper_to_parts(total_loot_copper)
-            events.append({"type": "loot", "message": f"Earned {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each to {living_count} adventurer{'s' if living_count != 1 else ''})"})
+            party_label = party.name if party else "The party"
+            events.append({"type": "loot", "message": f"{party_label} brought back {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each)"})
 
         # Deferred upkeep
         missed_cycles = 0

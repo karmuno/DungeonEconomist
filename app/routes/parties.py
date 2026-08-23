@@ -200,18 +200,7 @@ def remove_adventurer_from_party(
 
     if len(party.members) == 0:
         # Party is now empty — delete it automatically
-        from app.models import Expedition, ExpeditionLog, ExpeditionNodeResult
-        party.current_expedition_id = None
-        db.flush()
-        expeditions = db.query(Expedition).filter(Expedition.party_id == party_id).all()
-        for exp in expeditions:
-            db.query(ExpeditionNodeResult).filter(ExpeditionNodeResult.expedition_id == exp.id).delete()
-            db.query(ExpeditionLog).filter(ExpeditionLog.expedition_id == exp.id).delete()
-        db.flush()
-        for exp in expeditions:
-            db.delete(exp)
-        db.flush()
-        db.delete(party)
+        delete_party_and_history(party, db)
         db.commit()
         return {"deleted": True, "party_id": party_id}
 
@@ -259,12 +248,19 @@ def delete_party(
         raise HTTPException(status_code=404, detail="Party not found")
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Cannot delete a party currently on expedition")
-    # Clear FK references before deleting
+    delete_party_and_history(party, db)
+    db.commit()
+    return {"ok": True}
+
+
+def delete_party_and_history(party: Party, db: Session) -> None:
+    """Delete a party and its expedition records. The caller commits."""
     from app.models import Expedition, ExpeditionLog, ExpeditionNodeResult
+    party_id = party.id
+    # Clear FK references before deleting
     party.current_expedition_id = None
     party.members.clear()
     db.flush()
-    # Delete associated expedition data
     expeditions = db.query(Expedition).filter(Expedition.party_id == party_id).all()
     for exp in expeditions:
         db.query(ExpeditionNodeResult).filter(ExpeditionNodeResult.expedition_id == exp.id).delete()
@@ -274,5 +270,3 @@ def delete_party(
         db.delete(exp)
     db.flush()
     db.delete(party)
-    db.commit()
-    return {"ok": True}

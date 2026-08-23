@@ -424,6 +424,17 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     for adv in level_up_candidates:
         apply_level_ups(adv, keep, events)
 
+    # End-of-day cleanup: empty parties disband (the dead leave their party
+    # when an expedition resolves; the empty shell stands until the day ends)
+    from app.routes.parties import delete_party_and_history
+    empty_parties = [p for p in keep.parties if not p.on_expedition and len(p.members) == 0]
+    for empty_party in empty_parties:
+        events.append(GameEvent(
+            type="party_disbanded",
+            message=f"Party '{empty_party.name}' disbanded",
+        ))
+        delete_party_and_history(empty_party, db)
+
     return events
 
 
