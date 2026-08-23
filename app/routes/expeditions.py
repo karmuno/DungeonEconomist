@@ -1111,15 +1111,21 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         total_xp += phase.get("xp", 0)
         all_deaths.extend(phase.get("deaths", []))
 
-    # Events log: show turns up to the current decision point
-    cutoff_turn = None
-    if resolved < len(decision_points):
-        cutoff_turn = decision_points[resolved].get("after_turn")
+    # Events log: show only what the player has WITNESSED. The whole run is
+    # pre-simulated at launch, so replaying past the last fired decision point
+    # would leak the future (deaths visible on the dashboard at launch day).
+    if expedition.result == "awaiting_choice" and resolved < len(decision_points):
+        # The pending event is on screen — its turn counts as witnessed
+        cutoff_turn = decision_points[resolved].get("after_turn") or 0
+    elif 0 < resolved <= len(decision_points):
+        cutoff_turn = decision_points[resolved - 1].get("after_turn") or 0
+    else:
+        cutoff_turn = 0
 
     events_log = []
     for turn in log:
         turn_num = turn.get("turn", 0)
-        if cutoff_turn and turn_num > cutoff_turn:
+        if turn_num > cutoff_turn:
             break
         events_log.append(turn)
 

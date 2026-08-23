@@ -458,3 +458,51 @@ def test_tpk_finalize_marks_all_members_dead(client: TestClient, db_session: Ses
         assert m.is_dead, f"{m.name} should be dead after a TPK"
     db_session.refresh(party)
     assert len(party.members) == 0
+
+
+def test_active_summary_hides_unwitnessed_turns(client: TestClient, db_session: Session):
+    """Regression: the pre-simulated run must not leak future turns. Before a
+    decision point fires, the active summary shows nothing; once the pending
+    event is on screen (awaiting_choice) its turn becomes visible."""
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Peekers", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    db_session.refresh(party)
+
+    from app.models import Expedition
+    sim = {
+        "log": [
+            {"turn": 1, "events": [{"type": "Monster"}], "deaths": []},
+            {"turn": 2, "events": [{"type": "Monster"}], "deaths": ["Someone"]},
+        ],
+        "decision_points": [{"after_turn": 2, "type": "death", "message": "x"}],
+        "turn_summaries": ["Turn 1: fight", "Turn 2: deaths"],
+        "starting_hp": {},
+    }
+    exp = Expedition(
+        party_id=party.id,
+        start_day=keep.current_day,
+        duration_days=3,
+        return_day=keep.current_day + 2,
+        dungeon_level=1,
+        result="in_progress",
+        resolved_phases=0,
+        simulation_data=sim,
+    )
+    db_session.add(exp)
+    db_session.commit()
+    db_session.refresh(exp)
+
+    from app.routes.expeditions import _build_active_summary
+
+    # Nothing witnessed yet: no turns, no summaries
+    summary = _build_active_summary(exp, party, keep)
+    assert summary["events_log"] == []
+    assert summary["turn_summaries"] == []
+
+    # The decision point fires: its turn (and everything before) is visible
+    exp.result = "awaiting_choice"
+    summary = _build_active_summary(exp, party, keep)
+    assert [t["turn"] for t in summary["events_log"]] == [1, 2]
+    assert summary["turn_summaries"] == ["Turn 1: fight", "Turn 2: deaths"]
