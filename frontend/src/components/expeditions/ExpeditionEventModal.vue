@@ -146,18 +146,6 @@ const touchedRows = computed<TouchedRow[]>(() => {
     .map(m => ({ member: m, damage: taken.get(m.name)! }))
 })
 
-const untouchedLine = computed(() => {
-  const s = summary.value
-  if (!s || touchedRows.value.length === 0) return ''
-  const touched = new Set(touchedRows.value.map(r => r.member.name))
-  const rest = s.member_results.filter(m => !touched.has(m.name)).map(m => m.name)
-  if (rest.length === 0) return ''
-  const joined = rest.length === 1
-    ? rest[0]
-    : `${rest.slice(0, -1).join(', ')} and ${rest[rest.length - 1]}`
-  return `${joined} ${rest.length === 1 ? 'was' : 'were'} untouched.`
-})
-
 // --- "Expedition So Far" ledger ----------------------------------------------
 
 interface LedgerRow {
@@ -304,7 +292,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
                 </div>
               </template>
             </div>
-            <div v-if="untouchedLine" class="untouched-line">{{ untouchedLine }}</div>
           </template>
         </div>
 
@@ -549,12 +536,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 .hp-label {
   font-size: 11px;
   white-space: nowrap;
-}
-
-.untouched-line {
-  font-size: 11.5px;
-  color: #6b7280;
-  margin-top: 6px;
 }
 
 /* 3. Ledger */
