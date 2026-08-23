@@ -130,20 +130,18 @@ const currentTurn = computed<TurnLog | null>(() =>
 
 // --- "This Event" table ------------------------------------------------------
 
-interface TouchedRow {
+interface EventRow {
   member: ExpeditionMemberResult
   damage: number
 }
 
-const touchedRows = computed<TouchedRow[]>(() => {
+const eventRows = computed<EventRow[]>(() => {
   const s = summary.value
+  if (!s) return []
   const turn = currentTurn.value
-  if (!s || !turn) return []
   const names = new Set(memberNames.value)
-  const { taken } = tallyTurns([turn], names)
-  return s.member_results
-    .filter(m => (taken.get(m.name) ?? 0) > 0)
-    .map(m => ({ member: m, damage: taken.get(m.name)! }))
+  const taken = turn ? tallyTurns([turn], names).taken : new Map<string, number>()
+  return s.member_results.map(m => ({ member: m, damage: taken.get(m.name) ?? 0 }))
 })
 
 // --- "Expedition So Far" ledger ----------------------------------------------
@@ -264,39 +262,48 @@ function isWounded(member: ExpeditionMemberResult): boolean {
       </div>
 
       <template v-if="summary && !loading">
-        <!-- 3. This Event — only when the event actually touched someone -->
-        <div v-if="touchedRows.length > 0" class="section section-divided">
-          <div class="section-label">This Event</div>
-          <template v-if="touchedRows.length > 0">
-            <div class="this-event-grid">
-              <div class="grid-head">Party</div>
-              <div class="grid-head num">Dmg</div>
-              <div class="grid-head num">HP after</div>
-              <template v-for="row in touchedRows" :key="row.member.name">
-                <div class="cell name-cell">
-                  <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
-                  <span class="member-class">{{ row.member.adventurer_class }}</span>
-                  <span v-if="isWounded(row.member)" class="wounded-tag">wounded</span>
+        <!-- 3. This Event — the whole party; damage marked where it landed -->
+        <div class="section section-divided">
+          <div class="this-event-grid">
+            <div class="grid-head">Party</div>
+            <div class="grid-head num">Dmg</div>
+            <div class="grid-head num">HP</div>
+            <template v-for="row in eventRows" :key="row.member.name">
+              <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
+                <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
+                <span class="member-class">{{ row.member.adventurer_class }}</span>
+                <span v-if="isWounded(row.member)" class="wounded-tag">wounded</span>
+              </div>
+              <div class="cell num dmg-cell">
+                <template v-if="row.damage > 0">−{{ row.damage }}</template>
+              </div>
+              <div class="cell num hp-cell">
+                <div class="hp-track">
+                  <div
+                    class="hp-fill"
+                    :style="{ width: hpPct(row.member) + '%', backgroundColor: hpColor(row.member) }"
+                  ></div>
                 </div>
-                <div class="cell num dmg-cell">−{{ row.damage }}</div>
-                <div class="cell num hp-cell">
-                  <div class="hp-track">
-                    <div
-                      class="hp-fill"
-                      :style="{ width: hpPct(row.member) + '%', backgroundColor: hpColor(row.member) }"
-                    ></div>
-                  </div>
-                  <span class="hp-label" :style="{ color: hpColor(row.member) }">
-                    {{ row.member.hp_current }}/{{ row.member.hp_max }}
-                  </span>
-                </div>
-              </template>
-            </div>
-          </template>
+                <span class="hp-label" :style="{ color: hpColor(row.member) }">
+                  {{ row.member.alive ? row.member.hp_current : 0 }}/{{ row.member.hp_max }}
+                </span>
+              </div>
+            </template>
+          </div>
+
+          <div class="ledger-footer">
+            <span class="val-gold">{{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
+            <span class="val-xp">{{ summary.total_xp }} XP</span>
+            <span class="val-kills">{{ totalKills }} {{ totalKills === 1 ? 'kill' : 'kills' }}</span>
+            <span v-if="summary.stairs_found" class="stairs-note">Stairs found!</span>
+            <button class="log-toggle" @click="logOpen = !logOpen">
+              Expedition Log {{ logOpen ? '▴' : '▾' }}
+            </button>
+          </div>
         </div>
 
-        <!-- 3. Expedition So Far -->
-        <div class="section ledger-section">
+        <!-- 4. Expedition Log disclosure: the So Far ledger + the full log -->
+        <div v-if="logOpen" class="section">
           <div class="ledger-label-row">
             <span class="section-label">Expedition So Far</span>
             <span class="ledger-days">Days 1–{{ daysElapsed }}</span>
@@ -338,19 +345,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
             <div class="cell totals-cell num cures-cell">{{ ledgerTotals.healed }}</div>
           </div>
 
-          <div class="ledger-footer">
-            <span class="val-gold">{{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
-            <span class="val-xp">{{ summary.total_xp }} XP</span>
-            <span class="val-kills">{{ totalKills }} {{ totalKills === 1 ? 'kill' : 'kills' }}</span>
-            <span v-if="summary.stairs_found" class="stairs-note">Stairs found!</span>
-            <button class="log-toggle" @click="logOpen = !logOpen">
-              Expedition Log {{ logOpen ? '▴' : '▾' }}
-            </button>
-          </div>
-
-          <!-- 4. Expedition Log -->
           <ExpeditionLogTree
-            v-if="logOpen"
             :turns="turns"
             :member-names="memberNames"
             :mark-current="true"
