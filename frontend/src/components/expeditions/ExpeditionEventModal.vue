@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import * as expeditionsApi from '../../api/expeditions'
 import type { ExpeditionSummaryDetail, ExpeditionMemberResult } from '../../api/expeditions'
 import { useGameTimeStore } from '../../stores/gameTime'
+import { formatCurrency } from '../../utils/currency'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ExpeditionLogTree from './ExpeditionLogTree.vue'
 import type { TurnLog } from '../../types/expeditionLog'
@@ -191,6 +192,11 @@ const ledgerTotals = computed(() => {
   }
 })
 
+const totalKills = computed(() =>
+  turns.value.reduce((sum, t) =>
+    sum + t.events.reduce((s, ev) => s + (ev.combat?.monsters_killed ?? 0), 0), 0)
+)
+
 function hpPct(member: ExpeditionMemberResult): number {
   if (!member.alive || member.hp_max <= 0) return 0
   return Math.min(100, Math.round((member.hp_current / member.hp_max) * 100))
@@ -349,6 +355,9 @@ function isWounded(member: ExpeditionMemberResult): boolean {
           </div>
 
           <div class="ledger-footer">
+            <span class="val-gold">{{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
+            <span class="val-xp">{{ summary.total_xp }} XP</span>
+            <span class="val-kills">{{ totalKills }} {{ totalKills === 1 ? 'kill' : 'kills' }}</span>
             <span v-if="summary.stairs_found" class="stairs-note">Stairs found!</span>
             <button class="log-toggle" @click="logOpen = !logOpen">
               Expedition Log {{ logOpen ? '▴' : '▾' }}
@@ -643,6 +652,18 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 .stairs-note {
   color: #fbbf24;
   font-weight: 700;
+}
+
+.val-gold {
+  color: #fbbf24;
+}
+
+.val-xp {
+  color: #60a5fa;
+}
+
+.val-kills {
+  color: #4ade80;
 }
 
 /* Party resources */
