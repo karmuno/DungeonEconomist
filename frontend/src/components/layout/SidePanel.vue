@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
@@ -31,9 +31,25 @@ interface PendingChoice {
 }
 const choiceQueue = ref<PendingChoice[]>([])
 
+// Dashboard state must not refresh while events the player hasn't seen are
+// still queued — the outcome would leak ahead of the story.
+const pendingRefresh = ref(false)
+
+function maybeFlushRefresh() {
+  if (!pendingRefresh.value) return
+  if (showChoicePopup.value || choiceQueue.value.length > 0) return
+  if (showStairsPopup.value || showLevelUpPopup.value) return
+  pendingRefresh.value = false
+  eventBus.emit('refresh-dashboard')
+}
+
 function checkChoiceQueue() {
-  if (showChoicePopup.value || choiceQueue.value.length === 0) return
-  
+  if (showChoicePopup.value) return
+  if (choiceQueue.value.length === 0) {
+    maybeFlushRefresh()
+    return
+  }
+
   const next = choiceQueue.value.shift()!
   choiceMessage.value = next.message
   choiceExpeditionId.value = next.expeditionId
@@ -89,14 +105,14 @@ function processEvents(events: Array<{ type: string; message: string; expedition
       continue
     }
 
-    // Expedition choice — queue it
+    // Expedition choice — queue it. No expeditionVersion bump here: state
+    // must not refresh before the player has seen the queued event.
     if (event.type === 'expedition_choice' && event.expedition_id) {
       choiceQueue.value.push({
         message: event.message,
         expeditionId: event.expedition_id,
         eventType: event.event_subtype ?? '',
       })
-      gameTime.expeditionVersion++
       continue
     }
 
@@ -208,6 +224,8 @@ async function advanceDay() {
     await player.fetchPlayer()
     notifications.onDayAdvanced(result.current_day) // Moved here
     processEvents(result.events) // Pass only events
+    pendingRefresh.value = true
+    maybeFlushRefresh()
   } catch {
     notifications.add('Failed to advance time', 'error')
   }
@@ -220,12 +238,20 @@ async function skipToEvent() {
     await player.fetchPlayer()
     notifications.onDayAdvanced(result.current_day)
     processEvents(result.events)
+    pendingRefresh.value = true
+    maybeFlushRefresh()
   } catch (e) {
     notifications.add('Failed to skip time', 'error')
   } finally {
     skipping.value = false
   }
 }
+
+// Any popup closing may leave the queue drained — flush the held refresh
+watch([showChoicePopup, showStairsPopup, showLevelUpPopup], () => {
+  checkChoiceQueue()
+  maybeFlushRefresh()
+})
 
 onMounted(() => {
   eventBus.on('game-events', processEvents)
