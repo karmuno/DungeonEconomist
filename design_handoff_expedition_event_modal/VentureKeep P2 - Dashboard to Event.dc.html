@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/colors.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/typography.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/styles.css">
+<script src="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; background: #000; }
+  body { color: var(--vk-text-1); font-family: var(--font-mono); }
+  a { color: var(--vk-green); text-decoration: none; }
+  a:hover { color: #86efac; }
+  ::selection { background: rgba(74,222,128,.25); color: var(--vk-green); }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: #000;">
+
+  <header style="position: fixed; top: 0; left: 0; width: 100%; height: 56px; z-index: 100; background: #000; border-bottom: 1px solid var(--vk-border); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box;">
+    <span style="font-size: 20px; font-weight: 700; color: var(--vk-green); letter-spacing: .5px; margin-right: auto;">VentureKeep</span>
+    <nav style="display: flex; gap: 24px;">
+      <span style="font-size: 14px; color: var(--vk-green); padding: 4px 0; cursor: pointer;">Ironhold</span>
+      <span style="font-size: 14px; color: var(--vk-text-2); padding: 4px 0; cursor: pointer;" style-hover="color: var(--vk-green);">Village</span>
+      <span style="font-size: 14px; color: var(--vk-text-2); padding: 4px 0; cursor: pointer;" style-hover="color: var(--vk-green);">Tavern</span>
+      <span style="font-size: 14px; color: var(--vk-text-2); padding: 4px 0; cursor: pointer;" style-hover="color: var(--vk-green);">Parties</span>
+      <span style="font-size: 14px; color: var(--vk-text-2); padding: 4px 0; cursor: pointer;" style-hover="color: var(--vk-green);">Expeditions</span>
+    </nav>
+    <div style="display: flex; gap: 8px; margin-left: 24px;">
+      <span style="padding: 4px 12px; color: var(--vk-text-muted); border: 1px solid var(--vk-border); border-radius: 6px; font-size: 12px; cursor: pointer;" style-hover="color: var(--vk-text-1); border-color: var(--vk-text-muted);">Switch Keep</span>
+      <span style="padding: 4px 12px; color: var(--vk-text-muted); border: 1px solid var(--vk-border); border-radius: 6px; font-size: 12px; cursor: pointer;" style-hover="color: var(--vk-text-1); border-color: var(--vk-text-muted);">Sign Out</span>
+    </div>
+  </header>
+
+  <aside style="position: fixed; left: 0; top: 56px; width: 260px; height: calc(100vh - 56px); background: #000; border-right: 1px solid var(--vk-border); padding: 14px 16px; box-sizing: border-box; overflow-y: auto;">
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--vk-text-muted); margin-bottom: 2px;">Game Day</div>
+      <div style="display: flex; align-items: baseline; gap: 8px;">
+        <div style="font-size: 32px; font-weight: 700; line-height: 1; color: var(--vk-text-1);">{{ day }}</div>
+        <div style="font-size: 11px; color: var(--vk-text-muted);">{{ dayCalendar }}</div>
+      </div>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--vk-text-muted); margin-bottom: 2px;">Treasury</div>
+      <div style="font-size: 18px; font-weight: 700; color: var(--vk-green);">{{ treasury }}</div>
+    </div>
+    <div style="display: flex; gap: 6px;">
+      <div onClick="{{ advanceDay }}" style="flex: 1; padding: 8px 12px; background: var(--vk-green-dark); color: #000; border-radius: 6px; font-size: 12px; font-weight: 700; text-align: center; cursor: pointer;" style-hover="background: var(--vk-green);">Advance Day</div>
+      <div onClick="{{ skipToEvent }}" style="flex: 1; padding: 8px 12px; background: var(--vk-surface-2); color: var(--vk-text-muted); border: 1px solid var(--vk-border); border-radius: 6px; font-size: 11px; font-weight: 600; text-align: center; cursor: pointer;" style-hover="background: var(--vk-surface-3); color: var(--vk-text-1);">Skip to Event</div>
+    </div>
+    <sc-if value="{{ hasNotifs }}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+        <div onClick="{{ clearNotifs }}" style="font-size: 11px; color: var(--vk-text-muted); cursor: pointer;" style-hover="color: var(--vk-text-1);">Clear</div>
+      </div>
+      <div style="margin-top: 4px; display: flex; flex-direction: column; gap: 3px;">
+        <sc-for list="{{ notifs }}" as="n" hint-placeholder-count="0">
+          <div style="display: flex; align-items: flex-start; gap: 4px; padding: 4px 6px; border-radius: 6px; font-size: 10px; line-height: 1.35; background: {{ n.bg }}; border: 1px solid {{ n.bd }}; color: {{ n.fg }};">
+            <span style="flex: 1; word-break: break-word;">{{ n.text }}</span>
+            <span style="cursor: pointer; text-decoration: underline; font-weight: 600; white-space: nowrap; opacity: .9;">{{ n.action }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </aside>
+
+  <main style="margin: 56px 0 0 260px; padding: 16px 24px 64px; display: flex; flex-direction: column; gap: 12px;">
+
+    <div style="display: flex; align-items: baseline; gap: 12px;">
+      <h1 style="margin: 0; font-size: 21px; font-weight: 700; color: var(--vk-green);">The Lost Sepulchre</h1>
+      <span style="font-size: 12px; color: var(--vk-text-muted);">Depth 3 reached</span>
+    </div>
+
+    <sc-if value="{{ expActive }}" hint-placeholder-val="{{ true }}">
+      <div style="background: var(--bg-card); border: 1px solid var(--vk-border); border-left: 3px solid var(--vk-blue); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.5); padding: 12px 16px;">
+        <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--vk-green);">Active Expeditions</h3>
+        <div onClick="{{ openEvent }}" style="display: flex; align-items: center; gap: 12px; padding: 6px 0; cursor: pointer;" style-hover="background: var(--vk-green-wash-soft);">
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 240px;">
+            <span style="font-size: 13px; font-weight: 600;">The Demo Divers</span>
+            <span style="font-size: 11px; color: var(--vk-text-muted);">Depth 3</span>
+            <sc-if value="{{ awaitingChoice }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--vk-gold); background: var(--vk-gold-tint); padding: 2px 6px; border-radius: 4px;">Decision</span>
+            </sc-if>
+          </div>
+          <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+            <div style="flex: 1; height: 6px; background: #000; border-radius: 3px; overflow: hidden;">
+              <div style="height: 100%; border-radius: 3px; background: var(--vk-green); transition: width .3s; width: {{ expPct }};"></div>
+            </div>
+            <span style="font-size: 11px; color: var(--vk-text-muted); white-space: nowrap;">{{ expDays }}</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ retreated }}" hint-placeholder-val="{{ false }}">
+      <div style="background: var(--bg-card); border: 1px solid var(--vk-border); border-left: 3px solid var(--vk-blue); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.5); padding: 12px 16px;">
+        <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--vk-green);">Recently Returned</h3>
+        <div style="display: flex; align-items: flex-start; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 300px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 13px; font-weight: 600;">The Demo Divers</span>
+              <span style="font-size: 11px; color: var(--vk-text-muted);">Depth 3</span>
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--vk-gold); background: var(--vk-gold-tint); padding: 2px 6px; border-radius: 4px;">Retreated early</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: baseline;">
+              <span style="font-size: 10px; letter-spacing: .1em; color: var(--vk-text-muted); width: 62px;">PLANNED</span>
+              <span style="font-size: 13px; color: var(--vk-text-muted);">Day 12 → Day 14 · 3 days</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: baseline;">
+              <span style="font-size: 10px; letter-spacing: .1em; color: var(--vk-green); width: 62px;">ACTUAL</span>
+              <span style="font-size: 15px; color: var(--vk-text-1);">Day 12 → Day 13 · 2 days</span>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--vk-text-muted);">Brought home</div>
+            <div style="display: flex; gap: 10px; font-size: 12px;">
+              <span style="color: var(--vk-gold);">12gp 4sp</span>
+              <span style="color: var(--vk-text-muted);">·</span>
+              <span style="color: var(--vk-blue);">210 XP</span>
+              <span style="color: var(--vk-text-muted);">·</span>
+              <span style="color: var(--vk-green);">5 kills</span>
+            </div>
+            <div style="font-size: 11px; color: var(--vk-text-muted); text-decoration: underline; cursor: pointer;" style-hover="color: var(--vk-text-1);">View Summary</div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;">
+
+      <div style="background: var(--bg-card); border: 1px solid var(--vk-border); border-left: 3px solid var(--vk-green); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.5); padding: 12px 16px;">
+        <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--vk-green);">Unassigned Adventurers</h3>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <sc-for list="{{ unassigned }}" as="a" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--vk-border-soft); font-size: 12px; cursor: grab;" style-hover="background: var(--vk-green-wash-soft);">
+              <span style="color: var(--vk-text-muted); font-size: 12px;">☰</span>
+              <span style="font-weight: 600; flex: 1;">{{ a.n }}</span>
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--vk-text-2); background: rgba(128,128,128,.15); padding: 2px 6px; border-radius: 4px;">{{ a.c }}</span>
+              <span style="font-size: 11px; color: var(--vk-text-muted); width: 40px; text-align: right;">{{ a.lv }}</span>
+              <span style="font-size: 11px; width: 56px; text-align: right; color: {{ a.hpColor }};">{{ a.hpTxt }}</span>
+              <span style="font-size: 11px; color: var(--vk-blue); width: 92px; text-align: right;">{{ a.xp }}</span>
+              <span style="font-size: 11px; color: var(--vk-gold); width: 62px; text-align: right;">{{ a.gold }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--vk-border); border-left: 3px solid var(--vk-purple); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.5); padding: 12px 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 700; color: var(--vk-green);">Parties</h3>
+          <span style="padding: 4px 10px; background: var(--vk-green-dark); color: #000; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;" style-hover="background: var(--vk-green);">+ New Party</span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="border-bottom: 1px solid var(--vk-border-soft);">
+            <div onClick="{{ toggleDivers }}" style="display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 12px;">
+              <span style="font-size: 10px; color: var(--vk-text-muted); width: 14px;">{{ diversCaret }}</span>
+              <span style="font-weight: 600; font-size: 13px; flex: 1;">The Demo Divers</span>
+              <span style="font-size: 11px; color: var(--vk-text-muted);">6/6</span>
+              <span style="font-size: 11px; color: var(--vk-text-muted);">avg Lv 3.0</span>
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 6px; border-radius: 4px; background: {{ diversStatusBg }}; color: {{ diversStatusFg }};">{{ diversStatus }}</span>
+            </div>
+            <sc-if value="{{ diversOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 4px 0 8px 22px; display: flex; flex-direction: column; gap: 2px;">
+                <sc-for list="{{ roster }}" as="m" hint-placeholder-count="6">
+                  <div style="display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer;" style-hover="background: var(--vk-green-wash-soft);">
+                    <span style="color: var(--vk-text-muted);">☰</span>
+                    <span style="font-weight: 600; flex: 1;">{{ m.n }}</span>
+                    <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--vk-text-2); background: rgba(128,128,128,.15); padding: 2px 6px; border-radius: 4px;">{{ m.c }}</span>
+                    <span style="font-size: 11px; color: var(--vk-text-muted); width: 40px; text-align: right;">{{ m.lv }}</span>
+                    <span style="font-size: 11px; width: 56px; text-align: right; color: {{ m.hpColor }};">{{ m.hpTxt }}</span>
+                  </div>
+                </sc-for>
+                <div style="display: flex; gap: 6px; margin-top: 6px;">
+                  <span style="padding: 4px 10px; background: var(--vk-green-dark); color: #000; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;" style-hover="background: var(--vk-green);">{{ diversAction }}</span>
+                  <span style="padding: 4px 10px; border: 1px solid var(--vk-border); color: var(--vk-text-2); border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" style-hover="color: var(--vk-text-1); border-color: var(--vk-green);">Manage</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <div style="border-bottom: 1px solid var(--vk-border-soft);">
+            <div onClick="{{ toggleShift }}" style="display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 12px;">
+              <span style="font-size: 10px; color: var(--vk-text-muted); width: 14px;">{{ shiftCaret }}</span>
+              <span style="font-weight: 600; font-size: 13px; flex: 1;">The Second Shift</span>
+              <span style="font-size: 11px; color: var(--vk-text-muted);">3/6</span>
+              <span style="font-size: 11px; color: var(--vk-text-muted);">avg Lv 1.5</span>
+              <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 6px; border-radius: 4px; background: var(--vk-green-tint); color: var(--vk-green);">Ready</span>
+            </div>
+            <sc-if value="{{ shiftOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 4px 0 8px 22px; display: flex; flex-direction: column; gap: 2px;">
+                <sc-for list="{{ shiftRoster }}" as="m" hint-placeholder-count="3">
+                  <div style="display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer;" style-hover="background: var(--vk-green-wash-soft);">
+                    <span style="color: var(--vk-text-muted);">☰</span>
+                    <span style="font-weight: 600; flex: 1;">{{ m.n }}</span>
+                    <span style="font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--vk-text-2); background: rgba(128,128,128,.15); padding: 2px 6px; border-radius: 4px;">{{ m.c }}</span>
+                    <span style="font-size: 11px; color: var(--vk-text-muted); width: 40px; text-align: right;">{{ m.lv }}</span>
+                    <span style="font-size: 11px; width: 56px; text-align: right; color: {{ m.hpColor }};">{{ m.hpTxt }}</span>
+                    <span style="color: var(--vk-text-muted); opacity: .5; cursor: pointer;" style-hover="color: var(--vk-red); opacity: 1;">×</span>
+                  </div>
+                </sc-for>
+                <div style="display: flex; gap: 6px; margin-top: 6px;">
+                  <span style="padding: 4px 10px; background: var(--vk-green-dark); color: #000; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;" style-hover="background: var(--vk-green);">Launch Expedition</span>
+                  <span style="padding: 4px 10px; border: 1px solid var(--vk-border); color: var(--vk-text-2); border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" style-hover="color: var(--vk-text-1); border-color: var(--vk-green);">Manage</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--vk-border-soft); margin-top: 6px;">
+                  <span style="font-size: 11px; font-weight: 700; color: var(--vk-text-muted);">Auto-Delve:</span>
+                  <span style="font-size: 11px; color: var(--vk-text-2);">☐ When Healed</span>
+                  <span style="font-size: 11px; color: var(--vk-text-2);">☐ When Full</span>
+                  <span style="font-size: 11px; color: var(--vk-text-2);">☐ Auto-Decide Events</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: var(--bg-card); border: 1px solid var(--vk-border); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.5); padding: 12px 16px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <h3 style="margin: 0; font-size: 14px; font-weight: 700; color: var(--vk-green);">Village</h3>
+        <span style="padding: 4px 10px; border: 1px solid var(--vk-border); color: var(--vk-text-2); border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" style-hover="color: var(--vk-text-1); border-color: var(--vk-green);">Manage</span>
+      </div>
+      <div style="display: flex; flex-direction: column;">
+        <sc-for list="{{ buildings }}" as="b" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--vk-border-soft); cursor: pointer;" style-hover="background: var(--vk-green-wash-soft);">
+            <span style="font-size: 10px; color: var(--vk-text-muted); width: 14px;">▶</span>
+            <span style="font-weight: 600; font-size: 13px; flex: 1;">{{ b.n }}</span>
+            <span style="font-size: 11px; color: var(--vk-text-muted);">{{ b.assigned }}</span>
+            <span style="font-size: 10px; color: var(--vk-green);">{{ b.fx }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; padding: 32px;">
+      <div style="background: var(--bg-modal); border: 1px solid var(--vk-border); border-radius: 6px; box-shadow: 0 0 40px rgba(0,0,0,.8); width: 760px; max-height: 88vh; overflow-y: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--vk-border-soft); position: sticky; top: 0; background: var(--bg-modal);">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <span style="font-size: 15px; font-weight: 700; color: var(--vk-green);">Expedition Event</span>
+            <span style="font-size: 11px; color: var(--vk-text-muted);">The Demo Divers · The Lost Sepulchre, Depth 3 · Day 2 of 3</span>
+          </div>
+          <span onClick="{{ closeModal }}" style="font-size: 15px; color: var(--vk-text-muted); cursor: pointer;" style-hover="color: var(--vk-text-1);">×</span>
+        </div>
+
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+
+          <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <span style="font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--vk-gold); background: var(--vk-gold-tint); border: 1px solid rgba(251,191,36,.3); padding: 3px 8px; border-radius: 4px; flex-shrink: 0;">TRAP</span>
+            <div style="font-size: 15px; line-height: 1.5; color: var(--vk-text-1); text-wrap: pretty;">A scything blade sprang from the ossuary wall.</div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--vk-text-muted);">This Event</div>
+            <div style="display: flex; flex-direction: column;">
+              <div style="display: grid; grid-template-columns: 1fr 52px 132px; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--vk-border-soft);">
+                <span style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted);">Party</span>
+                <span style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); text-align: right;">Dmg</span>
+                <span style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); text-align: right;">HP after</span>
+              </div>
+              <sc-for list="{{ impact }}" as="m" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: 1fr 52px 132px; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(55,65,81,.5);">
+                  <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+                    <span style="font-size: 13px; color: var(--vk-text-1);">{{ m.n }}</span>
+                    <span style="font-size: 10px; color: var(--vk-text-muted);">{{ m.c }}</span>
+                    
+                  </div>
+                  <span style="font-size: 13px; color: var(--vk-red); text-align: right;">{{ m.hit }}</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="flex: 1; height: 6px; background: #0b1220; border-radius: 3px; overflow: hidden;">
+                      <div style="height: 100%; border-radius: 3px; width: {{ m.hpPct }}; background: {{ m.hpColor }};"></div>
+                    </div>
+                    <span style="font-size: 11px; white-space: nowrap; color: {{ m.hpColor }};">{{ m.hpTxt }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            
+          </div>
+
+          <sc-if value="{{ showLedger }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--vk-border-soft); padding-top: 14px;">
+              <div style="display: flex; align-items: baseline; gap: 10px;">
+                <div style="font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--vk-text-muted);">Expedition So Far</div>
+                <div style="font-size: 10px; color: var(--vk-text-muted);">Days 1–2</div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 106px 78px 78px 78px 78px; gap: 6px 8px; align-items: center;">
+                <div style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--vk-border-soft);">Adventurer</div>
+                <div style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--vk-border-soft);">HP</div>
+                <div style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--vk-border-soft); text-align: right;">Dmg Dealt</div>
+                <div style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--vk-border-soft); text-align: right;">Dmg Taken</div>
+                <div style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--vk-border-soft); text-align: right;">Spells Left</div>
+                <div style="font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vk-text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--vk-border-soft); text-align: right;">Cures Left</div>
+                <sc-for list="{{ roster }}" as="m" hint-placeholder-count="6">
+                  <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 5px 0; border-bottom: 1px solid rgba(55,65,81,.5);">
+                    <span style="font-size: 13px; color: var(--vk-text-1);">{{ m.n }}</span>
+                    <span style="font-size: 10px; letter-spacing: .06em; color: var(--vk-text-muted);">{{ m.c }}</span>
+                  </div>
+                  <div style="padding: 5px 0; border-bottom: 1px solid rgba(55,65,81,.5);">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <div style="flex: 1; height: 6px; background: #0b1220; border-radius: 3px; overflow: hidden;">
+                        <div style="height: 100%; border-radius: 3px; width: {{ m.hpPct }}; background: {{ m.hpColor }};"></div>
+                      </div>
+                      <span style="font-size: 11px; white-space: nowrap; color: {{ m.hpColor }};">{{ m.hpTxt }}</span>
+                    </div>
+                  </div>
+                  <div style="font-size: 13px; text-align: right; color: var(--vk-green); padding: 5px 0; border-bottom: 1px solid rgba(55,65,81,.5);">{{ m.dealtTxt }}</div>
+                  <div style="font-size: 13px; text-align: right; color: var(--vk-red); padding: 5px 0; border-bottom: 1px solid rgba(55,65,81,.5);">{{ m.takenTxt }}</div>
+                  <div style="font-size: 13px; text-align: right; color: var(--vk-blue); padding: 5px 0; border-bottom: 1px solid rgba(55,65,81,.5);">{{ m.spellTxt }}</div>
+                  <div style="font-size: 13px; text-align: right; color: var(--vk-purple); padding: 5px 0; border-bottom: 1px solid rgba(55,65,81,.5);">{{ m.healTxt }}</div>
+                </sc-for>
+                <div style="font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--vk-text-muted); padding-top: 7px;">Expedition total</div>
+                <div style="font-size: 11px; color: var(--vk-text-muted); padding-top: 7px;">2 at half or less</div>
+                <div style="font-size: 12px; text-align: right; color: var(--vk-green); padding-top: 7px;">29</div>
+                <div style="font-size: 12px; text-align: right; color: var(--vk-red); padding-top: 7px;">37</div>
+                <div style="font-size: 12px; text-align: right; color: var(--vk-blue); padding-top: 7px;">2/5</div>
+                <div style="font-size: 12px; text-align: right; color: var(--vk-purple); padding-top: 7px;">1/2</div>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--vk-text-muted); padding-top: 4px; flex-wrap: wrap;">
+                <span>Banked so far</span>
+                <span style="color: var(--vk-gold);">12gp 4sp</span>
+                <span>·</span>
+                <span style="color: var(--vk-blue);">210 XP</span>
+                <span>·</span>
+                <span style="color: var(--vk-green);">5 kills</span>
+                <span onClick="{{ toggleLog }}" style="margin-left: auto; text-decoration: underline; cursor: pointer;" style-hover="color: var(--vk-text-1);">{{ logLabel }}</span>
+              </div>
+              <sc-if value="{{ logOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="border: 1px solid var(--vk-border-soft); border-radius: 6px; background: var(--vk-surface-2); padding: 8px 10px; display: flex; flex-direction: column; gap: 1px;">
+                  <sc-for list="{{ logRows }}" as="r" hint-placeholder-count="4">
+                    <div onClick="{{ r.toggle }}" style="display: flex; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 3px; cursor: {{ r.cursor }}; padding-left: {{ r.indent }};" style-hover="background: var(--vk-green-wash-soft);">
+                      <span style="width: 10px; flex-shrink: 0; font-size: 9px; color: var(--vk-text-muted);">{{ r.caret }}</span>
+                      <span style="font-size: {{ r.size }}; font-weight: {{ r.weight }}; color: {{ r.color }};">{{ r.label }}</span>
+                      <sc-if value="{{ r.hasBadge }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 9.5px; font-weight: 700; letter-spacing: .06em; padding: 1px 6px; border-radius: 4px; white-space: nowrap; background: {{ r.badgeBg }}; color: {{ r.badgeFg }};">{{ r.badgeTxt }}</span>
+                      </sc-if>
+                      <span style="margin-left: auto; font-size: 10.5px; white-space: nowrap; color: {{ r.metaColor }};">{{ r.meta }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; border-top: 1px solid var(--vk-border-soft); padding-top: 14px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div onClick="{{ pressOn }}" title="Continue into the dungeon." style="background: var(--vk-green-dark); color: #000; border-radius: 6px; padding: 9px 12px; font-size: 13px; font-weight: 700; text-align: center; cursor: pointer;" style-hover="background: var(--vk-green);">Press On</div>
+              <div style="font-size: 11px; line-height: 1.5; color: var(--vk-text-muted);">{{ pressOnHint }}</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div onClick="{{ retreat }}" title="Return early." style="border: 1px solid var(--vk-border); color: var(--vk-text-2); border-radius: 6px; padding: 9px 12px; font-size: 13px; font-weight: 700; text-align: center; cursor: pointer;" style-hover="border-color: var(--vk-green); color: var(--vk-text-1);">Retreat</div>
+              <div style="font-size: 11px; line-height: 1.5; color: var(--vk-text-muted);">{{ retreatHint }}</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div onClick="{{ youDecide }}" title="The party decides whether to press on or retreat." style="border: 1px solid var(--vk-border); color: var(--vk-text-2); border-radius: 6px; padding: 9px 12px; font-size: 13px; font-weight: 700; text-align: center; cursor: pointer;" style-hover="border-color: var(--vk-blue); color: var(--vk-text-1);">You Decide</div>
+              <div style="font-size: 11px; line-height: 1.5; color: var(--vk-text-muted);">{{ decideHint }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div onClick="{{ reset }}" style="position: fixed; right: 16px; bottom: 16px; z-index: 300; padding: 6px 12px; border: 1px dashed rgba(75,85,99,.7); border-radius: 6px; background: #000; color: var(--vk-text-muted); font-size: 11px; cursor: pointer;" style-hover="color: var(--vk-text-1); border-color: var(--vk-green);">↺ Reset prototype</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startDay&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:12,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:1,&quot;max&quot;:360,&quot;section&quot;:&quot;Prototype state&quot;},&quot;showExpeditionLedger&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Event modal&quot;},&quot;consequenceLines&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Event modal&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { day: null, notifs: [], modalOpen: false, decision: null, logOpen: false, logExp: {}, diversOpen: false, shiftOpen: false };
+  }
+
+  startDay() { return this.props.startDay ?? 12; }
+  day() { return this.state.day ?? this.startDay(); }
+
+  hpStyle(cur, max) {
+    const pct = max > 0 ? cur / max : 0;
+    const color = pct > 0.5 ? 'var(--vk-green)' : (pct > 0.25 ? 'var(--vk-gold)' : 'var(--vk-red)');
+    return { hpPct: Math.round(pct * 100) + '%', hpColor: color, hpTxt: cur + '/' + max };
+  }
+
+  base() {
+    return [
+      { n: 'Kessa Vane', c: 'Fighter', lv: 'Lv 4', max: 24, before: 19, hit: 4, dealt: 8, taken: 9 },
+      { n: 'Borin Stonefist', c: 'Dwarf', lv: 'Lv 3', max: 22, before: 16, hit: 5, dealt: 6, taken: 11 },
+      { n: 'Sister Halan', c: 'Cleric', lv: 'Lv 3', max: 15, before: 12, hit: 0, dealt: 1, taken: 3, cures: 1, curesMax: 2 },
+      { n: 'Pip Underbough', c: 'Halfling', lv: 'Lv 2', max: 12, before: 9, hit: 3, dealt: 3, taken: 6 },
+      { n: 'Maevis Thorn', c: 'Magic-User', lv: 'Lv 3', max: 10, before: 8, hit: 0, dealt: 5, taken: 2, spells: 2, spellsMax: 4 },
+      { n: 'Ilanniel', c: 'Elf', lv: 'Lv 3', max: 16, before: 14, hit: 4, dealt: 6, taken: 6, spells: 0, spellsMax: 1 }
+    ];
+  }
+
+  roster() {
+    return this.base().map(m => {
+      const now = m.before - m.hit;
+      const hp = this.hpStyle(now, m.max);
+      return Object.assign({}, m, hp, {
+        dealtTxt: m.dealt > 0 ? String(m.dealt) : '—',
+        takenTxt: m.taken > 0 ? String(m.taken) : '—',
+        spellTxt: m.spellsMax ? m.spells + '/' + m.spellsMax : '—',
+        healTxt: m.curesMax ? m.cures + '/' + m.curesMax : '—'
+      });
+    });
+  }
+
+  notify(list) { this.setState({ notifs: list.concat(this.state.notifs) }); }
+
+  logTree() {
+    return [
+      { key: 't1', label: 'Turn 1', events: [
+        { key: 't1e1', label: 'Encountered 3 goblins', badge: 'Clear Victory', tone: 'success',
+          meta: '11 HP lost · +120 XP · 3 killed', rounds: [
+          { key: 't1r1', label: 'Round 1 (party first)', meta: 'Party 2/3 · 7 dmg — Monsters 1/3 · 3 dmg', attacks: [
+            'Kessa Vane → Goblin · roll 14 vs 11 · hit · 5 dmg',
+            'Borin Stonefist → Goblin · roll 16 vs 11 · hit · 2 dmg',
+            'Ilanniel → Goblin · roll 9 vs 12 · miss',
+            'Goblin → Borin Stonefist · roll 15 vs 13 · hit · 3 dmg' ] },
+          { key: 't1r2', label: 'Round 2 (monsters first)', meta: 'Party 3/3 · 9 dmg — Monsters 0/2 · monsters break', attacks: [
+            'Goblin → Pip Underbough · roll 7 vs 14 · miss',
+            'Maevis Thorn casts Magic Missile — 1 destroyed',
+            'Kessa Vane → Goblin · roll 18 vs 11 · hit · 4 dmg · slain' ] }
+        ] },
+        { key: 't1e2', label: 'Found a lacquered coffer', meta: '8gp 4sp', metaColor: 'var(--vk-gold)' }
+      ] },
+      { key: 't2', label: 'Turn 2', events: [
+        { key: 't2e1', label: 'Encountered 2 skeletons', badge: 'Tough Fight', tone: 'warning',
+          meta: '10 HP lost · +90 XP · 2 killed', rounds: [
+          { key: 't2r1', label: 'Round 1 (simultaneous)', meta: 'Turn Undead — Sister Halan: 1 turned, 1 resisted', attacks: [
+            'Sister Halan turns undead · roll 10 vs 9 · 1 destroyed',
+            'Skeleton → Kessa Vane · roll 13 vs 12 · hit · 4 dmg' ] },
+          { key: 't2r2', label: 'Round 2 (party first)', meta: 'Party 2/4 · 6 dmg — Monsters 2/2 · 6 dmg', attacks: [
+            'Kessa Vane → Skeleton · roll 15 vs 12 · hit · 6 dmg · slain',
+            'Skeleton → Ilanniel · roll 14 vs 13 · hit · 6 dmg',
+            '✚ Sister Halan heals Ilanniel for 3 HP' ] }
+        ] },
+        { key: 't2e2', label: 'A scything blade sprang from the ossuary wall', badge: 'This event', tone: 'gold',
+          meta: '16 damage · 4 of 6 hit', metaColor: 'var(--vk-red)' }
+      ] }
+    ];
+  }
+
+  isOpen(key, dflt) {
+    const v = this.state.logExp[key];
+    return v === undefined ? dflt : v;
+  }
+
+  toggleKey(key, dflt) {
+    return () => {
+      const next = Object.assign({}, this.state.logExp);
+      next[key] = !this.isOpen(key, dflt);
+      this.setState({ logExp: next });
+    };
+  }
+
+  badgeTone(tone) {
+    const map = {
+      success: { bg: 'var(--vk-green-tint)', fg: 'var(--vk-green)' },
+      warning: { bg: 'var(--vk-gold-tint)', fg: 'var(--vk-gold)' },
+      gold: { bg: 'var(--vk-gold-tint)', fg: 'var(--vk-gold)' },
+      danger: { bg: 'var(--vk-red-tint)', fg: 'var(--vk-red)' }
+    };
+    return map[tone] || map.gold;
+  }
+
+  row(o) {
+    const badge = this.badgeTone(o.tone);
+    return {
+      label: o.label,
+      caret: o.caret || '',
+      indent: o.indent,
+      cursor: o.toggle ? 'pointer' : 'default',
+      size: o.size,
+      weight: o.weight || '400',
+      color: o.color || 'var(--vk-text-2)',
+      meta: o.meta || '',
+      metaColor: o.metaColor || 'var(--vk-text-muted)',
+      hasBadge: !!o.badge,
+      badgeTxt: o.badge || '',
+      badgeBg: badge.bg,
+      badgeFg: badge.fg,
+      toggle: o.toggle || (() => {})
+    };
+  }
+
+  logRows() {
+    const rows = [];
+    this.logTree().forEach(turn => {
+      const turnOpen = this.isOpen(turn.key, true);
+      rows.push(this.row({
+        label: turn.label, caret: turnOpen ? '▼' : '▶', indent: '0px', size: '11px',
+        weight: '700', color: 'var(--vk-green)', toggle: this.toggleKey(turn.key, true)
+      }));
+      if (!turnOpen) return;
+      turn.events.forEach(ev => {
+        const hasRounds = !!(ev.rounds && ev.rounds.length);
+        const evOpen = hasRounds && this.isOpen(ev.key, false);
+        rows.push(this.row({
+          label: ev.label, caret: hasRounds ? (evOpen ? '▼' : '▶') : '·', indent: '14px',
+          size: '11.5px', color: 'var(--vk-text-1)', badge: ev.badge, tone: ev.tone,
+          meta: ev.meta, metaColor: ev.metaColor,
+          toggle: hasRounds ? this.toggleKey(ev.key, false) : null
+        }));
+        if (!evOpen) return;
+        ev.rounds.forEach(rd => {
+          const rdOpen = this.isOpen(rd.key, false);
+          rows.push(this.row({
+            label: rd.label, caret: rdOpen ? '▼' : '▶', indent: '32px', size: '11px',
+            meta: rd.meta, toggle: this.toggleKey(rd.key, false)
+          }));
+          if (!rdOpen) return;
+          rd.attacks.forEach((a, i) => {
+            rows.push(this.row({ label: a, caret: '', indent: '50px', size: '10.5px', color: 'var(--vk-text-muted)' }));
+          });
+        });
+      });
+    });
+    return rows;
+  }
+
+  openEvent = () => this.setState({ modalOpen: true });
+  closeModal = () => this.setState({ modalOpen: false });
+  toggleLog = () => this.setState({ logOpen: !this.state.logOpen });
+  toggleDivers = () => this.setState({ diversOpen: !this.state.diversOpen });
+  toggleShift = () => this.setState({ shiftOpen: !this.state.shiftOpen });
+  reset = () => this.setState({ day: null, notifs: [], modalOpen: false, decision: null, logOpen: false, logExp: {}, diversOpen: false, shiftOpen: false });
+
+  advance(mode) {
+    if (this.state.decision) return;
+    const d = this.startDay() + 1;
+    const opening = mode === 'skip'
+      ? { text: 'Skipped ahead to Day ' + d + ' — an event needs your decision.', tone: 'info' }
+      : { text: 'Day ' + d + ' begins.', tone: 'info' };
+    this.setState({
+      day: d,
+      modalOpen: true,
+      notifs: [
+        { text: 'The Demo Divers met a trap in the Lost Sepulchre.', tone: 'warning' },
+        { text: 'Upkeep paid — 18gp for 9 adventurers.', tone: 'warning' },
+        { text: 'A Halfling arrived at the tavern.', tone: 'info' },
+        opening
+      ]
+    });
+  }
+
+  advanceDay = () => this.advance('day');
+  skipToEvent = () => this.advance('skip');
+
+  decide(kind) {
+    const notes = {
+      press_on: { text: 'The Demo Divers pressed on into Depth 3.', tone: 'info' },
+      retreat: { text: 'The party retreated safely.', tone: 'success', action: 'View Summary' },
+      auto: { text: 'The party decided to press on.', tone: 'info' }
+    };
+    this.setState({ decision: kind, modalOpen: false, logOpen: false, notifs: [notes[kind]].concat(this.state.notifs) });
+  }
+
+  pressOn = () => this.decide('press_on');
+  retreat = () => this.decide('retreat');
+  youDecide = () => this.decide('auto');
+
+  toneStyle(tone) {
+    const map = {
+      success: { bg: '#052e16', bd: '#166534', fg: 'var(--vk-green)' },
+      error: { bg: '#450a0a', bd: '#7f1d1d', fg: 'var(--vk-red)' },
+      info: { bg: '#0c1929', bd: '#1e3a5f', fg: 'var(--vk-blue)' },
+      warning: { bg: '#422006', bd: '#78350f', fg: 'var(--vk-gold)' }
+    };
+    return map[tone] || map.info;
+  }
+
+  calendar(day) {
+    const year = Math.ceil(day / 360);
+    const dayInYear = ((day - 1) % 360) + 1;
+    const month = Math.ceil(dayInYear / 30);
+    const dayInMonth = ((dayInYear - 1) % 30) + 1;
+    return 'Year ' + year + ', Month ' + month + ', Day ' + dayInMonth;
+  }
+
+  renderVals() {
+    const day = this.day();
+    const advanced = day > this.startDay();
+    const decision = this.state.decision;
+    const roster = this.roster();
+    const consequences = this.props.consequenceLines !== false;
+
+    const impact = roster.filter(m => m.hit > 0).map(m => Object.assign({}, m, {
+      hit: '−' + m.hit,
+      flagTxt: (m.before - m.hit) / m.max <= 0.5 ? 'wounded' : ''
+    }));
+    const untouched = roster.filter(m => m.hit === 0).map(m => m.n);
+
+    const unassigned = [
+      { n: 'Alric Duhn', c: 'Fighter', lv: 'Lv 2', cur: 14, max: 14, xp: '1,400/2,000 XP', gold: '4gp' },
+      { n: 'Wren Ashby', c: 'Elf', lv: 'Lv 1', cur: 6, max: 8, xp: '900/2,000 XP', gold: '1gp 2sp' },
+      { n: 'Toma Reel', c: 'Halfling', lv: 'Lv 1', cur: 7, max: 7, xp: '300/1,200 XP', gold: '8sp' }
+    ].map(a => Object.assign({}, a, this.hpStyle(a.cur, a.max)));
+
+    const shiftRoster = [
+      { n: 'Gareth Um', c: 'Fighter', lv: 'Lv 2', cur: 15, max: 15 },
+      { n: 'Nell Ivory', c: 'Cleric', lv: 'Lv 1', cur: 8, max: 8 },
+      { n: 'Sabra Kell', c: 'Magic-User', lv: 'Lv 1', cur: 5, max: 6 }
+    ].map(a => Object.assign({}, a, this.hpStyle(a.cur, a.max)));
+
+    const diversStatus = decision === 'retreat' ? 'Healing' : 'On Expedition';
+    const statusTone = decision === 'retreat'
+      ? { bg: 'var(--vk-gold-tint)', fg: 'var(--vk-gold)' }
+      : { bg: 'var(--vk-blue-tint)', fg: 'var(--vk-blue)' };
+
+    return {
+      day: day,
+      dayCalendar: this.calendar(day),
+      treasury: advanced ? '1,266gp 4sp' : '1,284gp 4sp',
+      notifs: this.state.notifs.map((n, i) => Object.assign({ id: i, action: n.action || '' }, n, this.toneStyle(n.tone))),
+      hasNotifs: this.state.notifs.length > 0,
+      clearNotifs: () => this.setState({ notifs: [] }),
+
+      expActive: decision !== 'retreat',
+      retreated: decision === 'retreat',
+      awaitingChoice: advanced && !decision,
+      expPct: advanced ? '67%' : '33%',
+      expDays: advanced ? 'Day 2/3' : 'Day 1/3',
+      openEvent: advanced && !decision ? this.openEvent : this.skipToEvent,
+
+      roster: roster,
+      impact: impact,
+      untouchedLine: untouched.join(' and ') + ' were untouched.',
+      unassigned: unassigned,
+      shiftRoster: shiftRoster,
+      buildings: [
+        { n: 'Tavern', assigned: '1 assigned', fx: '+1 recruit per week' },
+        { n: 'Temple', assigned: '2 assigned', fx: '+2 healing per day' },
+        { n: 'Smithy', assigned: '0 assigned', fx: '−10% gear upkeep' }
+      ],
+
+      diversOpen: this.state.diversOpen,
+      shiftOpen: this.state.shiftOpen,
+      diversCaret: this.state.diversOpen ? '▼' : '▶',
+      shiftCaret: this.state.shiftOpen ? '▼' : '▶',
+      diversStatus: diversStatus,
+      diversStatusBg: statusTone.bg,
+      diversStatusFg: statusTone.fg,
+      diversAction: decision === 'retreat' ? 'View Summary' : 'View Expedition',
+
+      modalOpen: this.state.modalOpen,
+      showLedger: this.props.showExpeditionLedger !== false,
+      logOpen: this.state.logOpen,
+      logLabel: this.state.logOpen ? 'Expedition Log ▴' : 'Expedition Log ▾',
+      logRows: this.logRows(),
+      pressOnHint: consequences ? 'Continue into the dungeon.' : '',
+      retreatHint: consequences ? 'Return early.' : '',
+      decideHint: consequences ? 'The party decides whether to press on or retreat.' : '',
+
+      advanceDay: this.advanceDay,
+      skipToEvent: this.skipToEvent,
+      closeModal: this.closeModal,
+      toggleLog: this.toggleLog,
+      toggleDivers: this.toggleDivers,
+      toggleShift: this.toggleShift,
+      pressOn: this.pressOn,
+      retreat: this.retreat,
+      youDecide: this.youDecide,
+      reset: this.reset
+    };
+  }
+}
+</script>
+</body>
+</html>
