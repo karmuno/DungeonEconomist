@@ -384,8 +384,8 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 .event-modal {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 4px 0;
+  gap: 10px;
+  padding: 2px 0;
 }
 
 /* 1. Event line */
@@ -442,7 +442,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 /* Sections */
 .section-divided {
   border-top: 1px solid #374151;
-  padding-top: 14px;
+  padding-top: 10px;
 }
 
 .section-label {
@@ -457,8 +457,8 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 .this-event-grid {
   display: grid;
   grid-template-columns: 1fr 52px 132px;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 2px 8px;
+  margin-top: 2px;
 }
 
 .grid-head {
@@ -466,7 +466,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #6b7280;
-  padding-bottom: 6px;
+  padding-bottom: 4px;
   border-bottom: 1px solid #374151;
 }
 
@@ -477,7 +477,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 .cell {
   display: flex;
   align-items: center;
-  padding: 6px 0;
+  padding: 3px 0;
   border-bottom: 1px solid rgba(55, 65, 81, 0.5);
   min-width: 0;
 }
@@ -559,7 +559,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 }
 
 .ledger-grid .cell {
-  padding: 5px 0;
+  padding: 3px 0;
 }
 
 .row-dead {
@@ -619,7 +619,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
   align-items: baseline;
   gap: 10px;
   font-size: 12px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .stairs-note {
@@ -681,7 +681,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
   grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
   border-top: 1px solid #374151;
-  padding-top: 14px;
+  padding-top: 10px;
 }
 
 .decision-col {
@@ -694,7 +694,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 700;
-  padding: 9px 12px;
+  padding: 7px 12px;
   border-radius: 6px;
   text-align: center;
   width: 100%;
