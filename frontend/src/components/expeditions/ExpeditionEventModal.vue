@@ -183,10 +183,7 @@ const ledgerRows = computed<LedgerRow[]>(() => {
 
 const ledgerTotals = computed(() => {
   const rows = ledgerRows.value
-  const atHalf = rows.filter(r => r.member.alive && r.member.hp_max > 0
-    && r.member.hp_current / r.member.hp_max <= 0.5).length
   return {
-    atHalf,
     dealt: rows.reduce((sum, r) => sum + r.dealt, 0),
     taken: rows.reduce((sum, r) => sum + r.taken, 0),
     casts: rows.reduce((sum, r) => sum + r.casts, 0),
@@ -301,7 +298,7 @@ function isWounded(member: ExpeditionMemberResult): boolean {
             </template>
             <!-- Totals row -->
             <div class="cell totals-cell totals-label">Expedition total</div>
-            <div class="cell totals-cell muted">{{ ledgerTotals.atHalf }} at half or less</div>
+            <div class="cell totals-cell"></div>
             <div class="cell totals-cell num dealt-cell">{{ ledgerTotals.dealt }}</div>
             <div class="cell totals-cell num taken-cell">{{ ledgerTotals.taken }}</div>
             <div class="cell totals-cell num spells-cell">{{ ledgerTotals.casts }}</div>
@@ -328,7 +325,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 
       <!-- Party resources — the read that informs the decision -->
       <div v-if="summary && !loading && (summary.spells_left !== undefined || summary.heals_left !== undefined)" class="resources-line">
-        <span class="muted">Party resources</span>
         <span v-if="summary.spells_left !== undefined" class="res-spells">{{ summary.spells_left }} {{ summary.spells_left === 1 ? 'spell' : 'spells' }} left</span>
         <span v-if="summary.heals_left !== undefined" class="res-cures">{{ summary.heals_left }} {{ summary.heals_left === 1 ? 'cure' : 'cures' }} left</span>
       </div>
