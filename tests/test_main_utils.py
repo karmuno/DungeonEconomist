@@ -479,6 +479,10 @@ def test_active_summary_hides_unwitnessed_turns(client: TestClient, db_session: 
         "decision_points": [{"after_turn": 2, "type": "death", "message": "x"}],
         "turn_summaries": ["Turn 1: fight", "Turn 2: deaths"],
         "starting_hp": {},
+        "starting_spells": 4,
+        "starting_heals": 2,
+        "spells_left": 0,
+        "heals_left": 0,
     }
     exp = Expedition(
         party_id=party.id,
@@ -500,6 +504,9 @@ def test_active_summary_hides_unwitnessed_turns(client: TestClient, db_session: 
     summary = _build_active_summary(exp, party, keep)
     assert summary["events_log"] == []
     assert summary["turn_summaries"] == []
+    # Resources show the launch snapshot, never end-of-run leftovers
+    assert summary["spells_left"] == 4
+    assert summary["heals_left"] == 2
 
     # The decision point fires: its turn (and everything before) is visible
     exp.result = "awaiting_choice"

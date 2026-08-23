@@ -566,6 +566,24 @@ class EncounterType(Enum):
     TREASURE = "Unguarded Treasure"
 
 
+def starting_resources(party: list[dict]) -> tuple[int, int]:
+    """Spell and heal charges a fresh party enters the dungeon with.
+
+    Mirrors the initialization in Expedition.__init__ — keep the two in sync.
+    Returns (spells, heals).
+    """
+    spells = 0
+    heals = 0
+    for member in party:
+        cls = member.get("character_class", "")
+        level = member.get("level", 1)
+        if cls == "Cleric":
+            heals += level // 2
+        if cls in ("Magic-User", "Elf"):
+            spells += level * member.get("spell_multiplier", 1) + member.get("scroll_count", 0)
+    return spells, heals
+
+
 class Expedition:
     def __init__(self, party: list[dict], dungeon_level: int) -> None:
         for member in party:

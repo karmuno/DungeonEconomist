@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_keep
 from app.database import get_db
 from app.dungeons import DUNGEON_LEVEL_NAMES, get_level_duration
+from app.expedition import starting_resources
 from app.expedition_events import build_phases, calculate_retreat_results
 from app.models import (
     Expedition,
@@ -567,6 +568,7 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
         m["name"]: m.get("current_hp", m.get("hit_points", 10))
         for m in party_members
     }
+    sim_result["starting_spells"], sim_result["starting_heals"] = starting_resources(party_members)
     build_phases(sim_result, dungeon_level, keep.max_dungeon_level)
 
     decision_points = sim_result.get("decision_points", [])
@@ -708,6 +710,7 @@ def launch_expedition(
         m["name"]: m.get("current_hp", m.get("hit_points", 10))
         for m in party_members
     }
+    sim_result["starting_spells"], sim_result["starting_heals"] = starting_resources(party_members)
 
     build_phases(sim_result, requested_level, keep.max_dungeon_level)
 
@@ -1157,15 +1160,15 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     if expedition.result == "awaiting_choice" and expedition.pending_event:
         pending_event = expedition.pending_event
 
-    # Spells/heals at the current decision point (not end-of-expedition)
-    spells_left = sim.get("spells_left", 0)
-    heals_left = sim.get("heals_left", 0)
+    # Spells/heals as of the last WITNESSED turn. Before anything is witnessed,
+    # use the launch snapshot — never the end-of-run leftovers.
     if events_log:
         last_turn = events_log[-1]
-        if "spells_left" in last_turn:
-            spells_left = last_turn["spells_left"]
-        if "heals_left" in last_turn:
-            heals_left = last_turn["heals_left"]
+        spells_left = last_turn.get("spells_left", sim.get("spells_left", 0))
+        heals_left = last_turn.get("heals_left", sim.get("heals_left", 0))
+    else:
+        spells_left = sim.get("starting_spells", sim.get("spells_left", 0))
+        heals_left = sim.get("starting_heals", sim.get("heals_left", 0))
 
     # Filter turn summaries to only include turns the player has seen
     all_summaries = sim.get("turn_summaries", [])
