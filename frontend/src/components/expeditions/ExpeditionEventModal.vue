@@ -228,9 +228,53 @@ function isWounded(member: ExpeditionMemberResult): boolean {
       <!-- Loading -->
       <div v-if="loading" class="loading-text">Loading expedition data...</div>
 
+      <!-- 2. Decision block — up front so the choice is on screen immediately -->
+      <div v-if="eventType === 'tpk'" class="tpk-actions">
+        <button class="btn btn-secondary" @click="emit('close')">Rest in Peace</button>
+      </div>
+      <div v-else class="decision-block">
+        <div class="decision-col">
+          <button
+            class="decide-btn primary"
+            :disabled="choosing"
+            title="Continue into the dungeon."
+            @click="emit('choose', 'press_on')"
+          >
+            Press On
+          </button>
+          <p class="decide-explain">Continue into the dungeon.</p>
+        </div>
+        <div class="decision-col">
+          <button
+            class="decide-btn"
+            :disabled="choosing"
+            title="Return early."
+            @click="emit('choose', 'retreat')"
+          >
+            Retreat
+          </button>
+          <p class="decide-explain">Return early.</p>
+        </div>
+        <div class="decision-col">
+          <button
+            class="decide-btn auto-hover"
+            :disabled="choosing"
+            title="The party decides whether to press on or retreat."
+            @click="emit('choose', 'auto')"
+          >
+            You Decide
+          </button>
+          <p class="decide-explain">The party decides whether to press on or retreat.</p>
+        </div>
+      </div>
+      <div v-if="summary && !loading && (summary.spells_left !== undefined || summary.heals_left !== undefined)" class="resources-line">
+        <span v-if="summary.spells_left !== undefined" class="res-spells">{{ summary.spells_left }} {{ summary.spells_left === 1 ? 'spell' : 'spells' }} left</span>
+        <span v-if="summary.heals_left !== undefined" class="res-cures">{{ summary.heals_left }} {{ summary.heals_left === 1 ? 'cure' : 'cures' }} left</span>
+      </div>
+
       <template v-if="summary && !loading">
-        <!-- 2. This Event -->
-        <div class="section">
+        <!-- 3. This Event — only when the event actually touched someone -->
+        <div v-if="touchedRows.length > 0" class="section section-divided">
           <div class="section-label">This Event</div>
           <template v-if="touchedRows.length > 0">
             <div class="this-event-grid">
@@ -259,7 +303,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
             </div>
             <div v-if="untouchedLine" class="untouched-line">{{ untouchedLine }}</div>
           </template>
-          <div v-else class="untouched-line">No one was harmed.</div>
         </div>
 
         <!-- 3. Expedition So Far -->
@@ -323,51 +366,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
         </div>
       </template>
 
-      <!-- Party resources — the read that informs the decision -->
-      <div v-if="summary && !loading && (summary.spells_left !== undefined || summary.heals_left !== undefined)" class="resources-line">
-        <span v-if="summary.spells_left !== undefined" class="res-spells">{{ summary.spells_left }} {{ summary.spells_left === 1 ? 'spell' : 'spells' }} left</span>
-        <span v-if="summary.heals_left !== undefined" class="res-cures">{{ summary.heals_left }} {{ summary.heals_left === 1 ? 'cure' : 'cures' }} left</span>
-      </div>
-
-      <!-- 5. Decision block -->
-      <div v-if="eventType === 'tpk'" class="tpk-actions">
-        <button class="btn btn-secondary" @click="emit('close')">Rest in Peace</button>
-      </div>
-      <div v-else class="decision-block">
-        <div class="decision-col">
-          <button
-            class="decide-btn primary"
-            :disabled="choosing"
-            title="Continue into the dungeon."
-            @click="emit('choose', 'press_on')"
-          >
-            Press On
-          </button>
-          <p class="decide-explain">Continue into the dungeon.</p>
-        </div>
-        <div class="decision-col">
-          <button
-            class="decide-btn"
-            :disabled="choosing"
-            title="Return early."
-            @click="emit('choose', 'retreat')"
-          >
-            Retreat
-          </button>
-          <p class="decide-explain">Return early.</p>
-        </div>
-        <div class="decision-col">
-          <button
-            class="decide-btn auto-hover"
-            :disabled="choosing"
-            title="The party decides whether to press on or retreat."
-            @click="emit('choose', 'auto')"
-          >
-            You Decide
-          </button>
-          <p class="decide-explain">The party decides whether to press on or retreat.</p>
-        </div>
-      </div>
     </div>
   </ModalDialog>
 </template>
@@ -454,6 +452,11 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 }
 
 /* Sections */
+.section-divided {
+  border-top: 1px solid #374151;
+  padding-top: 14px;
+}
+
 .section-label {
   font-size: 10px;
   text-transform: uppercase;
