@@ -179,8 +179,9 @@ async function popupChoice(choice: string) {
 
 async function viewExpedition() {
   showChoicePopup.value = false
+  const wasTpk = choiceEventType.value === 'tpk'
   // If this was a TPK, auto-resolve the decision point so the expedition isn't stuck
-  if (choiceEventType.value === 'tpk' && choiceExpeditionId.value) {
+  if (wasTpk && choiceExpeditionId.value) {
     try {
       const result = await expeditionsApi.choose(choiceExpeditionId.value, 'press_on')
       if (result.events?.length) processEvents(result.events)
@@ -188,7 +189,10 @@ async function viewExpedition() {
       gameTime.expeditionVersion++
     } catch { /* expedition may already be resolved */ }
   }
-  if (choiceExpeditionId.value) {
+  if (wasTpk) {
+    // "Rest in Peace" returns to the dashboard, not the graveyard's summary
+    router.push('/')
+  } else if (choiceExpeditionId.value) {
     router.push(`/expedition/${choiceExpeditionId.value}/summary`)
   }
   // Check queue if they just closed the modal to navigate away

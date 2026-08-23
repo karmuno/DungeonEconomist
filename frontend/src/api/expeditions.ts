@@ -35,6 +35,8 @@ export interface ExpeditionSummaryDetail {
   duration_days: number
   result: string
   dungeon_level?: number
+  dungeon_name?: string | null
+  actual_return_day?: number | null
   member_results: ExpeditionMemberResult[]
   total_loot: number
   total_silver: number
