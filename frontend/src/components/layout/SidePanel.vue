@@ -224,11 +224,13 @@ const skipping = ref(false)
 async function advanceDay() {
   try {
     const result = await gameTime.advanceDay()
-    await player.fetchPlayer()
-    notifications.onDayAdvanced(result.current_day) // Moved here
-    processEvents(result.events) // Pass only events
+    // Popups open in the same tick as the response — no awaits before them,
+    // so nothing can render post-advance state ahead of the event popup
+    notifications.onDayAdvanced(result.current_day)
+    processEvents(result.events)
     pendingRefresh.value = true
     maybeFlushRefresh()
+    await player.fetchPlayer()
   } catch {
     notifications.add('Failed to advance time', 'error')
   }
@@ -238,11 +240,11 @@ async function skipToEvent() {
   skipping.value = true
   try {
     const result = await gameTime.skipToEvent()
-    await player.fetchPlayer()
     notifications.onDayAdvanced(result.current_day)
     processEvents(result.events)
     pendingRefresh.value = true
     maybeFlushRefresh()
+    await player.fetchPlayer()
   } catch (e) {
     notifications.add('Failed to skip time', 'error')
   } finally {

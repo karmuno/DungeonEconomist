@@ -196,9 +196,6 @@ function hpColor(member: ExpeditionMemberResult): string {
   return '#ef4444'
 }
 
-function isWounded(member: ExpeditionMemberResult): boolean {
-  return member.alive && member.hp_max > 0 && member.hp_current / member.hp_max <= 0.5
-}
 </script>
 
 <template>
@@ -272,7 +269,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
                 <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
                 <span class="member-class">{{ row.member.adventurer_class }}</span>
-                <span v-if="isWounded(row.member)" class="wounded-tag">wounded</span>
               </div>
               <div class="cell num dmg-cell">
                 <template v-if="row.damage > 0">−{{ row.damage }}</template>
@@ -498,11 +494,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
 .member-class {
   font-size: 10px;
   color: #6b7280;
-}
-
-.wounded-tag {
-  font-size: 10px;
-  color: #ef4444;
 }
 
 .dmg-cell {
