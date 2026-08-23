@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
@@ -8,6 +8,11 @@ import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ExpeditionEventModal from '../expeditions/ExpeditionEventModal.vue'
+import UpkeepDayModal from '../upkeep/UpkeepDayModal.vue'
+import UpkeepForecastModal from '../upkeep/UpkeepForecastModal.vue'
+import AdventurerSheetModal from '../adventurers/AdventurerSheetModal.vue'
+import { formatCp } from '../../utils/currency'
+import type { UpkeepDayData } from '../../types/upkeep'
 import * as expeditionsApi from '../../api/expeditions'
 import eventBus from '../../eventBus'
 
@@ -61,6 +66,50 @@ function checkChoiceQueue() {
 }
 
 
+// Upkeep day modal — the treasury and roster must not update until Collect
+const upkeepReport = ref<UpkeepDayData | null>(null)
+const showUpkeepModal = ref(false)
+const upkeepReopened = ref(false)
+const pendingPlayerFetch = ref(false)
+const showForecast = ref(false)
+const sheetAdvId = ref<number | null>(null)
+
+const shortRows = computed(() =>
+  (player.upkeepForecast?.rows ?? []).filter(r => r.short_cp > 0)
+)
+
+function reopenUpkeep() {
+  if (!upkeepReport.value) return
+  upkeepReopened.value = true
+  showUpkeepModal.value = true
+}
+
+function onUpkeepCollect() {
+  showUpkeepModal.value = false
+  if (upkeepReopened.value) return
+  const d = upkeepReport.value
+  if (d) {
+    if (d.prison_names.length > 0) {
+      const names = d.prison_names.length === 1
+        ? d.prison_names[0]
+        : `${d.prison_names.slice(0, -1).join(', ')} and ${d.prison_names[d.prison_names.length - 1]}`
+      notifications.add(
+        `${names} could not pay upkeep and ${d.prison_names.length === 1 ? 'was' : 'were'} sent to debtor's prison.`,
+        { type: 'warning', action: { label: 'Upkeep', callback: reopenUpkeep } },
+      )
+    }
+    notifications.add(
+      `Upkeep collected: ${formatCp(d.collected_cp)} from ${d.collected_from} adventurer${d.collected_from === 1 ? '' : 's'}.`,
+      { type: 'success', action: { label: 'Upkeep', callback: reopenUpkeep } },
+    )
+  }
+  if (pendingPlayerFetch.value) {
+    pendingPlayerFetch.value = false
+    player.fetchPlayer()
+    gameTime.expeditionVersion++
+  }
+}
+
 // Level-up popup
 const showLevelUpPopup = ref(false)
 const levelUpMessage = ref('')
@@ -92,8 +141,19 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   level_up: 'success',
 }
 
-function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null }>) {
+function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null; data?: UpkeepDayData | null }>) {
+  // On an upkeep day the ledger modal carries the whole story; its feed
+  // lines are suppressed and recreated as clickable notifications on Collect
+  const upkeepDay = events.some(e => e.type === 'upkeep' && e.data)
   for (const event of events) {
+    if (event.type === 'upkeep' && upkeepDay) {
+      if (event.data) {
+        upkeepReport.value = event.data
+        upkeepReopened.value = false
+        showUpkeepModal.value = true
+      }
+      continue
+    }
     // First-time level up — show popup
     if (event.type === 'level_up' && event.first_time) {
       levelUpMessage.value = event.message
@@ -230,7 +290,11 @@ async function advanceDay() {
     processEvents(result.events)
     pendingRefresh.value = true
     maybeFlushRefresh()
-    await player.fetchPlayer()
+    if (showUpkeepModal.value) {
+      pendingPlayerFetch.value = true
+    } else {
+      await player.fetchPlayer()
+    }
   } catch {
     notifications.add('Failed to advance time', 'error')
   }
@@ -244,7 +308,11 @@ async function skipToEvent() {
     processEvents(result.events)
     pendingRefresh.value = true
     maybeFlushRefresh()
-    await player.fetchPlayer()
+    if (showUpkeepModal.value) {
+      pendingPlayerFetch.value = true
+    } else {
+      await player.fetchPlayer()
+    }
   } catch (e) {
     notifications.add('Failed to skip time', 'error')
   } finally {
@@ -280,6 +348,25 @@ onUnmounted(() => {
     <div class="panel-section">
       <h3 class="section-label">Treasury</h3>
       <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
+      <div
+        v-if="player.upkeepForecast && player.upkeepForecast.total_cp > 0"
+        class="forecast-line"
+        @click="showForecast = true"
+      >
+        <span class="forecast-amount">+{{ formatCp(player.upkeepForecast.total_cp) }}</span>
+        <span class="forecast-when">upkeep · day {{ player.upkeepForecast.next_day }}</span>
+      </div>
+      <div v-if="shortRows.length > 0" class="at-risk" @click="showForecast = true">
+        <div class="at-risk-head">
+          {{ shortRows.length }} adventurer{{ shortRows.length === 1 ? '' : 's' }} cannot afford upkeep:
+        </div>
+        <div
+          v-for="r in shortRows"
+          :key="r.id"
+          class="at-risk-name"
+          @click.stop="sheetAdvId = r.id"
+        >{{ r.name }}</div>
+      </div>
     </div>
 
     <div class="time-controls">
@@ -327,6 +414,23 @@ onUnmounted(() => {
     @choose="popupChoice"
     @close="viewExpedition"
   />
+
+  <UpkeepDayModal
+    :is-open="showUpkeepModal"
+    :data="upkeepReport"
+    :reopened="upkeepReopened"
+    @collect="onUpkeepCollect"
+    @open-sheet="sheetAdvId = $event"
+  />
+
+  <UpkeepForecastModal
+    :is-open="showForecast"
+    :forecast="player.upkeepForecast"
+    @close="showForecast = false"
+    @open-sheet="sheetAdvId = $event"
+  />
+
+  <AdventurerSheetModal :adventurer-id="sheetAdvId" @close="sheetAdvId = null" />
 
   <!-- Level-Up Popup -->
   <ModalDialog
@@ -604,4 +708,55 @@ onUnmounted(() => {
   min-width: 120px;
 }
 
+
+.forecast-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.forecast-amount {
+  font-size: 11px;
+  color: #4ade80;
+  text-decoration: underline;
+  text-decoration-color: #374151;
+  text-underline-offset: 2px;
+}
+
+.forecast-line:hover .forecast-amount {
+  text-decoration-color: #4ade80;
+}
+
+.forecast-when {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.at-risk {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.at-risk-head {
+  font-size: 10px;
+  color: #ef4444;
+}
+
+.at-risk-name {
+  font-size: 10px;
+  color: #ef4444;
+  padding-left: 8px;
+  text-decoration: underline;
+  text-decoration-color: rgba(239, 68, 68, 0.3);
+  text-underline-offset: 2px;
+}
+
+.at-risk-name:hover {
+  text-decoration-color: #ef4444;
+}
 </style>

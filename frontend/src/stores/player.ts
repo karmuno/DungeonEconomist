@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useAuthStore } from './auth'
 import * as gameApi from '../api/game'
+import type { UpkeepForecast } from '../types/upkeep'
 
 export const usePlayerStore = defineStore('player', () => {
   const id = ref<number | null>(null)
@@ -10,6 +11,7 @@ export const usePlayerStore = defineStore('player', () => {
   const treasurySilver = ref(0)
   const treasuryCopper = ref(0)
   const totalScore = ref(0)
+  const upkeepForecast = ref<UpkeepForecast | null>(null)
 
   function loadFromKeep() {
     const auth = useAuthStore()
@@ -32,6 +34,7 @@ export const usePlayerStore = defineStore('player', () => {
       treasurySilver.value = stats.treasury_silver
       treasuryCopper.value = stats.treasury_copper
       totalScore.value = stats.total_score
+      upkeepForecast.value = (stats as { upkeep_forecast?: UpkeepForecast }).upkeep_forecast ?? null
     } catch {
       // If the API fails, use cached keep data (already loaded above)
     }
@@ -44,6 +47,7 @@ export const usePlayerStore = defineStore('player', () => {
     treasurySilver,
     treasuryCopper,
     totalScore,
+    upkeepForecast,
     fetchPlayer,
     loadFromKeep,
   }

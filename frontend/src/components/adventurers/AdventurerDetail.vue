@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { AdventurerOut } from '../../types'
 import ProgressBar from '../shared/ProgressBar.vue'
-import { formatCurrency } from '../../utils/currency'
+import { formatCurrency, formatCp } from '../../utils/currency'
 import { displayStatus, itemEmoji, itemBonusLabel } from '../../utils/adventurer'
 
 const props = defineProps<{
@@ -86,6 +86,10 @@ const hpBarColor = computed(() => {
       <div class="cs-stat">
         <span class="cs-stat-value cs-gold-value">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</span>
         <span class="cs-stat-label">WEALTH</span>
+      </div>
+      <div class="cs-stat">
+        <span class="cs-stat-value cs-upkeep-value">{{ formatCp(Math.floor(adventurer.xp)) }}</span>
+        <span class="cs-stat-label">UPKEEP</span>
       </div>
     </div>
 
@@ -277,6 +281,11 @@ const hpBarColor = computed(() => {
 .cs-gold-value {
   font-size: 0.75rem;
   color: var(--accent-green);
+}
+
+.cs-upkeep-value {
+  font-size: 0.75rem;
+  color: #4ade80;
 }
 
 .cs-stat-label {

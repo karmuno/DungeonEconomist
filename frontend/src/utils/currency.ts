@@ -9,3 +9,14 @@ export function formatCurrency(gold: number, silver: number, copper: number): st
   if (copper > 0) parts.push(`${copper}cp`)
   return parts.length > 0 ? parts.join(' ') : '0cp'
 }
+
+/**
+ * Format a copper amount into "2gp 3sp 5cp". Negative amounts render with a
+ * true minus sign: "−15gp".
+ */
+export function formatCp(cp: number): string {
+  const negative = cp < 0
+  const abs = Math.abs(cp)
+  const formatted = formatCurrency(Math.floor(abs / 100), Math.floor((abs % 100) / 10), abs % 10)
+  return negative ? `−${formatted}` : formatted
+}

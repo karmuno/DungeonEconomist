@@ -278,6 +278,7 @@ export interface DashboardStats {
     copper: number
     magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
   }>
+  upkeep_forecast: import('./upkeep').UpkeepForecast
   hint: string | null
   active_expeditions: Array<{
     id: number
