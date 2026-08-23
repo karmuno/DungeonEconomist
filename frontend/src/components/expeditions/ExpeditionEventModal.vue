@@ -248,7 +248,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
           >
             Press On
           </button>
-          <p class="decide-explain">Continue into the dungeon.</p>
         </div>
         <div class="decision-col">
           <button
@@ -259,7 +258,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
           >
             Retreat
           </button>
-          <p class="decide-explain">Return early.</p>
         </div>
         <div class="decision-col">
           <button
@@ -270,7 +268,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
           >
             You Decide
           </button>
-          <p class="decide-explain">The party decides whether to press on or retreat.</p>
         </div>
       </div>
       <div v-if="summary && !loading && (summary.spells_left !== undefined || summary.heals_left !== undefined)" class="resources-line">
@@ -758,12 +755,6 @@ function isWounded(member: ExpeditionMemberResult): boolean {
   cursor: default;
 }
 
-.decide-explain {
-  font-size: 11px;
-  line-height: 1.5;
-  color: #6b7280;
-  margin: 0;
-}
 
 .tpk-actions {
   display: flex;
