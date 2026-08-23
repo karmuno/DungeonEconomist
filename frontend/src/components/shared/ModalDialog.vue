@@ -5,6 +5,7 @@ const props = defineProps<{
   isOpen: boolean
   title: string
   width?: string
+  zIndex?: number
 }>()
 
 const emit = defineEmits<{
@@ -42,7 +43,7 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="modal-overlay" @click.self="emit('close')">
+    <div v-if="isOpen" class="modal-overlay" :style="zIndex != null ? { zIndex } : undefined" @click.self="emit('close')">
       <div class="modal-content" :style="width ? { maxWidth: width, width: '100%' } : undefined">
         <div class="card-header">
           <slot name="header">

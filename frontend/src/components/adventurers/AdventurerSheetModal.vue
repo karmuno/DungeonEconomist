@@ -45,6 +45,7 @@ async function levelUp() {
     :is-open="adventurerId != null"
     title="Character Sheet"
     width="420px"
+    :z-index="2000"
     @close="emit('close')"
   >
     <AdventurerDetail
