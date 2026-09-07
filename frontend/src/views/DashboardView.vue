@@ -38,7 +38,7 @@ async function handleLevelUp() {
 }
 
 // Expand state
-const expandedPartyId = ref<number | null>(null)
+const expandedPartyIds = ref<Set<number>>(new Set())
 const expandedBuilding = ref<string | null>(null)
 
 // Drag state
@@ -99,7 +99,13 @@ function partyStatusClass(status: string): string {
 }
 
 function toggleParty(id: number) {
-  expandedPartyId.value = expandedPartyId.value === id ? null : id
+  const next = new Set(expandedPartyIds.value)
+  if (next.has(id)) {
+    next.delete(id)
+  } else {
+    next.add(id)
+  }
+  expandedPartyIds.value = next
 }
 
 function toggleBuilding(type: string) {
@@ -349,13 +355,13 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
             @drop="onPartyDrop($event, p.id)"
           >
             <div class="party-row clickable" @click="toggleParty(p.id)">
-              <span class="party-expand">{{ expandedPartyId === p.id ? '&#9660;' : '&#9654;' }}</span>
+              <span class="party-expand">{{ expandedPartyIds.has(p.id) ? '&#9660;' : '&#9654;' }}</span>
               <span class="party-name">{{ p.name }}</span>
               <span class="party-size">{{ p.member_count }}/6</span>
               <span class="party-avg-level">avg Lv {{ avgPartyLevel(p.members) }}</span>
               <span class="badge" :class="partyStatusClass(p.status)">{{ p.status }}</span>
             </div>
-            <div v-if="expandedPartyId === p.id" class="party-members">
+            <div v-if="expandedPartyIds.has(p.id)" class="party-members">
               <div
                 v-for="m in p.members"
                 :key="m.id"

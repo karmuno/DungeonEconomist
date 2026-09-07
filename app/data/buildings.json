@@ -19,7 +19,7 @@
   },
   "training_grounds": {
     "class": "Fighter",
-    "allowed_classes": ["Fighter", "Elf", "Halfling"],
+    "allowed_classes": ["Fighter", "Elf", "Halfling", "Dwarf"],
     "names": ["Training Grounds", "Military Camp", "Castle"],
     "description": "Fighters drill here, improving combat readiness for all parties.",
     "costs": [50, 250, 1250],
