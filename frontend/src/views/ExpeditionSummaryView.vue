@@ -10,6 +10,9 @@ import { formatCurrency } from '../utils/currency'
 import { formatGameDayShort } from '../utils/calendar'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import ExpeditionLogTree from '../components/expeditions/ExpeditionLogTree.vue'
+import type { TurnLog } from '../types/expeditionLog'
+import eventBus from '../eventBus'
 
 const router = useRouter()
 const route = useRoute()
@@ -54,24 +57,21 @@ async function makeChoice(choice: string) {
   try {
     const result = await expeditionsApi.choose(summary.value.expedition_id, choice)
 
-    for (const evt of result.events ?? []) {
-      const typeMap: Record<string, string> = {
-        death: 'error', loot: 'info', stairs: 'success',
-        upkeep: 'warning', expedition_complete: 'success',
-      }
-      notifications.add(evt.message, { type: (typeMap[evt.type] ?? 'info') as any })
-    }
+    // Hand these to the side panel: it owns the level-up and stairs popups
+    // and turns every adventurer name into a link to their sheet
+    if (result.events?.length) eventBus.emit('game-events', result.events)
 
+    const who = result.party_name ?? summary.value?.party_name ?? 'The party'
     if (result.status === 'in_progress') {
       const msg = result.auto_choice
-        ? `The party decided to press on!`
-        : 'The expedition continues...'
+        ? `${who} decided to press on!`
+        : `${who} continues the expedition`
       notifications.add(msg, 'info')
     } else if (result.status === 'completed') {
       await player.fetchPlayer()
       const retMsg = result.auto_choice === 'retreat'
-        ? 'The party decided to retreat!'
-        : result.retreated ? 'The party retreated safely' : 'The expedition is complete!'
+        ? `${who} decided to retreat!`
+        : result.retreated ? `${who} retreated safely` : `${who} completed the expedition`
       notifications.add(retMsg,
         {
           type: result.retreated ? 'info' : 'success',
@@ -105,149 +105,12 @@ function lootCopper(total: number): { gold: number; silver: number; copper: numb
   }
 }
 
-interface AttackEntry {
-  attacker: string
-  target: string
-  roll: number
-  needed: number
-  hit: boolean
-  damage: number
-  target_died: boolean
-}
-
-interface TurnUndeadEntry {
-  monster: string
-  result: 'destroyed' | 'turned' | 'resisted'
-  roll?: number
-  needed?: number
-}
-
-interface SpellCastEntry {
-  caster: string
-  spell: string
-  monsters_destroyed: number
-}
-
-interface RoundEntry {
-  round: number
-  event?: string
-  caster?: string
-  spell?: string
-  monsters_destroyed?: number
-  halfling_pre_round?: AttackEntry[]
-  initiative?: string
-  initiative_winner?: string
-  attacks?: AttackEntry[]
-  morale_checks?: Array<{ side: string; roll: number; morale: number; passed: boolean }>
-  cleric_turn?: { cleric: string; turn_log: TurnUndeadEntry[] }
-  cleric_turns?: Array<{ cleric: string; turn_log: TurnUndeadEntry[] }>
-  spell_casts?: SpellCastEntry[]
-}
-
-interface TurnLog {
-  turn: number
-  deaths?: string[]
-  events: Array<{
-    type: string
-    combat?: {
-      outcome: string
-      monster_type: string
-      monster_count?: number
-      rounds_fought?: number
-      hp_lost: number
-      xp_earned: number
-      monsters_killed?: number
-      monsters_fled?: number
-      party_fled?: boolean
-      mu_spell_used?: string | null
-      cleric_turned?: boolean
-      healed_adventurers?: Array<{ name: string; hp: number }>
-      round_log?: RoundEntry[]
-    }
-    treasure?: { gold: number; silver: number; copper: number; xp_value: number; name: string }
-    trap_damage?: number
-    trap_victims?: Array<{ name: string; damage: number }>
-  }>
-}
-
-const pcNames = computed(() => new Set(summary.value?.member_results.map(m => m.name) ?? []))
-
-function sideAttacks(r: RoundEntry, side: 'party' | 'monsters'): AttackEntry[] {
-  const all = r.halfling_pre_round ?? r.attacks ?? []
-  return all.filter(a => side === 'party' ? pcNames.value.has(a.attacker) : !pcNames.value.has(a.attacker))
-}
-
-function sideSummary(attacks: AttackEntry[]): string {
-  if (!attacks.length) return '—'
-  const hits = attacks.filter(a => a.hit)
-  const dmg = hits.reduce((s, a) => s + a.damage, 0)
-  return `${hits.length}/${attacks.length} · ${dmg} dmg`
-}
-
-function roundLabel(r: RoundEntry): string {
-  if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
-  if (r.halfling_pre_round) {
-    const hits = r.halfling_pre_round.filter(a => a.hit)
-    const dmg = hits.reduce((s, a) => s + a.damage, 0)
-    return `Halflings pre-round — ${hits.length}/${r.halfling_pre_round.length} hits, ${dmg} dmg`
-  }
-  const initiative = r.initiative_winner ?? r.initiative
-  const label = initiative === 'party' ? 'party first' : initiative === 'monsters' ? 'monsters first' : 'simultaneous'
-  const base = `Round ${r.round} (${label})`
-  if (r.spell_casts?.length) {
-    const s = r.spell_casts[0]
-    return `${base} — ${s.caster} casts ${s.spell}`
-  }
-  return base
-}
-
-function turnUndeadSummary(ct: RoundEntry['cleric_turns']): string {
-  if (!ct || ct.length === 0) return ''
-  return ct.map(c => {
-    const destroyed = c.turn_log.filter(e => e.result !== 'resisted').length
-    const resisted = c.turn_log.filter(e => e.result === 'resisted').length
-    const parts: string[] = []
-    if (destroyed > 0) parts.push(`${destroyed} turned`)
-    if (resisted > 0) parts.push(`${resisted} resisted`)
-    return `${c.cleric}: ${parts.join(', ') || 'failed'}`
-  }).join('; ')
-}
-
-const expandedRounds = ref<Set<string>>(new Set())
-
-function toggleRound(turnNum: number, eventIdx: number, roundIdx: number, e: Event) {
-  e.stopPropagation()
-  const key = `${turnNum}-${eventIdx}-${roundIdx}`
-  if (expandedRounds.value.has(key)) {
-    expandedRounds.value.delete(key)
-  } else {
-    expandedRounds.value.add(key)
-  }
-}
-
-function isRoundExpanded(turnNum: number, eventIdx: number, roundIdx: number): boolean {
-  return expandedRounds.value.has(`${turnNum}-${eventIdx}-${roundIdx}`)
-}
-
 const turnsWithActivity = computed(() => {
   if (!summary.value) return []
   return (summary.value.events_log as TurnLog[]).filter(
     (turn) => (turn.events && turn.events.length > 0) || (turn.deaths && turn.deaths.length > 0)
   )
 })
-
-function pluralMonster(name: string, count: number): string {
-  if (count <= 1) return name
-  if (name.endsWith('f')) return `${count} ${name.slice(0, -1)}ves`
-  if (name.endsWith('fe')) return `${count} ${name.slice(0, -2)}ves`
-  return `${count} ${name}s`
-}
-
-function outcomeClass(outcome: string): string {
-  if (outcome === 'Clear Victory' || outcome === 'Victory') return 'badge-success'
-  if (outcome === 'Tough Fight') return 'badge-warning'
-  return 'badge-danger'
-}
 
 function statusLabel(result: string): string {
   if (result === 'in_progress') return 'In Progress'
@@ -261,20 +124,18 @@ function statusClass(result: string): string {
   return 'badge-success'
 }
 
-const expandedCombats = ref<Set<string>>(new Set())
+// Early retreats keep the planned return_day; actual_return_day records when
+// the party really came home. Show PLANNED/ACTUAL only when the plan broke.
+const showPlannedActual = computed(() => {
+  const s = summary.value
+  return !!s && s.actual_return_day != null && s.actual_return_day !== s.return_day
+})
 
-function toggleCombat(turnNum: number, idx: number) {
-  const key = `${turnNum}-${idx}`
-  if (expandedCombats.value.has(key)) {
-    expandedCombats.value.delete(key)
-  } else {
-    expandedCombats.value.add(key)
-  }
-}
-
-function isCombatExpanded(turnNum: number, idx: number): boolean {
-  return expandedCombats.value.has(`${turnNum}-${idx}`)
-}
+const actualDurationDays = computed(() => {
+  const s = summary.value
+  if (!s || s.actual_return_day == null) return 0
+  return s.actual_return_day - s.start_day + 1
+})
 </script>
 
 <template>
@@ -289,16 +150,30 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
           <h2>{{ summary.party_name }}</h2>
           <span class="badge" :class="statusClass(summary.result)">{{ statusLabel(summary.result) }}</span>
         </div>
-        <p class="text-muted mb-2">
-          <template v-if="summary.dungeon_level">Depth {{ summary.dungeon_level }} &mdash; </template>
+        <p v-if="summary.dungeon_level" class="text-muted mb-1">Depth {{ summary.dungeon_level }}</p>
+        <div v-if="showPlannedActual" class="date-block mb-2">
+          <div class="date-line">
+            <span class="date-label planned">Planned</span>
+            <span class="date-value muted-value">
+              {{ formatGameDayShort(summary.start_day) }} → {{ formatGameDayShort(summary.return_day) }} · {{ summary.duration_days }} days
+            </span>
+          </div>
+          <div class="date-line">
+            <span class="date-label actual">Actual</span>
+            <span class="date-value">
+              {{ formatGameDayShort(summary.start_day) }} → {{ formatGameDayShort(summary.actual_return_day!) }} · {{ actualDurationDays }} {{ actualDurationDays === 1 ? 'day' : 'days' }}
+            </span>
+          </div>
+        </div>
+        <p v-else class="text-muted mb-2">
           {{ formatGameDayShort(summary.start_day) }} &mdash; {{ formatGameDayShort(summary.return_day) }}
           ({{ summary.duration_days }} days)
         </p>
         <div class="summary-stats">
           <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
           <span>XP: {{ summary.total_xp }}</span>
-          <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
-          <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
+          <span v-if="summary.spells_left !== undefined" class="text-info">Spells Left: {{ summary.spells_left }}</span>
+          <span v-if="summary.heals_left !== undefined" class="text-success">Cures Left: {{ summary.heals_left }}</span>
           <span v-if="summary.stairs_found" class="text-stairs">Stairs to {{ summary.stairs_found.new_level_name }} found!</span>
           <template v-if="summary.estimated_readiness_day">
             <span class="text-muted">Ready by: {{ formatGameDayShort(summary.estimated_readiness_day) }}</span>
@@ -381,129 +256,10 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
       <!-- Events Log -->
       <div v-if="turnsWithActivity.length > 0" class="card mb-2">
         <h3 class="mb-2">Expedition Log</h3>
-        <div class="events-log">
-          <div v-for="turn in turnsWithActivity" :key="turn.turn" class="turn-entry">
-            <div class="turn-header">Turn {{ turn.turn }}</div>
-            <div v-for="(event, idx) in turn.events" :key="idx" class="event-entry" :class="{ 'combat-expandable': event.type === 'Monster' }" @click="event.type === 'Monster' ? toggleCombat(turn.turn, idx) : undefined">
-              <template v-if="event.type === 'Monster'">
-                <div class="combat-summary">
-                  <span class="combat-toggle">{{ isCombatExpanded(turn.turn, idx) ? '\u25BC' : '\u25B6' }}</span>
-                  <span>Encountered <strong>{{ pluralMonster(event.combat?.monster_type ?? 'monsters', event.combat?.monster_count ?? 1) }}</strong></span>
-                  <span :class="['badge', outcomeClass(event.combat?.outcome ?? '')]">
-                    {{ event.combat?.outcome }}
-                  </span>
-                  <span class="text-muted">{{ event.combat?.hp_lost }} HP lost, +{{ event.combat?.xp_earned }} XP</span>
-                  <span v-if="event.combat?.monsters_killed" class="monster-fate killed">{{ event.combat.monsters_killed }} killed</span>
-                  <span v-if="event.combat?.monsters_fled" class="monster-fate fled">{{ event.combat.monsters_fled }} fled</span>
-                  <span v-if="event.combat?.party_fled" class="monster-fate fled">party fled</span>
-                  <span v-if="event.treasure" class="text-gold">
-                    Loot: {{ formatCurrency(event.treasure.gold, event.treasure.silver ?? 0, event.treasure.copper ?? 0) }}
-                  </span>
-                </div>
-                <div v-if="isCombatExpanded(turn.turn, idx)" class="combat-details">
-                  <template v-if="event.combat?.round_log?.length">
-                    <div v-for="(r, ri) in event.combat.round_log" :key="ri" class="round-block">
-                      <!-- Round header row -->
-                      <div class="round-row round-expandable" @click="toggleRound(turn.turn, idx, ri, $event)">
-                        <span class="round-toggle">{{ isRoundExpanded(turn.turn, idx, ri) ? '▼' : '▶' }}</span>
-                        <span class="round-label">{{ roundLabel(r) }}</span>
-                        <template v-if="!r.event && !r.halfling_pre_round && !r.spell_casts?.length">
-                          <span class="side-pill party">Party: {{ sideSummary(sideAttacks(r, 'party')) }}</span>
-                          <span class="side-pill monsters">Monsters: {{ sideSummary(sideAttacks(r, 'monsters')) }}</span>
-                        </template>
-                        <template v-if="r.cleric_turns?.length">
-                          <span class="side-pill party">Turn Undead: {{ turnUndeadSummary(r.cleric_turns) }}</span>
-                        </template>
-                        <template v-if="r.morale_checks?.length">
-                          <span v-for="(mc, mi) in r.morale_checks" :key="mi" :class="['morale-tag', mc.passed ? '' : 'morale-break']">
-                            {{ mc.side }} morale {{ mc.passed ? 'holds' : 'breaks' }}
-                          </span>
-                        </template>
-                      </div>
-                      <!-- Round expanded: attacks by side -->
-                      <template v-if="isRoundExpanded(turn.turn, idx, ri)">
-                        <template v-if="r.event === 'spell'">
-                          <div class="attack-line">{{ r.caster }} casts {{ r.spell }} — {{ r.monsters_destroyed }} destroyed</div>
-                        </template>
-                        <template v-else>
-                          <!-- Spell casts within round -->
-                          <template v-if="r.spell_casts?.length">
-                            <div class="side-header">Spell</div>
-                            <div v-for="(sc, si) in r.spell_casts" :key="'sc'+si" class="attack-line">
-                              <span class="atk-name">{{ sc.caster }}</span>
-                              <span class="atk-arrow">→</span>
-                              <span class="atk-target">{{ sc.spell }}</span>
-                              <span class="atk-dmg">{{ sc.monsters_destroyed }} destroyed</span>
-                            </div>
-                          </template>
-                          <!-- Turn Undead details -->
-                          <template v-if="r.cleric_turns?.length">
-                            <div v-for="(ct, cti) in r.cleric_turns" :key="'ct'+cti" class="side-header">
-                              {{ ct.cleric }} Turn Attempt
-                              <div v-for="(tl, tli) in ct.turn_log" :key="'tl'+tli" class="attack-line" style="padding-left: 20px;">
-                                <span class="atk-name">{{ tl.monster }}</span>
-                                <span class="atk-arrow">→</span>
-                                <span :class="tl.result === 'resisted' ? 'text-muted' : 'text-success'">{{ tl.result }}</span>
-                                <span v-if="tl.roll" class="text-muted" style="font-size: 0.8em"> (rolled {{ tl.roll }} vs {{ tl.needed }})</span>
-                              </div>
-                            </div>
-                          </template>
-                          <!-- Party attacks -->
-                          <template v-if="sideAttacks(r, 'party').length">
-                            <div class="side-header">Party</div>
-                            <div v-for="(atk, ai) in sideAttacks(r, 'party').filter(a => a.hit)" :key="'p'+ai" class="attack-line">
-                              <span class="atk-name">{{ atk.attacker }}</span>
-                              <span class="atk-arrow">→</span>
-                              <span class="atk-target">{{ atk.target }}</span>
-                              <span class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
-                            </div>
-                          </template>
-                          <!-- Monster attacks -->
-                          <template v-if="sideAttacks(r, 'monsters').length">
-                            <div class="side-header">Monsters</div>
-                            <div v-for="(atk, ai) in sideAttacks(r, 'monsters').filter(a => a.hit)" :key="'m'+ai" class="attack-line">
-                              <span class="atk-name">{{ atk.attacker }}</span>
-                              <span class="atk-arrow">→</span>
-                              <span class="atk-target">{{ atk.target }}</span>
-                              <span class="atk-dmg">{{ atk.damage }} dmg<span v-if="atk.target_died"> ☠</span></span>
-                            </div>
-                          </template>
-                        </template>
-                      </template>
-                    </div>
-                  </template>
-                  <template v-else>
-                    <span class="text-muted">{{ event.combat?.rounds_fought ?? 0 }} round(s) fought</span>
-                  </template>
-                  <template v-if="event.combat?.healed_adventurers?.length">
-                    <div v-for="(h, hi) in event.combat.healed_adventurers" :key="hi" class="round-row heal-row">
-                      <span class="heal-icon">✚</span>
-                      <span>{{ h.name }} healed for <strong>{{ h.hp }}</strong> HP</span>
-                    </div>
-                  </template>
-                </div>
-              </template>
-              <template v-else-if="event.type === 'Trap' || event.type === 'Trap/Hazard'">
-                <span class="badge badge-warning">Trap</span>
-                <span>{{ event.trap_damage }} damage dealt to party</span>
-                <span v-if="event.trap_victims?.length" class="text-muted">
-                  ({{ event.trap_victims.map(v => `${v.name} ${v.damage}`).join(', ') }})
-                </span>
-              </template>
-              <template v-else-if="event.type === 'Unguarded Treasure'">
-                <span class="badge badge-success">Treasure</span>
-                <span class="text-gold">Found {{ formatCurrency(event.treasure?.gold ?? 0, event.treasure?.silver ?? 0, event.treasure?.copper ?? 0) }}</span>
-              </template>
-              <template v-else>
-                <span class="badge">{{ event.type }}</span>
-              </template>
-            </div>
-            <div v-for="dead in (turn.deaths || [])" :key="dead" class="event-entry death-entry">
-              <span class="badge badge-dead">Death</span>
-              <span><strong>{{ dead }}</strong> has fallen</span>
-            </div>
-          </div>
-        </div>
+        <ExpeditionLogTree
+          :turns="turnsWithActivity"
+          :member-names="summary.member_results.map(m => m.name)"
+        />
       </div>
 
       <!-- Actions -->
@@ -583,191 +339,43 @@ function isCombatExpanded(turnNum: number, idx: number): boolean {
   color: #60a5fa;
 }
 
-.events-log {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.turn-entry {
-  margin-bottom: 8px;
-}
-
-.turn-header {
-  font-weight: 600;
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.event-entry {
+.date-block {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding: 3px 0;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 12px;
+  gap: 2px;
 }
 
-.event-entry:not(.combat-expandable) {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.combat-expandable {
-  cursor: pointer;
-}
-
-.combat-expandable:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.combat-summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.combat-toggle {
-  font-size: 9px;
-  color: var(--text-muted);
-  width: 10px;
-  flex-shrink: 0;
-}
-
-.combat-details {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 4px 0 2px 16px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.round-block {
-  display: flex;
-  flex-direction: column;
-}
-
-.round-row {
+.date-line {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 2px 0;
+  gap: 10px;
 }
 
-.round-expandable {
-  cursor: pointer;
-}
-
-.round-expandable:hover {
-  color: var(--text-primary);
-}
-
-.round-toggle {
-  font-size: 8px;
-  color: var(--text-muted);
-  width: 8px;
+.date-label {
+  width: 62px;
   flex-shrink: 0;
-}
-
-.round-label {
-  color: var(--text-secondary);
-}
-
-.side-pill {
   font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
-.side-pill.party {
-  background: rgba(74, 222, 128, 0.1);
+.date-label.planned {
+  color: #6b7280;
+}
+
+.date-label.actual {
   color: #4ade80;
 }
 
-.side-pill.monsters {
-  background: rgba(231, 76, 60, 0.1);
-  color: #e74c3c;
+.date-value {
+  font-size: 15px;
+  color: #e5e7eb;
 }
 
-.morale-tag {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.morale-break {
-  color: #f1c40f;
-}
-
-.side-header {
-  padding: 2px 0 0 12px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-}
-
-.attack-line {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  padding: 1px 0 1px 12px;
-  color: var(--text-secondary);
-}
-
-.atk-name {
-  color: var(--text-primary);
-  min-width: 80px;
-}
-
-.atk-arrow {
-  color: var(--text-muted);
-}
-
-.atk-target {
-  color: var(--text-secondary);
-  min-width: 70px;
-}
-
-.atk-dmg {
-  color: #e74c3c;
-}
-
-.heal-row {
-  color: #4ade80;
-}
-
-.heal-icon {
-  font-size: 10px;
-  width: 8px;
-  flex-shrink: 0;
-}
-
-.death-entry {
-  color: var(--accent-red, #e74c3c);
-}
-
-.monster-fate {
-  font-size: 11px;
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-
-.monster-fate.killed {
-  background: rgba(231, 76, 60, 0.12);
-  color: #e74c3c;
-}
-
-.monster-fate.fled {
-  background: rgba(241, 196, 15, 0.12);
-  color: #f1c40f;
+.date-value.muted-value {
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .text-stairs {

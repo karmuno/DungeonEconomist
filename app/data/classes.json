@@ -32,7 +32,9 @@
       ],
       "abilities": {
         "turn_undead": {
-          "description": "Attempt to turn or destroy undead. Replaces attacks for the round unless turning is impossible.",
+          "name": "Turn Undead",
+          "description": "May forego attacking to attempt to repel undead enemies.",
+          "uses_per_expedition": "level",
           "table": {
             "1":  {"1": 7, "2": 9, "3": 11},
             "2":  {"1": 5, "2": 7, "3": 9, "4": 11},
@@ -46,11 +48,18 @@
             "10": {"1": "D", "2": "D", "3": "D", "4": "D", "5": "D", "6": "T", "7": "T"}
           }
         },
-        "prevent_death": {
-          "description": "Automatically heal an adventurer who would die, restoring 1d6+2 HP.",
+        "revive": {
+          "name": "Revive",
+          "description": "Brings a fallen ally back to life with 1 HP after a fight.",
           "min_level": 2,
-          "uses_per_expedition": "level - 1",
-          "heal_dice": "1d6+2"
+          "uses_per_expedition": "level / 2"
+        },
+        "prevent_death": {
+          "name": "Cure Light Wounds",
+          "description": "Heals a wounded ally for 2–7 HP after a fight.",
+          "min_level": 2,
+          "uses_per_expedition": "level / 2",
+          "heal_dice": "1d6+1"
         }
       },
       "hp_gain_base": 6,
@@ -69,13 +78,12 @@
       ],
       "abilities": {
         "sleep_spell": {
-          "description": "Instantly kills a group of monsters with HD at or below caster level.",
+          "name": "Sleep",
+          "description": "May forego attacking to automatically dispatch a group of monsters of similar level to the caster.",
           "uses_per_expedition": "level",
           "effect": "instant_kill_at_or_below_level",
           "flavor_by_level": {
-            "1": "Sleep",
-            "4": "Fireball",
-            "7": "Lightning Bolt"
+            "1": "Sleep"
           }
         }
       },
@@ -97,7 +105,8 @@
       ],
       "abilities": {
         "stair_bonus": {
-          "description": "Each Dwarf in the party finds stairs earlier in the expedition.",
+          "name": "Find Stairs",
+          "description": "Increase the chance of finding stairs to lower levels while exploring.",
           "weight_bonus_per_dwarf": 2,
           "stacks": true
         }
@@ -120,13 +129,12 @@
       ],
       "abilities": {
         "sleep_spell": {
-          "description": "Instantly kills a group of monsters with HD at or below caster level.",
+          "name": "Sleep",
+          "description": "May forego attacking to automatically dispatch a group of monsters of similar level to the caster.",
           "uses_per_expedition": "level",
           "effect": "instant_kill_at_or_below_level",
           "flavor_by_level": {
-            "1": "Sleep",
-            "4": "Fireball",
-            "7": "Lightning Bolt"
+            "1": "Sleep"
           }
         }
       },
@@ -148,7 +156,8 @@
       ],
       "abilities": {
         "sling_volley": {
-          "description": "Full attack round before combat begins (round 1 only).",
+          "name": "Sling Volley",
+          "description": "Take a free attack round before combat begins.",
           "timing": "pre_combat"
         }
       },

@@ -1,0 +1,31 @@
+/* ==========================================================================
+   Spacing, radii, shadows — compact, utilitarian rhythm (the app is dense).
+   ========================================================================== */
+:root {
+  /* ---- Spacing scale (used for padding/gap; rem) ---- */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.375rem;  /* 6px */
+  --space-3: 0.5rem;    /* 8px */
+  --space-4: 0.75rem;   /* 12px */
+  --space-5: 1rem;      /* 16px */
+  --space-6: 1.5rem;    /* 24px */
+
+  /* ---- Radii ---- */
+  --radius: 6px;        /* default — buttons, cards, inputs */
+  --radius-sm: 4px;     /* badges */
+  --radius-xs: 3px;     /* progress bars, item tags */
+
+  /* ---- Borders ---- */
+  --border-width: 1px;
+  --accent-bar: 3px;    /* left-edge accent on domain cards */
+
+  /* ---- Shadows ---- */
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);          /* default card */
+  --shadow-modal: 0 0 40px rgba(0, 0, 0, 0.8);     /* dialog */
+  --focus-ring: 0 0 0 2px rgba(74, 222, 128, 0.15);/* green input focus halo */
+
+  /* ---- Motion — short, mechanical, no bounce ---- */
+  --t-fast: 0.1s;   /* @kind other */
+  --t: 0.15s;       /* @kind other */
+  --ease: ease;     /* @kind other */
+}

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/colors.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/typography.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/styles.css">
+<style>
+  html, body { margin:0; padding:0; background:#000; }
+  body { font-family:'Cascadia Code','Fira Code','JetBrains Mono','Consolas','Monaco','Courier New',monospace; color:#e5e7eb; }
+  a { color:#4ade80; text-decoration:none; }
+  a:hover { color:#86efac; }
+  ::selection { background:rgba(74,222,128,.25); color:#4ade80; }
+</style>
+</helmet>
+<div style="position:relative; width:1280px; height:820px; background:#000; overflow:hidden">
+
+  <div style="display:flex; align-items:center; height:56px; padding:0 16px; border-bottom:1px solid #374151; gap:16px">
+    <span style="font-size:15px; font-weight:700; color:#4ade80">VentureKeep</span>
+    <span style="font-size:11px; color:#6b7280">Greyhollow Keep</span>
+    <div style="margin-left:auto; display:flex; gap:16px; font-size:11px; color:#6b7280">
+      <span style="color:#e5e7eb">Dashboard</span><span>Adventurers</span><span>Parties</span><span>Village</span>
+    </div>
+  </div>
+
+  <div style="display:flex; height:764px">
+    <aside style="width:260px; box-sizing:border-box; padding:14px 16px; border-right:1px solid #374151; display:flex; flex-direction:column; gap:12px">
+      <div>
+        <div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#6b7280">Game Day</div>
+        <div style="display:flex; align-items:baseline; gap:8px">
+          <div style="font-size:2rem; font-weight:700; line-height:1">30</div>
+          <div style="font-size:.7rem; color:#6b7280">Month 1, Day 30</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#6b7280">Treasury</div>
+        <div style="font-size:1.1rem; font-weight:700; color:#4ade80">{{ treasury }}</div>
+      </div>
+      <div style="display:flex; gap:6px">
+        <button style="flex:1; padding:8px 12px; background:#166534; color:#000; border:none; border-radius:6px; font:700 12px inherit; cursor:pointer">Advance Day</button>
+        <button style="flex:1; padding:8px 12px; background:#1a1a1a; color:#6b7280; border:1px solid #4b5563; border-radius:6px; font:600 11px inherit; cursor:pointer">Skip to Event</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px">
+        <sc-if value="{{ collected }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ reopen }}" style="display:flex; align-items:flex-start; gap:4px; padding:4px 6px; border-radius:6px; font-size:10px; line-height:1.3; background:#422006; border:1px solid #78350f; color:#fbbf24; cursor:pointer">
+            <span style="flex:1">Maevis Thorn and Rowan Ashe could not pay their upkeep and were sent to debtor's prison.</span>
+            <span style="text-decoration:underline; font-weight:600; white-space:nowrap; opacity:.9">Upkeep</span>
+          </div>
+          <div onClick="{{ reopen }}" style="display:flex; align-items:flex-start; gap:4px; padding:4px 6px; border-radius:6px; font-size:10px; line-height:1.3; background:#052e16; border:1px solid #166534; color:#4ade80; cursor:pointer">
+            <span style="flex:1">Upkeep collected: 161gp 4sp from 4 adventurers.</span>
+            <span style="text-decoration:underline; font-weight:600; white-space:nowrap; opacity:.9">Upkeep</span>
+          </div>
+        </sc-if>
+        <div style="padding:4px 6px; border-radius:6px; font-size:10px; line-height:1.3; background:#0c1929; border:1px solid #1e3a5f; color:#60a5fa">The Demo Divers are on Depth 3, day 2 of 3.</div>
+        <div style="padding:4px 6px; border-radius:6px; font-size:10px; line-height:1.3; background:#1a1a1a; border:1px solid transparent; color:#6b7280">A Halfling arrived at the tavern.</div>
+      </div>
+    </aside>
+
+    <main style="flex:1; padding:16px; overflow:hidden">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:12px">
+        <h1 style="font-size:1.3rem; margin:0; color:#4ade80">The Lost Sepulchre</h1>
+        <span style="font-size:12px; color:#6b7280">Depth 3 reached</span>
+      </div>
+
+      <div style="background:#1f2937; border:1px solid #4b5563; border-left:3px solid #60a5fa; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.5); padding:12px 16px; margin-bottom:12px">
+        <h3 style="font-size:13px; margin:0 0 8px; color:#4ade80">Active Expeditions</h3>
+        <div style="display:flex; align-items:center; gap:12px; font-size:12px">
+          <span style="font-weight:600; min-width:120px">The Demo Divers</span>
+          <span style="font-size:11px; color:#6b7280">Depth 3</span>
+          <div style="flex:1; height:6px; background:#0b1220; border-radius:3px; overflow:hidden"><div style="width:66%; height:100%; background:#4ade80"></div></div>
+          <span style="font-size:11px; color:#6b7280">Day 2/3</span>
+        </div>
+      </div>
+
+      <div style="background:#1f2937; border:1px solid #4b5563; border-left:3px solid #4ade80; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.5); padding:12px 16px">
+        <h3 style="font-size:13px; margin:0 0 8px; color:#4ade80">Unassigned Adventurers</h3>
+        <div style="display:flex; flex-direction:column">
+          <div style="display:flex; align-items:center; gap:8px; padding:3px 0; border-bottom:1px solid #374151; font-size:12px">
+            <span style="color:#6b7280">☰</span><span style="flex:1; font-weight:600"><span onClick="{{ who.kessa }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Kessa Vane</span></span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(74,222,128,.15); color:#4ade80">Fighter</span>
+            <span style="font-size:11px; color:#6b7280; width:40px; text-align:right">Lv 4</span>
+            <span style="font-size:11px; color:#4ade80; width:64px; text-align:right">22/22 HP</span>
+            <span style="font-size:11px; color:#60a5fa; width:96px; text-align:right">8,200 XP</span>
+            <span style="font-size:11px; color:#fbbf24; width:72px; text-align:right">140gp</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:3px 0; border-bottom:1px solid #374151; font-size:12px">
+            <span style="color:#6b7280">☰</span><span style="flex:1; font-weight:600"><span onClick="{{ who.halan }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Sister Halan</span></span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(74,222,128,.15); color:#4ade80">Cleric</span>
+            <span style="font-size:11px; color:#6b7280; width:40px; text-align:right">Lv 3</span>
+            <span style="font-size:11px; color:#4ade80; width:64px; text-align:right">14/14 HP</span>
+            <span style="font-size:11px; color:#60a5fa; width:96px; text-align:right">4,100 XP</span>
+            <span style="font-size:11px; color:#fbbf24; width:72px; text-align:right">63gp</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:3px 0; border-bottom:1px solid #374151; font-size:12px">
+            <span style="color:#6b7280">☰</span><span style="flex:1; font-weight:600"><span onClick="{{ who.borin }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Borin Stonefist</span></span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(74,222,128,.15); color:#4ade80">Dwarf</span>
+            <span style="font-size:11px; color:#6b7280; width:40px; text-align:right">Lv 3</span>
+            <span style="font-size:11px; color:#fbbf24; width:64px; text-align:right">17/20 HP</span>
+            <span style="font-size:11px; color:#60a5fa; width:96px; text-align:right">3,200 XP</span>
+            <span style="font-size:11px; color:#fbbf24; width:72px; text-align:right">38gp</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:3px 0; border-bottom:1px solid #374151; font-size:12px">
+            <span style="color:#6b7280">☰</span><span style="flex:1; font-weight:600; color:{{ maevisColor }}"><span onClick="{{ who.maevis }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Maevis Thorn</span></span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(74,222,128,.15); color:#4ade80">Magic-User</span>
+            <span style="font-size:11px; color:#6b7280; width:40px; text-align:right">Lv 2</span>
+            <span style="font-size:11px; color:#4ade80; width:64px; text-align:right">9/9 HP</span>
+            <span style="font-size:11px; color:#60a5fa; width:96px; text-align:right">2,400 XP</span>
+            <span style="font-size:11px; color:#fbbf24; width:72px; text-align:right">{{ maevisPurse }}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:3px 0; border-bottom:1px solid #374151; font-size:12px">
+            <span style="color:#6b7280">☰</span><span style="flex:1; font-weight:600"><span onClick="{{ who.pip }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Pip Underbough</span></span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(74,222,128,.15); color:#4ade80">Halfling</span>
+            <span style="font-size:11px; color:#6b7280; width:40px; text-align:right">Lv 1</span>
+            <span style="font-size:11px; color:#4ade80; width:64px; text-align:right">6/6 HP</span>
+            <span style="font-size:11px; color:#60a5fa; width:96px; text-align:right">640 XP</span>
+            <span style="font-size:11px; color:#fbbf24; width:72px; text-align:right">12gp</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px">
+            <span style="color:#6b7280">☰</span><span style="flex:1; font-weight:600"><span onClick="{{ who.rowan }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Rowan Ashe</span></span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(74,222,128,.15); color:#4ade80">Magic-User</span>
+            <span style="font-size:11px; color:#6b7280; width:40px; text-align:right">Lv 1</span>
+            <span style="font-size:11px; color:#4ade80; width:64px; text-align:right">5/5 HP</span>
+            <span style="font-size:11px; color:#60a5fa; width:96px; text-align:right">480 XP</span>
+            <span style="font-size:11px; color:#fbbf24; width:72px; text-align:right">5gp</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <sc-if value="{{ showModal }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center">
+      <div style="width:760px; max-height:88vh; overflow-y:auto; background:#111827; border:1px solid #4b5563; border-radius:6px; box-shadow:0 0 40px rgba(0,0,0,.8)">
+        <div style="display:flex; align-items:baseline; gap:10px; padding:12px 16px; border-bottom:1px solid #374151">
+          <span style="font-size:15px; font-weight:700; color:#4ade80">Upkeep Day</span>
+          <span style="font-size:11px; color:#6b7280">Day 30 · 8 adventurers · 1cp per XP</span>
+          <span onClick="{{ primaryAction }}" style="margin-left:auto; font-size:15px; color:#6b7280; cursor:pointer">×</span>
+        </div>
+
+        <div style="padding:16px; display:flex; flex-direction:column; gap:16px">
+          <div style="display:flex; align-items:center; gap:12px; padding-bottom:14px; border-bottom:1px solid #374151">
+            <span style="font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:#6b7280">Treasury</span>
+            <span style="font-size:15px; color:#6b7280">412gp</span>
+            <span style="font-size:15px; color:#6b7280">→</span>
+            <span style="font-size:20px; font-weight:700; color:#4ade80">573gp 4sp</span>
+            <span style="font-size:11px; color:#ef4444">2 to debtor's prison</span>
+            <span style="font-size:11px; color:#60a5fa">39gp 5sp deferred</span>
+            <button onClick="{{ primaryAction }}" style="margin-left:auto; padding:9px 24px; background:#22c55e; color:#000; border:none; border-radius:6px; font:700 13px inherit; cursor:pointer">{{ actionLabel }}</button>
+          </div>
+          <div>
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:#6b7280; margin-bottom:6px">At the Keep</div>
+            <div style="display:grid; grid-template-columns:1fr 84px 84px 84px 96px; gap:0 8px; align-items:center">
+              <div style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; padding-bottom:6px; border-bottom:1px solid #374151">Adventurer</div>
+              <div style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; text-align:right; padding-bottom:6px; border-bottom:1px solid #374151">XP</div>
+              <div style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; text-align:right; padding-bottom:6px; border-bottom:1px solid #374151">Upkeep</div>
+              <div style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; text-align:right; padding-bottom:6px; border-bottom:1px solid #374151">Purse</div>
+              <div style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; text-align:right; padding-bottom:6px; border-bottom:1px solid #374151">After</div>
+
+              <div style="padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px"><span onClick="{{ who.kessa }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Kessa Vane</span></span> <span style="font-size:10px; color:#6b7280">Fighter Lv4</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">8,200</div>
+              <div style="font-size:13px; color:#4ade80; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">82gp</div>
+              <div style="font-size:12px; color:#6b7280; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">140gp</div>
+              <div style="font-size:12px; color:#fbbf24; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">58gp</div>
+
+              <div style="padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px"><span onClick="{{ who.halan }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Sister Halan</span></span> <span style="font-size:10px; color:#6b7280">Cleric Lv3</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">4,100</div>
+              <div style="font-size:13px; color:#4ade80; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">41gp</div>
+              <div style="font-size:12px; color:#6b7280; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">63gp</div>
+              <div style="font-size:12px; color:#fbbf24; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">22gp</div>
+
+              <div style="padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px"><span onClick="{{ who.borin }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Borin Stonefist</span></span> <span style="font-size:10px; color:#6b7280">Dwarf Lv3</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">3,200</div>
+              <div style="font-size:13px; color:#4ade80; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">32gp</div>
+              <div style="font-size:12px; color:#6b7280; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">38gp</div>
+              <div style="font-size:12px; color:#fbbf24; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">6gp</div>
+
+              <div style="padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px; color:#ef4444"><span onClick="{{ who.maevis }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Maevis Thorn</span></span> <span style="font-size:10px; color:#6b7280">Magic-User Lv2</span> <span style="font-size:9.5px; font-weight:700; letter-spacing:.06em; padding:1px 6px; border-radius:4px; color:#ef4444; background:rgba(239,68,68,.15)">DEBTOR'S PRISON</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">2,400</div>
+              <div style="font-size:13px; color:#ef4444; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">24gp</div>
+              <div style="font-size:12px; color:#ef4444; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">9gp</div>
+              <div style="font-size:12px; color:#ef4444; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">−15gp</div>
+
+              <div style="padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px"><span onClick="{{ who.pip }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Pip Underbough</span></span> <span style="font-size:10px; color:#6b7280">Halfling Lv1</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">640</div>
+              <div style="font-size:13px; color:#4ade80; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">6gp 4sp</div>
+              <div style="font-size:12px; color:#6b7280; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">12gp</div>
+              <div style="font-size:12px; color:#fbbf24; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">5gp 6sp</div>
+
+              <div style="padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px; color:#ef4444"><span onClick="{{ who.rowan }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Rowan Ashe</span></span> <span style="font-size:10px; color:#6b7280">Magic-User Lv1</span> <span style="font-size:9.5px; font-weight:700; letter-spacing:.06em; padding:1px 6px; border-radius:4px; color:#ef4444; background:rgba(239,68,68,.15); white-space:nowrap">DEBTOR'S PRISON</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">480</div>
+              <div style="font-size:13px; color:#ef4444; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">4gp 8sp</div>
+              <div style="font-size:12px; color:#ef4444; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">2gp</div>
+              <div style="font-size:12px; color:#ef4444; text-align:right; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">−2gp 8sp</div>
+
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; padding-top:7px">Collected</div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding-top:7px">16,140</div>
+              <div style="font-size:13px; font-weight:700; color:#4ade80; text-align:right; padding-top:7px">161gp 4sp</div>
+              <div style="grid-column:span 2; font-size:11px; color:#ef4444; text-align:right; padding-top:7px">28gp 8sp unpaid</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:6px">
+              <span style="font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:#6b7280">On Expedition</span>
+              <span style="font-size:10px; color:#6b7280">collected on return</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 84px 84px 180px; gap:0 8px; align-items:center">
+              <div style="padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px; color:#d1d5db"><span onClick="{{ who.ilanniel }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Ilanniel</span></span> <span style="font-size:10px; color:#6b7280">Elf Lv2</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)">1,900</div>
+              <div style="font-size:13px; color:#60a5fa; text-align:right; padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)">19gp</div>
+              <div style="font-size:11px; color:#6b7280; text-align:right; padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)">The Demo Divers · due day 31</div>
+
+              <div style="padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)"><span style="font-size:13px; color:#d1d5db"><span onClick="{{ who.dunmar }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Dunmar Kell</span></span> <span style="font-size:10px; color:#6b7280">Fighter Lv2</span></div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)">2,050</div>
+              <div style="font-size:13px; color:#60a5fa; text-align:right; padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)">20gp 5sp</div>
+              <div style="font-size:11px; color:#6b7280; text-align:right; padding:5px 0; border-bottom:1px solid rgba(55,65,81,.5)">The Demo Divers · due day 31</div>
+
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; padding-top:7px">Deferred</div>
+              <div style="font-size:12px; color:#60a5fa; text-align:right; padding-top:7px">3,950</div>
+              <div style="font-size:13px; font-weight:700; color:#60a5fa; text-align:right; padding-top:7px">39gp 5sp</div>
+              <div></div>
+            </div>
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ collected }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ replay }}" style="position:absolute; right:16px; bottom:16px; font-size:11px; color:#6b7280; border:1px solid #4b5563; border-radius:6px; padding:6px 10px; cursor:pointer">↺ Replay upkeep day</div>
+  </sc-if>
+</div>
+  <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center">
+      <div style="width:420px; background:#111827; border:1px solid #4b5563; border-radius:6px; box-shadow:0 0 40px rgba(0,0,0,.8)">
+        <div style="display:flex; align-items:baseline; gap:10px; padding:12px 16px; border-bottom:1px solid #374151">
+          <span style="font-size:15px; font-weight:700; color:#4ade80">{{ sheet.name }}</span>
+          <span style="font-size:11px; color:#6b7280">{{ sheet.cls }} · {{ sheet.lv }}</span>
+          <span onClick="{{ closeSheet }}" style="margin-left:auto; font-size:15px; color:#6b7280; cursor:pointer">×</span>
+        </div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:2px">
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">HP</span>
+              <div style="flex:1; height:6px; background:#0b1220; border-radius:3px; overflow:hidden"><div style="width:{{ sheet.hpPct }}%; height:100%; background:#4ade80"></div></div>
+              <span style="margin-left:auto; font-size:13px; color:#4ade80">{{ sheet.hp }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">XP</span>
+              <div style="flex:1; height:6px; background:#0b1220; border-radius:3px; overflow:hidden"><div style="width:{{ sheet.xpPct }}%; height:100%; background:#60a5fa"></div></div>
+              <span style="margin-left:auto; font-size:13px; color:#60a5fa">{{ sheet.xp }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Purse</span>
+              
+              <span style="margin-left:auto; font-size:13px; color:#fbbf24">{{ sheet.purse }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Upkeep</span>
+              
+              <span style="margin-left:auto; font-size:13px; color:#4ade80">{{ sheet.upkeep }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Items</span>
+              
+              <span style="margin-left:auto; font-size:13px; color:#fbbf24">{{ sheet.items }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 0 0">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Status</span>
+              <span style="font-size:12px; color:#6b7280">{{ sheet.status }}</span>
+            </div>
+          <div style="border-top:1px solid #374151; margin-top:12px; padding-top:12px; display:flex">
+            <button onClick="{{ closeSheet }}" style="margin-left:auto; padding:8px 20px; background:#22c55e; color:#000; border:none; border-radius:6px; font:700 12px inherit; cursor:pointer">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820}}">
+class Component extends DCLogic {
+  sheetData = {
+      kessa: { name: "Kessa Vane", cls: "Fighter", lv: "Lv 4", hp: "22/22", hpPct: 100, xp: "8,200 / 16,000", xpPct: 51, purse: "140gp", upkeep: "82gp", status: "Assigned · Training Grounds", items: "Longsword +1" },
+      halan: { name: "Sister Halan", cls: "Cleric", lv: "Lv 3", hp: "14/14", hpPct: 100, xp: "4,100 / 6,000", xpPct: 68, purse: "63gp", upkeep: "41gp", status: "Assigned · Shrine", items: "Holy symbol +1" },
+      borin: { name: "Borin Stonefist", cls: "Dwarf", lv: "Lv 3", hp: "17/20", hpPct: 85, xp: "3,200 / 8,000", xpPct: 40, purse: "38gp", upkeep: "32gp", status: "At the keep", items: "—" },
+      maevis: { name: "Maevis Thorn", cls: "Magic-User", lv: "Lv 2", hp: "9/9", hpPct: 100, xp: "2,400 / 5,000", xpPct: 48, purse: "9gp", upkeep: "24gp", status: "At the keep · 15gp short of upkeep", items: "—" },
+      pip: { name: "Pip Underbough", cls: "Halfling", lv: "Lv 1", hp: "6/6", hpPct: 100, xp: "640 / 4,000", xpPct: 16, purse: "12gp", upkeep: "6gp 4sp", status: "At the keep", items: "Dagger +1" },
+      rowan: { name: "Rowan Ashe", cls: "Magic-User", lv: "Lv 1", hp: "5/5", hpPct: 100, xp: "480 / 2,500", xpPct: 19, purse: "2gp", upkeep: "4gp 8sp", status: "At the keep · 2gp 8sp short of upkeep", items: "—" },
+      ilanniel: { name: "Ilanniel", cls: "Elf", lv: "Lv 2", hp: "12/12", hpPct: 100, xp: "1,900 / 4,000", xpPct: 48, purse: "31gp", upkeep: "19gp", status: "On expedition · The Demo Divers", items: "—" },
+      dunmar: { name: "Dunmar Kell", cls: "Fighter", lv: "Lv 2", hp: "11/14", hpPct: 79, xp: "2,050 / 4,000", xpPct: 51, purse: "27gp", upkeep: "20gp 5sp", status: "On expedition · The Demo Divers", items: "—" },
+      bram: { name: "Bram Holt", cls: "Fighter", lv: "Lv 3", hp: "18/18", hpPct: 100, xp: "2,900 / 8,000", xpPct: 36, purse: "41gp", upkeep: "29gp", status: "At the keep", items: "—" },
+      yara: { name: "Yara Finch", cls: "Fighter", lv: "Lv 5", hp: "26/26", hpPct: 100, xp: "9,400 / 32,000", xpPct: 29, purse: "118gp", upkeep: "94gp", status: "The Demo Divers", items: "Longsword +2" }
+  };
+  sheetVals() {
+    const k = this.state.sheet;
+    const d = k ? this.sheetData[k] : null;
+    const who = {};
+    Object.keys(this.sheetData).forEach(key => {
+      who[key] = (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ sheet: key }); };
+    });
+    return {
+      who: who,
+      sheetOpen: !!d,
+      sheet: d || { name: '', cls: '', lv: '', hp: '', hpPct: 0, xp: '', xpPct: 0, purse: '', upkeep: '', status: '', items: '' },
+      closeSheet: () => this.setState({ sheet: null }),
+    };
+  }
+  state = { collected: false, reopened: false };
+  renderVals() {
+    const c = this.state.collected;
+    const open = !c || this.state.reopened;
+    return {
+      ...this.sheetVals(),
+      collected: c,
+      showModal: open,
+      actionLabel: c ? 'Close' : 'Collect',
+      primaryAction: () => this.setState(s => s.collected ? { reopened: false } : { collected: true, reopened: false }),
+      reopen: () => this.setState({ reopened: true }),
+      treasury: c ? '573gp 4sp' : '412gp',
+      maevisColor: c ? '#ef4444' : '#e5e7eb',
+      maevisPurse: c ? '0cp' : '9gp',
+      collect: () => this.setState({ collected: true }),
+      replay: () => this.setState({ collected: false }),
+    };
+  }
+}
+</script>
+</body>
+</html>

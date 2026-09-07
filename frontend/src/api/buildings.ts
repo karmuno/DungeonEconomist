@@ -7,6 +7,17 @@ export interface BuildingAssignedAdventurer {
   level: number
 }
 
+export interface BuildingStatLine {
+  label: string
+  value: string
+}
+
+export interface BuildingTierSlot {
+  tier: number
+  slots: number
+  min_level: number
+}
+
 export interface BuildingData {
   id: number | null
   building_type: string
@@ -14,15 +25,19 @@ export interface BuildingData {
   level: number
   max_level: number
   adventurer_class: string
+  allowed_classes?: string[]
   description: string
   assigned_bonus_desc: string
-  effects: string[]
+  effects?: string[]
   max_assigned: number
   min_adventurer_level: number
+  tier_slots?: BuildingTierSlot[]
   assigned_adventurers: BuildingAssignedAdventurer[]
   buy_cost?: number
   upgrade_cost: number | null
   next_name: string | null
+  current_stats: BuildingStatLine[]
+  next_stats: BuildingStatLine[] | null
 }
 
 export function list(): Promise<BuildingData[]> {

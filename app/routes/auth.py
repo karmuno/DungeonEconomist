@@ -18,6 +18,7 @@ from app.auth import (
 from app.database import get_db
 from app.models import Account
 from app.rate_limit import auth_rate_limiter
+from app.routes.admin import admin_console_open
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -49,6 +50,7 @@ class AccountOut(BaseModel):
     id: int
     username: str
     is_admin: bool = False
+    admin_console_open: bool = False
 
     class Config:
         from_attributes = True
@@ -177,4 +179,6 @@ def change_password(
 
 @router.get("/me", response_model=AccountOut)
 def get_me(account: Account = Depends(get_current_account)):
-    return account
+    out = AccountOut.model_validate(account)
+    out.admin_console_open = admin_console_open()
+    return out

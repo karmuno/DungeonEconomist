@@ -32,6 +32,13 @@ class LevelUpResult(BaseModel):
     next_level_xp: int | None = None
     class_bonuses: dict[str, Any] = {}
 
+class ClassAbilityOut(BaseModel):
+    """A class ability the adventurer has unlocked, with uses per expedition."""
+    name: str
+    description: str
+    uses: int | None = None  # None for passive abilities
+
+
 class AdventurerOut(BaseModel):
     id: int
     name: str
@@ -59,7 +66,8 @@ class AdventurerOut(BaseModel):
     thac0: int | None = None
     hit_dice: int | None = None
     to_hit_bonus: int | None = None
-    class_ability: str | None = None
+    to_hit: int | None = None  # d20-style: (20 - THAC0) + class bonus
+    class_abilities: list[ClassAbilityOut] = []
     party_name: str | None = None
 
     @field_validator('magic_items', mode='before')
@@ -158,12 +166,22 @@ class AdventurerLevelUpInfo(BaseModel):
     current_level: int
     next_level: int
 
+class AdventurerRef(BaseModel):
+    """An adventurer named in an event message, so the UI can link to their sheet."""
+    id: int
+    name: str
+
+
 class GameEvent(BaseModel):
-    type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep'
+    type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep', 'upkeep_deferred'
     message: str
     expedition_id: int | None = None
     first_time: bool = False
     event_subtype: str | None = None  # e.g. 'stairs', 'death', 'big_haul' for expedition_choice events
+    data: dict | None = None  # structured payload, e.g. the upkeep-day ledger
+    # Every adventurer named in `message`. The UI turns each name into a link
+    # to that adventurer's sheet, so no name in a notification is a dead end.
+    adventurers: list[AdventurerRef] = []
 
 class GameTimeInfo(BaseModel):
     current_day: int
@@ -184,6 +202,7 @@ class ExpeditionResult(BaseModel):
     start_day: int | None = None
     duration_days: int | None = None
     return_day: int | None = None
+    actual_return_day: int | None = None  # set when the party came home early (retreat)
     start_time: datetime
     end_time: datetime | None = None
     treasure_total: int

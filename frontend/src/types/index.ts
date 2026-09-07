@@ -21,6 +21,7 @@ export interface AccountOut {
   id: number
   username: string
   is_admin: boolean
+  admin_console_open?: boolean
 }
 
 // Keeps
@@ -42,6 +43,11 @@ export interface KeepOut {
 }
 
 // Adventurers
+
+export interface AdventurerRef {
+  id: number
+  name: string
+}
 
 export interface LevelUpResult {
   old_level: number
@@ -77,8 +83,17 @@ export interface AdventurerOut {
   thac0?: number | null
   hit_dice?: number | null
   to_hit_bonus?: number | null
-  class_ability?: string | null
+  /** d20-style attack bonus: (20 − THAC0) + class bonus */
+  to_hit?: number | null
+  class_abilities?: ClassAbility[]
   party_name?: string | null
+}
+
+export interface ClassAbility {
+  name: string
+  description: string
+  /** Uses per expedition at the adventurer's level; null for passive abilities */
+  uses: number | null
 }
 
 export interface AdventurerCreate {
@@ -161,6 +176,7 @@ export interface ExpeditionSummary {
   start_day: number
   duration_days: number
   return_day: number
+  actual_return_day?: number | null
   result: string
   treasure_total: number
   treasure_silver: number
@@ -184,6 +200,7 @@ export interface ExpeditionResult {
   start_day: number
   duration_days: number
   return_day: number
+  actual_return_day?: number | null
   start_time: string
   end_time?: string | null
   treasure_total: number
@@ -277,6 +294,7 @@ export interface DashboardStats {
     copper: number
     magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
   }>
+  upkeep_forecast: import('./upkeep').UpkeepForecast
   hint: string | null
   active_expeditions: Array<{
     id: number

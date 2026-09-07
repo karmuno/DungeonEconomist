@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -10,8 +12,14 @@ from app.models import Account, Adventurer, Keep, MagicItem
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+def admin_console_open() -> bool:
+    """Sandbox switch: when the ADMIN_CONSOLE_OPEN env var is truthy, the admin
+    console is available to any signed-in account, not just admins."""
+    return os.getenv("ADMIN_CONSOLE_OPEN", "").strip().lower() in ("1", "true", "yes")
+
+
 def require_admin(account: Account = Depends(get_current_account)) -> Account:
-    if not account.is_admin:
+    if not account.is_admin and not admin_console_open():
         raise HTTPException(status_code=403, detail="Admin access required")
     return account
 
@@ -136,14 +144,13 @@ def _handle_give(args: list[str], keep: Keep, db: Session) -> dict:
         adv.xp += amount
 
         from app.progression import apply_level_ups
-        events = []
-        apply_level_ups(adv, keep, events)
+        events = apply_level_ups(adv, keep)
 
         db.commit()
         return {
             "ok": True,
             "message": f"Granted {amount} XP to {adv.name} (#{adv.id}). Total: {adv.xp}",
-            "events": [e.dict() for e in events],
+            "events": events,
         }
 
     raise HTTPException(status_code=400, detail="Unknown give subcommand. Try: give item <id> [level] | give xp <id> <amount>")

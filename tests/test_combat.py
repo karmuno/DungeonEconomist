@@ -273,10 +273,11 @@ def test_mu_no_cast_on_low_roll():
 
 
 def test_spell_name_by_level():
+    """One spell for the MVP: every caster level casts Sleep."""
     assert get_spell_name(1) == "Sleep"
-    assert get_spell_name(3) == "Fireball"
-    assert get_spell_name(4) == "Lightning Bolt"
-    assert get_spell_name(9) == "Disintegrate"
+    assert get_spell_name(3) == "Sleep"
+    assert get_spell_name(4) == "Sleep"
+    assert get_spell_name(9) == "Sleep"
 
 
 # ─── Cleric turn in combat ────────────────────────────────────────────────────
@@ -347,6 +348,31 @@ def test_cleric_revival_after_combat():
     assert "Thor" in result["revived_adventurers"]
     assert dead_fighter["current_hp"] == 1
     assert cleric["revivals_remaining"] == 1
+    # The revive is logged with its source so the turn-by-turn can explain it
+    assert result["revivals"] == [{"name": "Thor", "hp": 1, "healer": "Galen", "source": "cleric"}]
+
+
+def test_potion_revive_is_logged_and_credited_to_the_holder():
+    """A fallen adventurer with a potion gets back up; the log names the potion."""
+    fighter = make_pc("Thor", "Fighter", level=1, hp=0)
+    fighter["current_hp"] = 0
+    fighter["has_potion"] = True
+    ally = make_pc("Bram", "Fighter", level=1, hp=10)
+    goblin = make_monster("Goblin #1", hd=0.5, hp=1)
+
+    with patch("app.expedition.random") as mock_rng:
+        mock_rng.randint.side_effect = [
+            6, 1,   # initiative: party wins
+            20, 1,  # Bram attacks: kills goblin
+            1,      # goblin retaliates from snapshot: miss
+        ]
+        mock_rng.choice.side_effect = lambda seq: seq[0]
+
+        result = resolve_combat_rounds([fighter, ally], [goblin])
+
+    assert fighter["current_hp"] == 1
+    assert fighter["potion_consumed"] is True
+    assert result["revivals"] == [{"name": "Thor", "hp": 1, "healer": "Thor", "source": "potion"}]
 
 
 def test_cleric_level1_cannot_revive():
@@ -653,8 +679,8 @@ def test_cleric_heals_most_wounded_first():
         result = resolve_combat_rounds([cleric, kira, zane], [make_monster("Goblin", hp=1)])
 
     assert len(result["healed_adventurers"]) == 2
-    assert result["healed_adventurers"][0] == {"name": "Zane", "hp": 6}
-    assert result["healed_adventurers"][1] == {"name": "Kira", "hp": 4}
+    assert result["healed_adventurers"][0] == {"name": "Zane", "hp": 6, "healer": "Edric"}
+    assert result["healed_adventurers"][1] == {"name": "Kira", "hp": 4, "healer": "Edric"}
     assert zane["current_hp"] == 9   # 3 + 6
     assert kira["current_hp"] == 12  # 8 + 4
     assert cleric["heals_remaining"] == 0

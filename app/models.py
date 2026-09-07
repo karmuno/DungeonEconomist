@@ -134,6 +134,8 @@ class Adventurer(Base):
     death_day = Column(Integer, nullable=True)
     death_party_name = Column(String, nullable=True)
     bankruptcy_day = Column(Integer, nullable=True)
+    # Upkeep that came due while in the dungeon and couldn't be paid; settled on return
+    upkeep_debt_cp = Column(Integer, default=0, nullable=False, server_default="0")
 
     keep = relationship('Keep', back_populates='adventurers')
     parties = relationship('Party', secondary=party_adventurer, back_populates='members')
@@ -176,6 +178,8 @@ class Party(Base):
     auto_delve_full = Column(Boolean, default=False, nullable=False)
     auto_decide_events = Column(Boolean, default=False, nullable=False)
     auto_delve_level = Column(Integer, nullable=True)  # null = max unlocked
+    # Disbanded parties stay as rows so their expeditions remain in the history
+    disbanded = Column(Boolean, default=False, nullable=False, server_default="0")
 
     members = relationship('Adventurer', secondary=party_adventurer, back_populates='parties')
     expeditions = relationship('Expedition', foreign_keys='Expedition.party_id', back_populates='party')

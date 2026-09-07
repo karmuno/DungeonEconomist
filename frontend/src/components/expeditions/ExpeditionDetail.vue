@@ -1,14 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ExpeditionResult } from '../../types'
 import ExpeditionLog from './ExpeditionLog.vue'
+import { expeditionEnd } from '../../utils/calendar'
 
-defineProps<{
+const props = defineProps<{
   expedition: ExpeditionResult
 }>()
 
 defineEmits<{
   close: []
 }>()
+
+// An early retreat keeps its planned return_day; show the day the party
+// really came home, with the plan in the tooltip.
+const ended = computed(() =>
+  expeditionEnd(props.expedition.start_day, props.expedition.return_day, props.expedition.actual_return_day),
+)
+
+const plannedTitle = computed(() =>
+  ended.value.early
+    ? `Planned: Day ${props.expedition.return_day} · ${props.expedition.duration_days} days`
+    : undefined,
+)
 </script>
 
 <template>
@@ -30,13 +44,13 @@ defineEmits<{
         <span class="text-muted">Departed</span>
         <strong>Day {{ expedition.start_day }}</strong>
       </div>
-      <div class="stat-card">
-        <span class="text-muted">Returns</span>
-        <strong>Day {{ expedition.return_day }}</strong>
+      <div class="stat-card" :title="plannedTitle">
+        <span class="text-muted">{{ ended.early ? 'Returned' : 'Returns' }}</span>
+        <strong>Day {{ ended.day }}</strong>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" :title="plannedTitle">
         <span class="text-muted">Duration</span>
-        <strong>{{ expedition.duration_days }} days ({{ expedition.turns }} turns)</strong>
+        <strong>{{ ended.days }} days ({{ expedition.turns }} turns)</strong>
       </div>
     </div>
 

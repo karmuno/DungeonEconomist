@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { AdventurerOut } from '../../types'
 import ProgressBar from '../shared/ProgressBar.vue'
-import { formatCurrency } from '../../utils/currency'
+import { formatCurrency, formatCp } from '../../utils/currency'
 import { displayStatus, itemEmoji, itemBonusLabel } from '../../utils/adventurer'
 
 const props = defineProps<{
@@ -35,6 +35,18 @@ const classColor = computed(() => {
 
 const status = computed(() => displayStatus(props.adventurer))
 
+const toHitLabel = computed(() => {
+  const v = props.adventurer.to_hit
+  if (v == null) return '—'
+  return v >= 0 ? `+${v}` : `${v}`
+})
+
+function itemHelp(itemType: string): string | undefined {
+  if (itemType === 'weapon') return 'Weapons: Bonus to attack rolls to hit.'
+  if (itemType === 'armor') return 'Armor: Reduces damage received.'
+  return undefined
+}
+
 const hpPct = computed(() => {
   if (props.adventurer.hp_max <= 0) return 0
   return props.adventurer.hp_current / props.adventurer.hp_max
@@ -57,8 +69,12 @@ const hpBarColor = computed(() => {
           <h2 class="cs-name">{{ adventurer.name }}</h2>
           <span class="cs-class" :style="{ color: classColor }">{{ adventurer.adventurer_class }}</span>
         </div>
-        <div class="cs-level-badge" :style="{ backgroundColor: classColor }">
-          <span class="cs-level-label">LV</span>
+        <div
+          class="cs-level-badge"
+          :style="{ backgroundColor: classColor }"
+          title="Level: A measure of the adventurer’s power relative to other adventurers of the same class."
+        >
+          <span class="cs-level-label">LVL</span>
           <span class="cs-level-num">{{ adventurer.level }}</span>
         </div>
       </div>
@@ -71,21 +87,21 @@ const hpBarColor = computed(() => {
 
     <!-- Combat Stats -->
     <div class="cs-combat-row">
-      <div class="cs-stat">
-        <span class="cs-stat-value">{{ adventurer.thac0 ?? '—' }}</span>
-        <span class="cs-stat-label">THAC0</span>
+      <div class="cs-stat" title="To-Hit: Bonus added to the roll of a 20-sided die to determine whether an attack hits.">
+        <span class="cs-stat-value">{{ toHitLabel }}</span>
+        <span class="cs-stat-label">TO-HIT</span>
       </div>
-      <div class="cs-stat">
+      <div class="cs-stat" title="Hit Dice: Determines attacks per round, and how likely the adventurer is to be attacked.">
         <span class="cs-stat-value">{{ adventurer.hit_dice ?? '—' }}</span>
         <span class="cs-stat-label">HD</span>
       </div>
-      <div class="cs-stat">
-        <span class="cs-stat-value">{{ adventurer.to_hit_bonus ? '+' + adventurer.to_hit_bonus : '+0' }}</span>
-        <span class="cs-stat-label">ATK</span>
-      </div>
-      <div class="cs-stat">
+      <div class="cs-stat" title="Wealth: Amount of money the adventurer currently possesses.">
         <span class="cs-stat-value cs-gold-value">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</span>
         <span class="cs-stat-label">WEALTH</span>
+      </div>
+      <div class="cs-stat" title="Upkeep: Amount of money the adventurer must pay to the keep every 30 days.">
+        <span class="cs-stat-value cs-upkeep-value">{{ formatCp(Math.floor(adventurer.xp)) }}</span>
+        <span class="cs-stat-label">UPKEEP</span>
       </div>
     </div>
 
@@ -111,17 +127,25 @@ const hpBarColor = computed(() => {
       </div>
     </div>
 
-    <!-- Class Ability -->
-    <div v-if="adventurer.class_ability" class="cs-ability">
+    <!-- Class Abilities (only those unlocked at this level) -->
+    <div
+      v-for="ability in adventurer.class_abilities ?? []"
+      :key="ability.name"
+      class="cs-ability"
+    >
       <span class="cs-ability-icon" :style="{ color: classColor }">&#9670;</span>
-      <span class="cs-ability-text">{{ adventurer.class_ability }}</span>
+      <span class="cs-ability-text">
+        <span class="cs-ability-name">{{ ability.name }}</span>
+        <span v-if="ability.uses != null" class="cs-ability-uses"> · {{ ability.uses }} per expedition</span>
+        <span class="cs-ability-desc">: {{ ability.description }}</span>
+      </span>
     </div>
 
     <!-- Equipment -->
     <div class="cs-section">
       <span class="cs-section-title">Equipment</span>
       <div v-if="adventurer.magic_items && adventurer.magic_items.length > 0" class="cs-items">
-        <div v-for="item in adventurer.magic_items" :key="item.id" class="cs-item">
+        <div v-for="item in adventurer.magic_items" :key="item.id" class="cs-item" :title="itemHelp(item.item_type)">
           <span class="cs-item-icon">{{ itemEmoji(item.item_type) }}</span>
           <span class="cs-item-name">{{ item.name }}</span>
           <span v-if="itemBonusLabel(item.item_type, item.bonus)" class="cs-item-bonus">
@@ -279,6 +303,11 @@ const hpBarColor = computed(() => {
   color: var(--accent-green);
 }
 
+.cs-upkeep-value {
+  font-size: 0.75rem;
+  color: #4ade80;
+}
+
 .cs-stat-label {
   font-size: 9px;
   text-transform: uppercase;
@@ -352,6 +381,9 @@ const hpBarColor = computed(() => {
 }
 
 /* Class Ability */
+.cs-ability-name { font-weight: 600; }
+.cs-ability-uses { color: var(--text-muted, #6b7280); }
+
 .cs-ability {
   display: flex;
   align-items: flex-start;

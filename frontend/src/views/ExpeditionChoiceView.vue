@@ -6,6 +6,7 @@ import type { PendingEvent } from '../api/expeditions'
 import { useNotificationsStore } from '../stores/notifications'
 import { usePlayerStore } from '../stores/player'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import eventBus from '../eventBus'
 
 const router = useRouter()
 const route = useRoute()
@@ -40,14 +41,9 @@ async function makeChoice(choice: string) {
   try {
     const result = await expeditionsApi.choose(expeditionId.value, choice)
 
-    // Process any events from the resolution
-    for (const evt of result.events ?? []) {
-      const typeMap: Record<string, string> = {
-        death: 'error', loot: 'info', stairs: 'success',
-        upkeep: 'warning', expedition_complete: 'success',
-      }
-      notifications.add(evt.message, { type: (typeMap[evt.type] ?? 'info') as any })
-    }
+    // Hand these to the side panel: it owns the level-up and stairs popups
+    // and turns every adventurer name into a link to their sheet
+    if (result.events?.length) eventBus.emit('game-events', result.events)
 
     if (result.status === 'in_progress') {
       // Expedition continues — back to dashboard

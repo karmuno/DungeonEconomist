@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/colors.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/typography.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/venturekeep-design-system-78126bfc-a49f-4685-9725-617b11a1e5f5/styles.css">
+<style>
+  html, body { margin:0; padding:0; background:#000; }
+  body { font-family:'Cascadia Code','Fira Code','JetBrains Mono','Consolas','Monaco','Courier New',monospace; color:#e5e7eb; }
+  a { color:#4ade80; text-decoration:none; }
+  a:hover { color:#86efac; }
+  ::selection { background:rgba(74,222,128,.25); color:#4ade80; }
+</style>
+</helmet>
+<div style="position:relative; width:1280px; height:900px; background:#000; overflow:hidden">
+
+  <div style="display:flex; align-items:center; height:56px; padding:0 16px; border-bottom:1px solid #374151; gap:16px">
+    <span style="font-size:15px; font-weight:700; color:#4ade80">VentureKeep</span>
+    <span style="font-size:11px; color:#6b7280">Greyhollow Keep</span>
+    <div style="margin-left:auto; display:flex; gap:16px; font-size:11px; color:#6b7280">
+      <span>Dashboard</span><span>Adventurers</span><span>Parties</span><span style="color:#e5e7eb">Village</span>
+    </div>
+  </div>
+
+  <div style="display:flex; height:844px">
+    <aside style="width:260px; box-sizing:border-box; padding:14px 16px; border-right:1px solid #374151; display:flex; flex-direction:column; gap:12px">
+      <div>
+        <div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#6b7280">Game Day</div>
+        <div style="display:flex; align-items:baseline; gap:8px">
+          <div style="font-size:2rem; font-weight:700; line-height:1">24</div>
+          <div style="font-size:.7rem; color:#6b7280">Month 1, Day 24</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#6b7280">Treasury</div>
+        <div style="font-size:1.1rem; font-weight:700; color:#4ade80">412gp</div>
+        <div onClick="{{ openModal }}" title="Upkeep forecast" style="display:flex; align-items:baseline; gap:6px; margin-top:2px; cursor:pointer">
+          <span style="font-size:11px; color:#4ade80; text-decoration:underline">+229gp 7sp</span>
+          <span style="font-size:10px; color:#6b7280">upkeep · day 30</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px">
+        <button style="flex:1; padding:8px 12px; background:#166534; color:#000; border:none; border-radius:6px; font:700 12px inherit; cursor:pointer">Advance Day</button>
+        <button style="flex:1; padding:8px 12px; background:#1a1a1a; color:#6b7280; border:1px solid #4b5563; border-radius:6px; font:600 11px inherit; cursor:pointer">Skip to Event</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px">
+        <div style="padding:4px 6px; border-radius:6px; font-size:10px; line-height:1.3; background:#0c1929; border:1px solid #1e3a5f; color:#60a5fa">The Demo Divers are on Depth 3, day 2 of 3.</div>
+        <div style="padding:4px 6px; border-radius:6px; font-size:10px; line-height:1.3; background:#1a1a1a; border:1px solid transparent; color:#6b7280">A Halfling arrived at the tavern.</div>
+      </div>
+    </aside>
+
+    <main style="flex:1; padding:16px; overflow:hidden">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:12px">
+        <h1 style="font-size:1.3rem; margin:0; color:#4ade80">Village</h1>
+        <span style="font-size:12px; color:#6b7280">Greyhollow Keep · 412gp in treasury</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div style="background:#1f2937; border:1px solid #4b5563; border-left:3px solid #4ade80; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.5); padding:12px 16px; display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; align-items:baseline; gap:8px">
+            <span style="font-size:14px; font-weight:700; color:#4ade80">Shrine</span>
+            <span style="font-size:9.5px; font-weight:700; letter-spacing:.06em; padding:1px 6px; border-radius:4px; color:#4ade80; background:rgba(74,222,128,.15); white-space:nowrap">LEVEL 1</span>
+            <span style="margin-left:auto; font-size:10px; color:#6b7280">Cleric</span>
+          </div>
+          <div style="min-height:96px">
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Healing</span>
+              <span style="font-size:12px; color:#e5e7eb">+1 HP/day per Cleric</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#e5e7eb">1 · Cleric Lv 1+</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; min-height:26px">
+            <span style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Assigned</span>
+              <div style="display:flex; align-items:center; gap:6px; padding:3px 6px; background:rgba(74,222,128,.08); border:1px solid rgba(74,222,128,.15); border-radius:3px">
+                <span style="font-size:11px; color:#e5e7eb"><span onClick="{{ who.halan }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Sister Halan</span></span><span style="font-size:10px; color:#6b7280">Lv 3</span><span style="font-size:11px; color:#6b7280; cursor:pointer">×</span>
+              </div>
+          </div>
+          <div style="border-top:1px solid #374151; padding-top:8px">
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin-bottom:4px">Upgrade to Chapel</div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Healing</span>
+              <span style="font-size:12px; color:#4ade80">+2 HP/day per Cleric</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#4ade80">2 · Cleric Lv 3+</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Unlocks</span>
+              <span style="font-size:12px; color:#4ade80">Potion crafting</span>
+            </div>
+          </div>
+          <button style="margin-top:auto; width:100%; padding:8px 12px; background:#22c55e; color:#000; border:none; border-radius:6px; font:700 12px inherit; cursor:pointer">Upgrade · 250gp</button>
+        </div>
+        <div style="background:#1f2937; border:1px solid #4b5563; border-left:3px solid #4ade80; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.5); padding:12px 16px; display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; align-items:baseline; gap:8px">
+            <span style="font-size:14px; font-weight:700; color:#4ade80">Training Grounds</span>
+            <span style="font-size:9.5px; font-weight:700; letter-spacing:.06em; padding:1px 6px; border-radius:4px; color:#4ade80; background:rgba(74,222,128,.15); white-space:nowrap">LEVEL 2</span>
+            <span style="margin-left:auto; font-size:10px; color:#6b7280">Fighter</span>
+          </div>
+          <div style="min-height:96px">
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">To-hit</span>
+              <span style="font-size:12px; color:#e5e7eb">+1 per Fighter</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Damage</span>
+              <span style="font-size:12px; color:#e5e7eb">+1 per Fighter</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#e5e7eb">2 · Fighter Lv 3+</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Morale</span>
+              <span style="font-size:12px; color:#e5e7eb">−1 party morale</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; min-height:26px; position:relative">
+            <span style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Assigned</span>
+              <div style="display:flex; align-items:center; gap:6px; padding:3px 6px; background:rgba(74,222,128,.08); border:1px solid rgba(74,222,128,.15); border-radius:3px">
+                <span style="font-size:11px; color:#e5e7eb"><span onClick="{{ who.kessa }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Kessa Vane</span></span><span style="font-size:10px; color:#6b7280">Lv 4</span><span onClick="{{ clear }}" style="font-size:11px; color:#6b7280; cursor:pointer">×</span>
+              </div>
+              <sc-if value="{{ empty }}" hint-placeholder-val="{{ true }}">
+                <div onClick="{{ openPick }}" style="padding:3px 6px; border:1px dashed #4b5563; border-radius:3px; font-size:10px; color:#6b7280; cursor:pointer" style-hover="border-color:#4ade80; color:#4ade80">Empty · Fighter Lv 3+</div>
+              </sc-if>
+              <sc-if value="{{ filled }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; gap:6px; padding:3px 6px; background:rgba(74,222,128,.08); border:1px solid rgba(74,222,128,.15); border-radius:3px">
+                <span style="font-size:11px; color:#e5e7eb">{{ pickedName }}</span><span style="font-size:10px; color:#6b7280">{{ pickedLevel }}</span><span onClick="{{ clear }}" style="font-size:11px; color:#6b7280; cursor:pointer">×</span>
+              </div>
+              </sc-if>
+            <sc-if value="{{ picking }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; top:26px; left:0; width:100%; z-index:5; background:#111827; border:1px solid #4b5563; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.5); padding:6px">
+                <div style="display:flex; align-items:baseline; gap:8px; padding:2px 8px 6px; border-bottom:1px solid #374151">
+                  <span style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Fighter · Lv 3+</span>
+                  <span style="margin-left:auto; font-size:10px; color:#4ade80">+1 to-hit · +1 dmg</span>
+                  <span onClick="{{ cancel }}" style="font-size:12px; color:#6b7280; cursor:pointer">×</span>
+                </div>
+                <div onClick="{{ pickBram }}" style="display:grid; grid-template-columns:112px 40px 52px 64px 60px 1fr; align-items:center; gap:8px; padding:5px 8px; border-radius:3px; cursor:pointer" style-hover="background:rgba(74,222,128,.06)">
+                  <span style="font-size:12px; color:#e5e7eb"><span onClick="{{ who.bram }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Bram Holt</span></span>
+                  <span style="font-size:10px; color:#6b7280">Lv 3</span>
+                  <span style="font-size:10px; color:#4ade80; text-align:right">18/18</span>
+                  <span style="font-size:10px; color:#60a5fa; text-align:right">2,900 XP</span>
+                  <span style="font-size:10px; color:#fbbf24; text-align:right">41gp</span>
+                  <span style="font-size:10px; color:#6b7280; text-align:right">Unassigned</span>
+                </div>
+                <div onClick="{{ pickYara }}" style="display:grid; grid-template-columns:112px 40px 52px 64px 60px 1fr; align-items:center; gap:8px; padding:5px 8px; border-radius:3px; cursor:pointer" style-hover="background:rgba(74,222,128,.06)">
+                  <span style="font-size:12px; color:#e5e7eb"><span onClick="{{ who.yara }}" style="cursor:pointer; text-decoration:underline; text-decoration-color:#374151; text-underline-offset:2px">Yara Finch</span></span>
+                  <span style="font-size:10px; color:#6b7280">Lv 5</span>
+                  <span style="font-size:10px; color:#4ade80; text-align:right">26/26</span>
+                  <span style="font-size:10px; color:#60a5fa; text-align:right">9,400 XP</span>
+                  <span style="font-size:10px; color:#fbbf24; text-align:right">118gp</span>
+                  <span style="font-size:10px; color:#6b7280; text-align:right">The Demo Divers</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <div style="border-top:1px solid #374151; padding-top:8px">
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin-bottom:4px">Upgrade to War College</div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">To-hit</span>
+              <span style="font-size:12px; color:#4ade80">+2 per Fighter</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Damage</span>
+              <span style="font-size:12px; color:#6b7280">+1 per Fighter</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#4ade80">3 · Fighter Lv 5+</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Morale</span>
+              <span style="font-size:12px; color:#6b7280">−1 party morale</span>
+            </div>
+          </div>
+          <button style="margin-top:auto; width:100%; padding:8px 12px; background:#1a1a1a; color:#6b7280; border:1px solid #4b5563; border-radius:6px; font:700 12px inherit; cursor:pointer">Upgrade · 1,250gp</button>
+        </div>
+        <div style="background:#1f2937; border:1px solid #4b5563; border-left:3px solid #6b7280; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.5); padding:12px 16px; display:flex; flex-direction:column; gap:8px; border-style:dashed; opacity:.85">
+          <div style="display:flex; align-items:baseline; gap:8px">
+            <span style="font-size:14px; font-weight:700; color:#4ade80">Library</span>
+            <span style="font-size:9.5px; font-weight:700; letter-spacing:.06em; padding:1px 6px; border-radius:4px; color:#6b7280; background:rgba(107,114,128,.15); white-space:nowrap">NOT BUILT</span>
+            <span style="margin-left:auto; font-size:10px; color:#6b7280">Magic-User</span>
+          </div>
+          <div style="min-height:96px">
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Item discovery</span>
+              <span style="font-size:12px; color:#6b7280">—</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#6b7280">—</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; min-height:26px">
+            <span style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Assigned</span>
+              <div style="padding:3px 6px; border:1px dashed #4b5563; border-radius:3px; font-size:10px; color:#6b7280">Empty · Magic-User Lv 1+</div>
+          </div>
+          <div style="border-top:1px solid #374151; padding-top:8px">
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin-bottom:4px">When built</div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Item discovery</span>
+              <span style="font-size:12px; color:#4ade80">+3% per Magic-User</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#4ade80">1 · Magic-User Lv 1+</span>
+            </div>
+          </div>
+          <button style="margin-top:auto; width:100%; padding:8px 12px; background:#22c55e; color:#000; border:none; border-radius:6px; font:700 12px inherit; cursor:pointer">Build · 50gp</button>
+        </div>
+        <div style="background:#1f2937; border:1px solid #4b5563; border-left:3px solid #6b7280; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.5); padding:12px 16px; display:flex; flex-direction:column; gap:8px; border-style:dashed; opacity:.85">
+          <div style="display:flex; align-items:baseline; gap:8px">
+            <span style="font-size:14px; font-weight:700; color:#4ade80">Smithy</span>
+            <span style="font-size:9.5px; font-weight:700; letter-spacing:.06em; padding:1px 6px; border-radius:4px; color:#6b7280; background:rgba(107,114,128,.15); white-space:nowrap">NOT BUILT</span>
+            <span style="margin-left:auto; font-size:10px; color:#6b7280">Dwarf</span>
+          </div>
+          <div style="min-height:96px">
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Crafting</span>
+              <span style="font-size:12px; color:#6b7280">—</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:3px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="flex:1; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#6b7280">—</span>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; min-height:26px">
+            <span style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280">Assigned</span>
+              <div style="padding:3px 6px; border:1px dashed #4b5563; border-radius:3px; font-size:10px; color:#6b7280">Empty · Dwarf Lv 1+</div>
+          </div>
+          <div style="border-top:1px solid #374151; padding-top:8px">
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin-bottom:4px">When built</div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Crafting</span>
+              <span style="font-size:12px; color:#4ade80">Weapons</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; padding:2px 0">
+              <span style="flex:1; font-size:10px; color:#6b7280">Slots</span>
+              <span style="font-size:12px; color:#4ade80">1 · Dwarf Lv 1+</span>
+            </div>
+          </div>
+          <button style="margin-top:auto; width:100%; padding:8px 12px; background:#22c55e; color:#000; border:none; border-radius:6px; font:700 12px inherit; cursor:pointer">Build · 50gp</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+
+  <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center">
+      <div style="width:420px; background:#111827; border:1px solid #4b5563; border-radius:6px; box-shadow:0 0 40px rgba(0,0,0,.8)">
+        <div style="display:flex; align-items:baseline; gap:10px; padding:12px 16px; border-bottom:1px solid #374151">
+          <span style="font-size:15px; font-weight:700; color:#4ade80">{{ sheet.name }}</span>
+          <span style="font-size:11px; color:#6b7280">{{ sheet.cls }} · {{ sheet.lv }}</span>
+          <span onClick="{{ closeSheet }}" style="margin-left:auto; font-size:15px; color:#6b7280; cursor:pointer">×</span>
+        </div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:2px">
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">HP</span>
+              <div style="flex:1; height:6px; background:#0b1220; border-radius:3px; overflow:hidden"><div style="width:{{ sheet.hpPct }}%; height:100%; background:#4ade80"></div></div>
+              <span style="margin-left:auto; font-size:13px; color:#4ade80">{{ sheet.hp }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">XP</span>
+              <div style="flex:1; height:6px; background:#0b1220; border-radius:3px; overflow:hidden"><div style="width:{{ sheet.xpPct }}%; height:100%; background:#60a5fa"></div></div>
+              <span style="margin-left:auto; font-size:13px; color:#60a5fa">{{ sheet.xp }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Purse</span>
+              
+              <span style="margin-left:auto; font-size:13px; color:#fbbf24">{{ sheet.purse }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Upkeep</span>
+              
+              <span style="margin-left:auto; font-size:13px; color:#4ade80">{{ sheet.upkeep }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid rgba(55,65,81,.5)">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Items</span>
+              
+              <span style="margin-left:auto; font-size:13px; color:#fbbf24">{{ sheet.items }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:8px 0 0">
+              <span style="width:78px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280">Status</span>
+              <span style="font-size:12px; color:#6b7280">{{ sheet.status }}</span>
+            </div>
+          <div style="border-top:1px solid #374151; margin-top:12px; padding-top:12px; display:flex">
+            <button onClick="{{ closeSheet }}" style="margin-left:auto; padding:8px 20px; background:#22c55e; color:#000; border:none; border-radius:6px; font:700 12px inherit; cursor:pointer">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div></x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820}}">
+class Component extends DCLogic {
+  sheetData = {
+      kessa: { name: "Kessa Vane", cls: "Fighter", lv: "Lv 4", hp: "22/22", hpPct: 100, xp: "8,200 / 16,000", xpPct: 51, purse: "140gp", upkeep: "82gp", status: "Assigned · Training Grounds", items: "Longsword +1" },
+      halan: { name: "Sister Halan", cls: "Cleric", lv: "Lv 3", hp: "14/14", hpPct: 100, xp: "4,100 / 6,000", xpPct: 68, purse: "63gp", upkeep: "41gp", status: "Assigned · Shrine", items: "Holy symbol +1" },
+      borin: { name: "Borin Stonefist", cls: "Dwarf", lv: "Lv 3", hp: "17/20", hpPct: 85, xp: "3,200 / 8,000", xpPct: 40, purse: "38gp", upkeep: "32gp", status: "At the keep", items: "—" },
+      maevis: { name: "Maevis Thorn", cls: "Magic-User", lv: "Lv 2", hp: "9/9", hpPct: 100, xp: "2,400 / 5,000", xpPct: 48, purse: "9gp", upkeep: "24gp", status: "At the keep · 15gp short of upkeep", items: "—" },
+      pip: { name: "Pip Underbough", cls: "Halfling", lv: "Lv 1", hp: "6/6", hpPct: 100, xp: "640 / 4,000", xpPct: 16, purse: "12gp", upkeep: "6gp 4sp", status: "At the keep", items: "Dagger +1" },
+      rowan: { name: "Rowan Ashe", cls: "Magic-User", lv: "Lv 1", hp: "5/5", hpPct: 100, xp: "480 / 2,500", xpPct: 19, purse: "2gp", upkeep: "4gp 8sp", status: "At the keep · 2gp 8sp short of upkeep", items: "—" },
+      ilanniel: { name: "Ilanniel", cls: "Elf", lv: "Lv 2", hp: "12/12", hpPct: 100, xp: "1,900 / 4,000", xpPct: 48, purse: "31gp", upkeep: "19gp", status: "On expedition · The Demo Divers", items: "—" },
+      dunmar: { name: "Dunmar Kell", cls: "Fighter", lv: "Lv 2", hp: "11/14", hpPct: 79, xp: "2,050 / 4,000", xpPct: 51, purse: "27gp", upkeep: "20gp 5sp", status: "On expedition · The Demo Divers", items: "—" },
+      bram: { name: "Bram Holt", cls: "Fighter", lv: "Lv 3", hp: "18/18", hpPct: 100, xp: "2,900 / 8,000", xpPct: 36, purse: "41gp", upkeep: "29gp", status: "At the keep", items: "—" },
+      yara: { name: "Yara Finch", cls: "Fighter", lv: "Lv 5", hp: "26/26", hpPct: 100, xp: "9,400 / 32,000", xpPct: 29, purse: "118gp", upkeep: "94gp", status: "The Demo Divers", items: "Longsword +2" }
+  };
+  sheetVals() {
+    const k = this.state.sheet;
+    const d = k ? this.sheetData[k] : null;
+    const who = {};
+    Object.keys(this.sheetData).forEach(key => {
+      who[key] = (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ sheet: key }); };
+    });
+    return {
+      who: who,
+      sheetOpen: !!d,
+      sheet: d || { name: '', cls: '', lv: '', hp: '', hpPct: 0, xp: '', xpPct: 0, purse: '', upkeep: '', status: '', items: '' },
+      closeSheet: () => this.setState({ sheet: null }),
+    };
+  }
+  state = { picking: false, picked: null };
+  renderVals() {
+    const p = this.state.picked;
+    const set = (name, level) => () => this.setState({ picked: { name, level }, picking: false });
+    return {
+      ...this.sheetVals(),
+      picking: this.state.picking,
+      empty: !p,
+      filled: !!p,
+      pickedName: p ? p.name : '',
+      pickedLevel: p ? p.level : '',
+      openPick: () => this.setState({ picking: true }),
+      cancel: () => this.setState({ picking: false }),
+      clear: () => this.setState({ picked: null }),
+      pickBram: set('Bram Holt', 'Lv 3'),
+      pickYara: set('Yara Finch', 'Lv 5'),
+    };
+  }
+}
+</script>
+</body>
+</html>

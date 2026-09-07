@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import * as buildingsApi from '../api/buildings'
 import * as adventurersApi from '../api/adventurers'
 import type { BuildingData } from '../api/buildings'
@@ -7,6 +7,8 @@ import type { AdventurerOut } from '../types'
 import { useNotificationsStore } from '../stores/notifications'
 import { usePlayerStore } from '../stores/player'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import AssignPopover from '../components/village/AssignPopover.vue'
+import AdventurerSheetModal from '../components/adventurers/AdventurerSheetModal.vue'
 
 const notifications = useNotificationsStore()
 const player = usePlayerStore()
@@ -15,10 +17,10 @@ const buildings = ref<BuildingData[]>([])
 const adventurers = ref<AdventurerOut[]>([])
 const loading = ref(true)
 const acting = ref(false)
+const sheetAdvId = ref<number | null>(null)
 
-// Which building is currently showing the assign dropdown
-const assigningBuildingId = ref<number | null>(null)
-const selectedAdventurerId = ref<number | null>(null)
+// Which empty slot is showing its assign popover
+const pickingSlot = ref<{ buildingType: string; slotIndex: number } | null>(null)
 
 async function fetchAll() {
   buildings.value = await buildingsApi.list()
@@ -27,78 +29,125 @@ async function fetchAll() {
 
 onMounted(async () => {
   await fetchAll()
+  await player.fetchPlayer()
   loading.value = false
 })
 
-function eligibleAdventurers(building: BuildingData): AdventurerOut[] {
+const treasuryCp = computed(() =>
+  player.treasuryGold * 100 + player.treasurySilver * 10 + player.treasuryCopper
+)
+
+function canAfford(costGp: number | null | undefined): boolean {
+  return costGp != null && treasuryCp.value >= costGp * 100
+}
+
+function fmtGp(costGp: number): string {
+  return `${costGp.toLocaleString('en-US')}gp`
+}
+
+// Union of stat labels across current and next tier, in first-seen order
+function statLabels(b: BuildingData): string[] {
+  const labels: string[] = []
+  for (const line of [...b.current_stats, ...(b.next_stats ?? [])]) {
+    if (!labels.includes(line.label)) labels.push(line.label)
+  }
+  return labels
+}
+
+function statValue(lines: { label: string; value: string }[] | null | undefined, label: string): string {
+  return lines?.find(l => l.label === label)?.value ?? '—'
+}
+
+function nextChanged(b: BuildingData, label: string): boolean {
+  return statValue(b.current_stats, label) !== statValue(b.next_stats, label)
+}
+
+interface SlotView {
+  index: number
+  minLevel: number
+  adventurer: BuildingData['assigned_adventurers'][0] | null
+}
+
+// Expand tier slots into individual slots; assigned members fill them in
+// tier order, the rest are empty with their tier's level requirement.
+function slotViews(b: BuildingData): SlotView[] {
+  const slots: SlotView[] = []
+  let index = 0
+  for (const tier of b.tier_slots ?? []) {
+    for (let i = 0; i < tier.slots; i++) {
+      slots.push({ index: index++, minLevel: tier.min_level, adventurer: null })
+    }
+  }
+  const assigned = [...b.assigned_adventurers].sort((a, x) => a.level - x.level)
+  for (const adv of assigned) {
+    const slot = slots.find(s => s.adventurer === null && adv.level >= s.minLevel)
+      ?? slots.find(s => s.adventurer === null)
+    if (slot) slot.adventurer = adv
+  }
+  return slots
+}
+
+function eligibleFor(b: BuildingData, minLevel: number): AdventurerOut[] {
+  const allowed = b.allowed_classes ?? [b.adventurer_class]
   return adventurers.value.filter(a =>
-    a.adventurer_class === building.adventurer_class
-    && a.level >= building.min_adventurer_level
-    && a.is_available
-    && !a.on_expedition
-    && !a.is_assigned
+    allowed.includes(a.adventurer_class)
+    && a.level >= minLevel
     && !a.is_dead
     && !a.is_bankrupt
+    && !a.on_expedition
+    && !a.is_assigned
   )
 }
 
-async function buyBuilding(btype: string) {
+// The per-assignment bonus shown in the popover header
+function assignBonus(b: BuildingData): string {
+  const perUnit = b.current_stats.filter(l => l.value.includes('per'))
+  return perUnit.map(l => l.value.replace(/ per .*$/, '')).join(' · ')
+}
+
+async function buyBuilding(b: BuildingData) {
   acting.value = true
   try {
-    await buildingsApi.buy(btype)
+    await buildingsApi.buy(b.building_type)
     await fetchAll()
     await player.fetchPlayer()
-    notifications.add('Building constructed!', 'success')
-  } catch (e: any) {
-    notifications.add(e?.data?.detail ?? 'Failed to buy building', 'error')
+  } catch (e) {
+    notifications.add((e as { data?: { detail?: string } })?.data?.detail ?? 'Failed to build', 'error')
   } finally {
     acting.value = false
   }
 }
 
-async function upgradeBuilding(buildingId: number) {
+async function pickAdventurer(b: BuildingData, advId: number) {
+  if (b.id == null) return
+  pickingSlot.value = null
   acting.value = true
   try {
-    await buildingsApi.upgrade(buildingId)
+    await buildingsApi.assign(b.id, advId)
     await fetchAll()
-    await player.fetchPlayer()
-    notifications.add('Building upgraded!', 'success')
-  } catch (e: any) {
-    notifications.add(e?.data?.detail ?? 'Failed to upgrade', 'error')
+  } catch (e) {
+    notifications.add((e as { data?: { detail?: string } })?.data?.detail ?? 'Failed to assign', 'error')
   } finally {
     acting.value = false
   }
 }
 
-async function assignAdventurer(buildingId: number) {
-  if (!selectedAdventurerId.value) return
-  const adv = adventurers.value.find(a => a.id === selectedAdventurerId.value)
-  const bld = buildings.value.find(b => b.id === buildingId)
+async function unassign(b: BuildingData, advId: number) {
+  if (b.id == null) return
   acting.value = true
   try {
-    await buildingsApi.assign(buildingId, selectedAdventurerId.value)
-    selectedAdventurerId.value = null
-    assigningBuildingId.value = null
+    await buildingsApi.unassign(b.id, advId)
     await fetchAll()
-    notifications.add(`${adv?.name ?? 'Adventurer'} assigned to ${bld?.name ?? 'building'}`, 'success')
-  } catch (e: any) {
-    notifications.add(e?.data?.detail ?? 'Failed to assign', 'error')
+  } catch (e) {
+    notifications.add((e as { data?: { detail?: string } })?.data?.detail ?? 'Failed to unassign', 'error')
   } finally {
     acting.value = false
   }
 }
 
-async function unassignAdventurer(buildingId: number, advId: number) {
-  acting.value = true
-  try {
-    await buildingsApi.unassign(buildingId, advId)
-    await fetchAll()
-    notifications.add('Adventurer returned to tavern', 'info')
-  } catch (e: any) {
-    notifications.add(e?.data?.detail ?? 'Failed to unassign', 'error')
-  } finally {
-    acting.value = false
-  }
+function isPicking(b: BuildingData, slotIndex: number): boolean {
+  return pickingSlot.value?.buildingType === b.building_type
+    && pickingSlot.value?.slotIndex === slotIndex
 }
 </script>
 
@@ -111,214 +160,290 @@ async function unassignAdventurer(buildingId: number, advId: number) {
       <div
         v-for="b in buildings"
         :key="b.building_type"
-        class="building-card card"
+        class="bcard"
         :class="{ unbuilt: b.level === 0 }"
       >
         <!-- Header -->
-        <div class="building-header">
-          <div>
-            <h3 class="building-name">{{ b.name }}</h3>
-            <span v-if="b.level > 0" class="building-level">Level {{ b.level }}</span>
-          </div>
-          <span class="badge">{{ b.adventurer_class }}</span>
+        <div class="bcard-header">
+          <span class="bcard-name">{{ b.name }}</span>
+          <span v-if="b.level > 0" class="level-badge">Built</span>
+          <span v-else class="level-badge grey">Not Built</span>
+          <span class="bcard-class">{{ (b.allowed_classes ?? [b.adventurer_class]).join(' / ') }}</span>
         </div>
-
-        <p class="building-desc">{{ b.description }}</p>
 
         <!-- Current effects -->
-        <div v-if="b.effects && b.effects.length > 0" class="building-effects">
-          <span v-for="(effect, i) in b.effects" :key="i" class="effect-tag">{{ effect }}</span>
+        <div class="stats-block">
+          <div v-for="label in statLabels(b)" :key="label" class="stat-row">
+            <span class="stat-label">{{ label }}</span>
+            <span class="stat-value" :class="{ muted: statValue(b.current_stats, label) === '—' }">
+              {{ statValue(b.current_stats, label) }}
+            </span>
+          </div>
         </div>
 
-        <!-- Not built yet -->
-        <template v-if="b.level === 0">
-          <div class="building-action">
-            <button
-              class="btn btn-primary"
-              :disabled="acting"
-              @click="buyBuilding(b.building_type)"
-            >
-              Build ({{ b.buy_cost }}gp)
-            </button>
-          </div>
-        </template>
-
-        <!-- Built -->
-        <template v-else>
-          <p class="bonus-desc">{{ b.assigned_bonus_desc }}</p>
-
-          <!-- Assigned adventurers -->
-          <div class="assigned-list">
-            <div
-              v-for="adv in b.assigned_adventurers"
-              :key="adv.id"
-              class="assigned-row"
-            >
-              <span class="assigned-name">{{ adv.name }}</span>
-              <span class="stat">Lv {{ adv.level }}</span>
-              <button
-                class="btn btn-sm btn-danger"
-                :disabled="acting"
-                @click="unassignAdventurer(b.id!, adv.id)"
+        <!-- Assigned -->
+        <div v-if="b.level > 0" class="assigned-block">
+          <span class="stat-label">Assigned</span>
+          <div class="assigned-row">
+            <template v-for="slot in slotViews(b)" :key="slot.index">
+              <span v-if="slot.adventurer" class="adv-chip">
+                <span class="adv-link" @click="sheetAdvId = slot.adventurer.id">{{ slot.adventurer.name }}</span>
+                <span class="chip-level">Lv {{ slot.adventurer.level }}</span>
+                <span class="chip-x" @click="unassign(b, slot.adventurer.id)">×</span>
+              </span>
+              <span
+                v-else
+                class="empty-slot"
+                @click="pickingSlot = isPicking(b, slot.index) ? null : { buildingType: b.building_type, slotIndex: slot.index }"
               >
-                &times;
-              </button>
-            </div>
-            <div v-if="b.assigned_adventurers.length === 0" class="text-muted" style="font-size: 12px">
-              No one assigned
-            </div>
+                Empty · {{ (b.allowed_classes ?? [b.adventurer_class]).join('/') }} Lv {{ slot.minLevel }}+
+                <AssignPopover
+                  v-if="isPicking(b, slot.index)"
+                  :class-name="(b.allowed_classes ?? [b.adventurer_class]).join(' / ')"
+                  :min-level="slot.minLevel"
+                  :bonus-label="assignBonus(b)"
+                  :candidates="eligibleFor(b, slot.minLevel)"
+                  @pick="pickAdventurer(b, $event)"
+                  @close="pickingSlot = null"
+                />
+              </span>
+            </template>
           </div>
+        </div>
 
-          <!-- Assign slot -->
-          <div v-if="b.assigned_adventurers.length < b.max_assigned" class="assign-controls">
-            <div v-if="assigningBuildingId === b.id" class="flex gap-1">
-              <select v-model="selectedAdventurerId" class="form-select" style="flex:1">
-                <option :value="null" disabled>Choose {{ b.adventurer_class }}...</option>
-                <option
-                  v-for="a in eligibleAdventurers(b)"
-                  :key="a.id"
-                  :value="a.id"
-                >
-                  {{ a.name }} (Lv {{ a.level }})
-                </option>
-              </select>
-              <button
-                class="btn btn-primary btn-sm"
-                :disabled="!selectedAdventurerId || acting"
-                @click="assignAdventurer(b.id!)"
-              >
-                Assign
-              </button>
-              <button
-                class="btn btn-secondary btn-sm"
-                @click="assigningBuildingId = null; selectedAdventurerId = null"
-              >
-                Cancel
-              </button>
-            </div>
-            <button
-              v-else
-              class="btn btn-sm btn-secondary"
-              @click="assigningBuildingId = b.id; selectedAdventurerId = null"
+        <!-- What building it will do. Upgrades are hidden for the MVP: tiers
+             stay in config and the API, the Village just doesn't offer them. -->
+        <div v-if="b.next_stats && b.level === 0" class="next-block">
+          <span class="stat-label next-label">
+            {{ b.level > 0 ? `Upgrade to ${b.next_name}` : 'When built' }}
+          </span>
+          <div v-for="label in statLabels(b)" :key="label" class="stat-row">
+            <span class="stat-label">{{ label }}</span>
+            <span
+              class="stat-value"
+              :class="nextChanged(b, label) ? 'changed' : 'unchanged'"
             >
-              + Assign {{ b.adventurer_class }} ({{ b.assigned_adventurers.length }}/{{ b.max_assigned }})
-            </button>
+              {{ statValue(b.next_stats, label) }}
+            </span>
           </div>
-          <div v-else class="text-muted" style="font-size: 11px">
-            Full ({{ b.max_assigned }}/{{ b.max_assigned }})
-          </div>
+        </div>
 
-          <!-- Upgrade -->
-          <div v-if="b.upgrade_cost" class="building-action">
-            <button
-              class="btn btn-sm btn-primary"
-              :disabled="acting"
-              @click="upgradeBuilding(b.id!)"
-            >
-              Upgrade to {{ b.next_name }} ({{ b.upgrade_cost }}gp)
-            </button>
-          </div>
-        </template>
+        <!-- Action -->
+        <button
+          v-if="b.level === 0 && b.buy_cost != null"
+          class="build-btn"
+          :class="{ unaffordable: !canAfford(b.buy_cost) }"
+          :disabled="acting || !canAfford(b.buy_cost)"
+          @click="buyBuilding(b)"
+        >
+          Build · {{ fmtGp(b.buy_cost) }}
+        </button>
       </div>
     </div>
+
+    <AdventurerSheetModal :adventurer-id="sheetAdvId" @close="sheetAdvId = null" />
   </div>
 </template>
 
 <style scoped>
 .buildings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 
-.building-card {
+.bcard {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  background: #1f2937;
+  border: 1px solid #4b5563;
+  border-left: 3px solid #4ade80;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  padding: 12px 16px;
 }
 
-.building-card.unbuilt {
-  opacity: 0.7;
+.bcard.unbuilt {
+  border-left-color: #6b7280;
   border-style: dashed;
+  opacity: 0.85;
 }
 
-.building-header {
+.bcard-header {
   display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bcard-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #4ade80;
+}
+
+.level-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.level-badge.grey {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.15);
+}
+
+.bcard-class {
+  margin-left: auto;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+/* Stats */
+.stats-block {
+  min-height: 96px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: flex-start;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.5);
 }
 
-.building-name {
-  font-size: 1.1rem;
-  margin: 0;
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
 }
 
-.building-level {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-}
-
-.building-desc {
+.stat-value {
   font-size: 12px;
-  color: var(--text-muted);
-  margin: 0;
+  color: #e5e7eb;
 }
 
-.bonus-desc {
-  font-size: 12px;
-  color: var(--accent-green);
-  margin: 0;
-  font-style: italic;
+.stat-value.muted {
+  color: #6b7280;
 }
 
-.assigned-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.stat-value.changed {
+  color: #4ade80;
+}
+
+.stat-value.unchanged {
+  color: #6b7280;
+}
+
+/* Assigned */
+.assigned-block {
+  min-height: 26px;
 }
 
 .assigned-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.assigned-name {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.stat {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-}
-
-.assign-controls {
-  margin-top: 4px;
-}
-
-.building-action {
-  margin-top: 4px;
-}
-
-.building-effects {
-  display: flex;
-  gap: 6px;
   flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+  position: relative;
 }
 
-.effect-tag {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--accent-green);
+.adv-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 6px;
   background: rgba(74, 222, 128, 0.08);
-  padding: 2px 8px;
-  border-radius: var(--border-radius);
   border: 1px solid rgba(74, 222, 128, 0.15);
+  border-radius: 3px;
+}
+
+.adv-link {
+  font-size: 11px;
+  color: #e5e7eb;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #374151;
+  text-underline-offset: 2px;
+}
+
+.adv-link:hover {
+  text-decoration-color: #4ade80;
+}
+
+.chip-level {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.chip-x {
+  font-size: 11px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.chip-x:hover {
+  color: #ef4444;
+}
+
+.empty-slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border: 1px dashed #4b5563;
+  border-radius: 3px;
+  font-size: 10px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.empty-slot:hover {
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+/* Next tier */
+.next-block {
+  border-top: 1px solid #374151;
+  padding-top: 8px;
+}
+
+.next-label {
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* Button */
+.build-btn {
+  margin-top: auto;
+  padding: 7px 12px;
+  background: #22c55e;
+  color: #000;
+  border: 1px solid #22c55e;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.build-btn:hover:not(:disabled) {
+  background: #4ade80;
+}
+
+.build-btn.unaffordable {
+  background: #1a1a1a;
+  border: 1px solid #4b5563;
+  color: #6b7280;
+  cursor: default;
 }
 </style>
