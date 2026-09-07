@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.auth import create_access_token, hash_password
 from app.database import get_db
 from app.main import app
-from app.models import Account, Adventurer, AdventurerClass, Base, Keep, Party
+from app.models import Account, Adventurer, AdventurerClass, Base, Expedition, Keep, Party
 
 # Use an in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_db.sqlite"
@@ -720,3 +720,86 @@ def test_sheet_abilities_unlock_by_level_with_uses(client: TestClient, db_sessio
     # Passive abilities carry no count; Fighters have none at all
     fighter = create_adventurer_db(db_session, keep.id, name="Bram", xp=0, gold=0)
     assert client.get(f"/adventurers/{fighter.id}", headers=auth_headers(token, keep.id)).json()["class_abilities"] == []
+
+
+def _retreating_expedition(db: Session, keep: Keep, adv: Adventurer) -> Expedition:
+    """A 7-day expedition sitting on its first decision point, ready to retreat."""
+    party = Party(keep_id=keep.id, name="The Bold", on_expedition=True)
+    db.add(party)
+    db.commit()
+    adv.party_id = party.id
+    db.commit()
+
+    decision_point = {"type": "big_haul", "message": "A heavy chest", "after_turn": 1}
+    expedition = Expedition(
+        party_id=party.id,
+        start_day=keep.current_day,
+        duration_days=7,
+        return_day=keep.current_day + 6,
+        dungeon_level=1,
+        result="awaiting_choice",
+        pending_event=decision_point,
+        resolved_phases=0,
+        decision_day=keep.current_day,
+        started_at=datetime.now(),
+        simulation_data={
+            "phases": [{"loot": 10, "silver": 0, "copper": 0, "xp": 20, "deaths": []}],
+            "decision_points": [decision_point],
+            "log": [{"turn": 1, "events": [], "deaths": []}],
+            "turn_summaries": ["Turn 1"],
+            "starting_hp": {adv.name: adv.hp_max},
+            "party_status": {"members_total": 1},
+            "treasure_total": 99,
+            "xp_earned": 99,
+        },
+    )
+    db.add(expedition)
+    db.commit()
+    db.refresh(expedition)
+    party.current_expedition_id = expedition.id
+    db.commit()
+    return expedition
+
+
+def test_early_retreat_reports_the_day_the_party_came_home(client: TestClient, db_session: Session):
+    """Retreating on day 3 of a 7-day plan must not report the planned day 7 end."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+    adv = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    expedition = _retreating_expedition(db_session, keep, adv)
+    planned_return = expedition.return_day
+
+    # Retreat three days in
+    keep.current_day = 12
+    db_session.commit()
+    headers = auth_headers(token, keep.id)
+    resp = client.post(f"/expeditions/{expedition.id}/choose", json={"choice": "retreat"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["retreated"] is True
+
+    summary = client.get(f"/expeditions/{expedition.id}/summary", headers=headers).json()
+    assert summary["return_day"] == planned_return
+    assert summary["actual_return_day"] == 12
+
+    listed = next(e for e in client.get("/expeditions/", headers=headers).json() if e["id"] == expedition.id)
+    assert listed["actual_return_day"] == 12
+
+    detail = client.get(f"/expeditions/{expedition.id}", headers=headers).json()
+    assert detail["actual_return_day"] == 12
+
+
+def test_expedition_run_to_completion_has_no_actual_return_day(client: TestClient, db_session: Session):
+    """A party that presses on to the planned end reports no separate actual date."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+    adv = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    expedition = _retreating_expedition(db_session, keep, adv)
+    headers = auth_headers(token, keep.id)
+
+    resp = client.post(f"/expeditions/{expedition.id}/choose", json={"choice": "press_on"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+
+    listed = next(e for e in client.get("/expeditions/", headers=headers).json() if e["id"] == expedition.id)
+    assert listed["actual_return_day"] is None

@@ -193,6 +193,7 @@ class ExpeditionResult(BaseModel):
     start_day: int | None = None
     duration_days: int | None = None
     return_day: int | None = None
+    actual_return_day: int | None = None  # set when the party came home early (retreat)
     start_time: datetime
     end_time: datetime | None = None
     treasure_total: int

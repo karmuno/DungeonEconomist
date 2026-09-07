@@ -171,6 +171,7 @@ export interface ExpeditionSummary {
   start_day: number
   duration_days: number
   return_day: number
+  actual_return_day?: number | null
   result: string
   treasure_total: number
   treasure_silver: number
@@ -194,6 +195,7 @@ export interface ExpeditionResult {
   start_day: number
   duration_days: number
   return_day: number
+  actual_return_day?: number | null
   start_time: string
   end_time?: string | null
   treasure_total: number

@@ -10,8 +10,8 @@ the evidence those 10 people produce.
 | :--- | :--- |
 | Released (tagged, on `main`, deployed demo) | **v0.8.1** (2026-03-26) |
 | In progress | **v0.9 — The Polish Release**, on branch `qa` (`VERSION` still `0.8.1`) |
-| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history |
-| Next up | The four remaining v0.9 items below, then v0.9.1 Safe to Invite |
+| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen |
+| Next up | The three remaining v0.9 items below, then v0.9.1 Safe to Invite |
 | Last code commit | 2026-09-07 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -59,9 +59,13 @@ changed because of it? What meaningful action can I take next?*
       expeditions, so the Expeditions tab keeps the history. Dashboard parties expand
       independently; Dwarves may train at the Training Grounds; retreat and return
       notifications name the party
+- [x] Early retreats report the day the party actually came home, not the planned end date
+      (row 9). The Summary's PLANNED/ACTUAL block landed with the event-modal redesign;
+      2026-09-07 carried `actual_return_day` through to the Expeditions list and the
+      expedition detail view, which were both still showing the plan, and added API
+      regression tests
 
 ### Remaining — the red cells only
-- [ ] Fix Expedition Summary showing the original end date after an early retreat (row 9)
 - [ ] Resolve one expedition's pending decision individually (row 10). Cost-check first; if
       it is more than an evening, move it to the backlog
 - [ ] Dashboard empty-state prompts: no adventurers → Recruit · no party → Form a party ·

@@ -902,6 +902,7 @@ def get_expedition_results(
                         })
                 result["party_members_ready_for_level_up"] = members_ready
 
+        result["actual_return_day"] = (db_expedition.simulation_data or {}).get("actual_return_day")
         return result
     except ValueError:
         party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
@@ -951,6 +952,7 @@ def get_expedition_results(
             "start_day": db_expedition.start_day,
             "duration_days": db_expedition.duration_days,
             "return_day": db_expedition.return_day,
+            "actual_return_day": (db_expedition.simulation_data or {}).get("actual_return_day"),
             "treasure_total": sum(node.loot for node in node_results),
             "treasure_silver": 0,
             "treasure_copper": 0,
@@ -982,6 +984,7 @@ def list_expeditions(keep: Keep = Depends(get_current_keep), db: Session = Depen
             "start_day": e.start_day,
             "duration_days": e.duration_days,
             "return_day": e.return_day,
+            "actual_return_day": sim.get("actual_return_day"),
             "result": e.result,
             "treasure_total": sim.get("treasure_total", 0),
             "xp_earned": sim.get("xp_earned", 0),
