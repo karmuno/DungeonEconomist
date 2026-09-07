@@ -8,10 +8,11 @@ the evidence those 10 people produce.
 
 | | |
 | :--- | :--- |
-| Released (tagged, on `main`, deployed demo) | **v0.8.1** (2026-03-26) |
-| In progress | **v0.9 — The Polish Release**, on branch `qa` (`VERSION` still `0.8.1`) |
+| Released (tagged on `rc`) | **v0.9 — The Polish Release** (2026-09-07) |
+| Previous release (on `main`, deployed demo) | **v0.8.1** (2026-03-26) |
+| In progress | **v0.9.1 — Safe to Invite** |
 | Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names; clickable party status |
-| Next up | One full playthrough, then tag v0.9 and start v0.9.1 Safe to Invite |
+| Next up | v0.9.1 Safe to Invite, then v1.0 Let Them Delve |
 | Last code commit | 2026-09-07 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -25,7 +26,7 @@ CodyJaneGames repo (`Company_Operating_Strategy.md`, `Strategy_Reconciliation.md
 
 ---
 
-## v0.9 — The Polish Release — IN PROGRESS (branch `qa`)
+## v0.9 — The Polish Release — SHIPPED 2026-09-07 (tagged `v0.9` on `rc`)
 
 Goal: A new player can understand the game, enter the core loop, and become invested in what
 happens to their adventurers.
@@ -90,7 +91,7 @@ Party → Expedition → Heal → Repeat → Upkeep → Build) and tag.
 
 ---
 
-## v0.9.1 — Safe to Invite — not started
+## v0.9.1 — Safe to Invite — IN PROGRESS
 
 Goal: *I can intentionally invite 10 strangers without fearing that their arrival destroys
 the game or their progress, and I can see what they did.*
