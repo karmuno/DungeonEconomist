@@ -6,6 +6,9 @@ export interface AttackEntry {
   target: string
   roll: number
   needed: number
+  /** d20-style view of the same check (newer logs only): roll + attack_bonus >= target_ac */
+  attack_bonus?: number
+  target_ac?: number
   hit: boolean
   damage: number
   target_died: boolean
@@ -22,6 +25,16 @@ export interface SpellCastEntry {
   caster: string
   spell: string
   monsters_destroyed: number
+  /** True when the cast consumed a scroll rather than a memorised spell */
+  scroll_used?: boolean
+}
+
+/** A fallen adventurer brought back after a fight, by a potion they held or by a Cleric */
+export interface RevivalEntry {
+  name: string
+  hp: number
+  healer: string
+  source: 'potion' | 'cleric'
 }
 
 export interface RoundEntry {
@@ -52,7 +65,8 @@ export interface CombatEvent {
   party_fled?: boolean
   mu_spell_used?: string | null
   cleric_turned?: boolean
-  healed_adventurers?: Array<{ name: string; hp: number }>
+  healed_adventurers?: Array<{ name: string; hp: number; healer?: string }>
+  revivals?: RevivalEntry[]
   round_log?: RoundEntry[]
 }
 

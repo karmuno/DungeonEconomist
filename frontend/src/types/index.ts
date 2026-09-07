@@ -78,8 +78,17 @@ export interface AdventurerOut {
   thac0?: number | null
   hit_dice?: number | null
   to_hit_bonus?: number | null
-  class_ability?: string | null
+  /** d20-style attack bonus: (20 − THAC0) + class bonus */
+  to_hit?: number | null
+  class_abilities?: ClassAbility[]
   party_name?: string | null
+}
+
+export interface ClassAbility {
+  name: string
+  description: string
+  /** Uses per expedition at the adventurer's level; null for passive abilities */
+  uses: number | null
 }
 
 export interface AdventurerCreate {

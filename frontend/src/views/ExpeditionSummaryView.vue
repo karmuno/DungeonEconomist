@@ -174,8 +174,8 @@ const actualDurationDays = computed(() => {
         <div class="summary-stats">
           <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
           <span>XP: {{ summary.total_xp }}</span>
-          <span v-if="summary.spells_left !== undefined" class="text-info">Spells: {{ summary.spells_left }}</span>
-          <span v-if="summary.heals_left !== undefined" class="text-success">Heals: {{ summary.heals_left }}</span>
+          <span v-if="summary.spells_left !== undefined" class="text-info">Spells Left: {{ summary.spells_left }}</span>
+          <span v-if="summary.heals_left !== undefined" class="text-success">Cures Left: {{ summary.heals_left }}</span>
           <span v-if="summary.stairs_found" class="text-stairs">Stairs to {{ summary.stairs_found.new_level_name }} found!</span>
           <template v-if="summary.estimated_readiness_day">
             <span class="text-muted">Ready by: {{ formatGameDayShort(summary.estimated_readiness_day) }}</span>

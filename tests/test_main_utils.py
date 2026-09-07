@@ -654,3 +654,54 @@ def test_retreat_decided_on_upkeep_day_still_pays_that_day(client: TestClient, d
     for m in members:
         db_session.refresh(m)
         assert m.total_copper() == 10000 - 2000
+
+
+# ── Character sheet: to-hit and class abilities ─────────────────────────────
+
+def _cleric(db: Session, keep_id: int, level: int) -> Adventurer:
+    adv = Adventurer(
+        keep_id=keep_id,
+        name=f"Cleric{level}",
+        adventurer_class=AdventurerClass.CLERIC,
+        level=level,
+        xp=0,
+        gold=0,
+        hp_max=10,
+        hp_current=10,
+        is_available=True,
+    )
+    db.add(adv)
+    db.commit()
+    db.refresh(adv)
+    return adv
+
+
+def test_sheet_to_hit_is_one_d20_number(client: TestClient, db_session: Session):
+    """THAC0 19 reads as +1; the class bonus is folded in: Fighter L1 = +2, Cleric L1 = +1."""
+    account, keep, token = create_account_and_keep(db_session)
+    fighter = create_adventurer_db(db_session, keep.id, name="Bram", xp=0, gold=0)
+    cleric = _cleric(db_session, keep.id, level=1)
+
+    f = client.get(f"/adventurers/{fighter.id}", headers=auth_headers(token, keep.id)).json()
+    c = client.get(f"/adventurers/{cleric.id}", headers=auth_headers(token, keep.id)).json()
+    assert f["thac0"] == 19 and f["to_hit_bonus"] == 1 and f["to_hit"] == 2
+    assert c["thac0"] == 19 and c["to_hit_bonus"] == 0 and c["to_hit"] == 1
+
+
+def test_sheet_abilities_unlock_by_level_with_uses(client: TestClient, db_session: Session):
+    """A level-1 Cleric shows only Turn Undead; at level 4 Revive and Cure appear with level/2 uses."""
+    account, keep, token = create_account_and_keep(db_session)
+    lvl1 = _cleric(db_session, keep.id, level=1)
+    lvl4 = _cleric(db_session, keep.id, level=4)
+
+    a1 = client.get(f"/adventurers/{lvl1.id}", headers=auth_headers(token, keep.id)).json()["class_abilities"]
+    assert [a["name"] for a in a1] == ["Turn Undead"]
+    assert a1[0]["uses"] == 1
+
+    a4 = client.get(f"/adventurers/{lvl4.id}", headers=auth_headers(token, keep.id)).json()["class_abilities"]
+    assert [a["name"] for a in a4] == ["Turn Undead", "Revive", "Cure Light Wounds"]
+    assert [a["uses"] for a in a4] == [4, 2, 2]
+
+    # Passive abilities carry no count; Fighters have none at all
+    fighter = create_adventurer_db(db_session, keep.id, name="Bram", xp=0, gold=0)
+    assert client.get(f"/adventurers/{fighter.id}", headers=auth_headers(token, keep.id)).json()["class_abilities"] == []

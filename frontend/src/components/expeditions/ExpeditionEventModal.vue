@@ -96,8 +96,13 @@ function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
       for (const v of ev.trap_victims ?? []) {
         if (names.has(v.name)) taken.set(v.name, (taken.get(v.name) ?? 0) + v.damage)
       }
+      // Credit the healer, not the patient (older logs name no healer and are skipped)
       for (const h of ev.combat?.healed_adventurers ?? []) {
-        if (names.has(h.name)) healed.set(h.name, (healed.get(h.name) ?? 0) + h.hp)
+        if (h.healer && names.has(h.healer)) healed.set(h.healer, (healed.get(h.healer) ?? 0) + h.hp)
+      }
+      // Revives count as healing too: a potion credits the adventurer who held it
+      for (const rv of ev.combat?.revivals ?? []) {
+        if (names.has(rv.healer)) healed.set(rv.healer, (healed.get(rv.healer) ?? 0) + rv.hp)
       }
       for (const r of ev.combat?.round_log ?? []) {
         if (r.event === 'spell' && r.caster && names.has(r.caster)) {
@@ -254,8 +259,16 @@ function hpColor(member: ExpeditionMemberResult): string {
         </div>
       </div>
       <div v-if="summary && !loading && (summary.spells_left !== undefined || summary.heals_left !== undefined)" class="resources-line">
-        <span v-if="summary.spells_left !== undefined" class="res-spells">{{ summary.spells_left }} {{ summary.spells_left === 1 ? 'spell' : 'spells' }} left</span>
-        <span v-if="summary.heals_left !== undefined" class="res-cures">{{ summary.heals_left }} {{ summary.heals_left === 1 ? 'cure' : 'cures' }} left</span>
+        <span
+          v-if="summary.spells_left !== undefined"
+          class="res-spells"
+          title="Spells: Automatically dispatch enemies of a similar level to the caster."
+        >{{ summary.spells_left }} {{ summary.spells_left === 1 ? 'spell' : 'spells' }} left</span>
+        <span
+          v-if="summary.heals_left !== undefined"
+          class="res-cures"
+          title="Cures: Heal a wounded adventurer after a fight."
+        >{{ summary.heals_left }} {{ summary.heals_left === 1 ? 'cure' : 'cures' }} left</span>
       </div>
 
       <template v-if="summary && !loading">
@@ -310,7 +323,7 @@ function hpColor(member: ExpeditionMemberResult): string {
             <div class="grid-head num">Dmg Dealt</div>
             <div class="grid-head num">Dmg Taken</div>
             <div class="grid-head num">Spells Cast</div>
-            <div class="grid-head num">HP Healed</div>
+            <div class="grid-head num">Damage Healed</div>
             <template v-for="row in ledgerRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
                 <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>

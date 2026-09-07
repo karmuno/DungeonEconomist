@@ -27,7 +27,7 @@ def _get_active_expedition_hps(keep: Keep, db: Session) -> dict[str, int]:
 
 
 def add_progression_data(adventurer, current_hps=None):
-    from app.class_config import get_class_config, get_combat_hd, get_thac0, get_to_hit_bonus
+    from app.class_config import get_ability_uses, get_class_config, get_combat_hd, get_thac0, get_to_hit_bonus
 
     if current_hps and adventurer.name in current_hps:
         adventurer.hp_current = current_hps[adventurer.name]
@@ -52,15 +52,21 @@ def add_progression_data(adventurer, current_hps=None):
     adventurer.thac0 = get_thac0(cls, adventurer.level)
     adventurer.hit_dice = get_combat_hd(cls, adventurer.level)
     adventurer.to_hit_bonus = get_to_hit_bonus(cls)
+    # One d20-style number for the sheet: THAC0 19 reads as +1, plus the class bonus
+    adventurer.to_hit = (20 - adventurer.thac0) + adventurer.to_hit_bonus
 
-    # Class ability summary
+    # Class abilities unlocked at this level, with uses per expedition
     cfg = get_class_config(cls)
-    abilities = cfg.get("abilities", {})
-    if abilities:
-        ability_name = next(iter(abilities))
-        adventurer.class_ability = abilities[ability_name].get("description", "")
-    else:
-        adventurer.class_ability = None
+    adventurer.class_abilities = []
+    for key, ability in cfg.get("abilities", {}).items():
+        if adventurer.level < ability.get("min_level", 1):
+            continue
+        uses = get_ability_uses(cls, key, adventurer.level) if "uses_per_expedition" in ability else None
+        adventurer.class_abilities.append({
+            "name": ability.get("name", key.replace("_", " ").title()),
+            "description": ability.get("description", ""),
+            "uses": uses,
+        })
 
     # Party name
     adventurer.party_name = adventurer.parties[0].name if adventurer.parties else None

@@ -118,20 +118,6 @@ async function buyBuilding(b: BuildingData) {
   }
 }
 
-async function upgradeBuilding(b: BuildingData) {
-  if (b.id == null) return
-  acting.value = true
-  try {
-    await buildingsApi.upgrade(b.id)
-    await fetchAll()
-    await player.fetchPlayer()
-  } catch (e) {
-    notifications.add((e as { data?: { detail?: string } })?.data?.detail ?? 'Failed to upgrade', 'error')
-  } finally {
-    acting.value = false
-  }
-}
-
 async function pickAdventurer(b: BuildingData, advId: number) {
   if (b.id == null) return
   pickingSlot.value = null
@@ -180,7 +166,7 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
         <!-- Header -->
         <div class="bcard-header">
           <span class="bcard-name">{{ b.name }}</span>
-          <span v-if="b.level > 0" class="level-badge">Level {{ b.level }}</span>
+          <span v-if="b.level > 0" class="level-badge">Built</span>
           <span v-else class="level-badge grey">Not Built</span>
           <span class="bcard-class">{{ (b.allowed_classes ?? [b.adventurer_class]).join(' / ') }}</span>
         </div>
@@ -225,8 +211,9 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
           </div>
         </div>
 
-        <!-- Next tier -->
-        <div v-if="b.next_stats" class="next-block">
+        <!-- What building it will do. Upgrades are hidden for the MVP: tiers
+             stay in config and the API, the Village just doesn't offer them. -->
+        <div v-if="b.next_stats && b.level === 0" class="next-block">
           <span class="stat-label next-label">
             {{ b.level > 0 ? `Upgrade to ${b.next_name}` : 'When built' }}
           </span>
@@ -250,15 +237,6 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
           @click="buyBuilding(b)"
         >
           Build · {{ fmtGp(b.buy_cost) }}
-        </button>
-        <button
-          v-else-if="b.upgrade_cost != null"
-          class="build-btn"
-          :class="{ unaffordable: !canAfford(b.upgrade_cost) }"
-          :disabled="acting || !canAfford(b.upgrade_cost)"
-          @click="upgradeBuilding(b)"
-        >
-          Upgrade · {{ fmtGp(b.upgrade_cost) }}
         </button>
       </div>
     </div>

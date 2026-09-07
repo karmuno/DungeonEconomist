@@ -513,7 +513,8 @@ def _finalize_expedition(
             })
 
     if retreat:
-        events.insert(0, {"type": "expedition_complete", "message": "The party retreated from the dungeon"})
+        retreat_label = party.name if party else "The party"
+        events.insert(0, {"type": "expedition_complete", "message": f"{retreat_label} retreated from the dungeon"})
 
     return {"events": events, "simulation_data": effective_result}
 

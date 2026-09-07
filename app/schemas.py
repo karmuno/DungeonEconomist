@@ -32,6 +32,13 @@ class LevelUpResult(BaseModel):
     next_level_xp: int | None = None
     class_bonuses: dict[str, Any] = {}
 
+class ClassAbilityOut(BaseModel):
+    """A class ability the adventurer has unlocked, with uses per expedition."""
+    name: str
+    description: str
+    uses: int | None = None  # None for passive abilities
+
+
 class AdventurerOut(BaseModel):
     id: int
     name: str
@@ -59,7 +66,8 @@ class AdventurerOut(BaseModel):
     thac0: int | None = None
     hit_dice: int | None = None
     to_hit_bonus: int | None = None
-    class_ability: str | None = None
+    to_hit: int | None = None  # d20-style: (20 - THAC0) + class bonus
+    class_abilities: list[ClassAbilityOut] = []
     party_name: str | None = None
 
     @field_validator('magic_items', mode='before')

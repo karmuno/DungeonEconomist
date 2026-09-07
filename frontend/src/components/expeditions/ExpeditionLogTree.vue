@@ -59,19 +59,32 @@ function sideAttacks(r: RoundEntry, side: 'party' | 'monsters'): AttackEntry[] {
   return all.filter(a => side === 'party' ? pcNames.value.has(a.attacker) : !pcNames.value.has(a.attacker))
 }
 
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`
+}
+
 function sideSummary(attacks: AttackEntry[]): string {
   if (!attacks.length) return '—'
   const hits = attacks.filter(a => a.hit)
   const dmg = hits.reduce((s, a) => s + a.damage, 0)
-  return `${hits.length}/${attacks.length} · ${dmg} dmg`
+  return `${plural(attacks.length, 'attack')} · ${plural(hits.length, 'hit')} · ${dmg} dmg`
+}
+
+function attackLine(atk: AttackEntry): string {
+  const verb = atk.target_died ? 'slays' : atk.hit ? 'hits' : 'misses'
+  const dmg = atk.hit ? ` · ${atk.damage} dmg` : ''
+  if (atk.attack_bonus == null || atk.target_ac == null) {
+    // Logs written before the d20-style fields existed
+    return `${atk.attacker} ${verb} ${atk.target} · roll ${atk.roll} vs ${atk.needed}${dmg}`
+  }
+  const bonus = atk.attack_bonus < 0 ? `− ${Math.abs(atk.attack_bonus)}` : `+ ${atk.attack_bonus}`
+  return `${atk.attacker} ${verb} ${atk.target} · ${atk.roll} ${bonus} To-Hit vs ${atk.target_ac} Armor Class${dmg}`
 }
 
 function roundLabel(r: RoundEntry): string {
   if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
   if (r.halfling_pre_round) {
-    const hits = r.halfling_pre_round.filter(a => a.hit)
-    const dmg = hits.reduce((s, a) => s + a.damage, 0)
-    return `Halflings pre-round — ${hits.length}/${r.halfling_pre_round.length} hits, ${dmg} dmg`
+    return `Sling Volley – ${sideSummary(r.halfling_pre_round)}`
   }
   const initiative = r.initiative_winner ?? r.initiative
   const label = initiative === 'party' ? 'party first' : initiative === 'monsters' ? 'monsters first' : 'simultaneous'
@@ -88,7 +101,7 @@ function roundMeta(r: RoundEntry): string {
   if (r.cleric_turns?.length) return turnUndeadSummary(r.cleric_turns)
   const party = sideSummary(sideAttacks(r, 'party'))
   const monsters = sideSummary(sideAttacks(r, 'monsters'))
-  return `Party ${party} — Monsters ${monsters}`
+  return `Party – ${party} · Monsters – ${monsters}`
 }
 
 function turnUndeadSummary(ct: RoundEntry['cleric_turns']): string {
@@ -175,7 +188,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                     </div>
                     <template v-else>
                       <div v-for="(sc, si) in (r.spell_casts ?? [])" :key="'sc' + si" class="log-row attack-row">
-                        {{ sc.caster }} casts {{ sc.spell }} · {{ sc.monsters_destroyed }} destroyed
+                        {{ sc.caster }} casts {{ sc.spell }}<template v-if="sc.scroll_used"> from a scroll</template> · {{ sc.monsters_destroyed }} destroyed
                       </div>
                       <template v-for="(ct, cti) in (r.cleric_turns ?? [])" :key="'ct' + cti">
                         <div
@@ -191,8 +204,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                         :key="'a' + ai"
                         class="log-row attack-row"
                       >
-                        {{ atk.attacker }} → {{ atk.target }} · roll {{ atk.roll }} vs {{ atk.needed }} ·
-                        {{ atk.hit ? `hit · ${atk.damage} dmg` : 'miss' }}<template v-if="atk.target_died"> · slain</template>
+                        {{ attackLine(atk) }}
                       </div>
                     </template>
                   </template>
@@ -204,7 +216,14 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                 :key="'h' + hi"
                 class="log-row attack-row heal-line"
               >
-                ✚ {{ h.name }} healed for {{ h.hp }} HP
+                ✚ {{ h.name }} healed for {{ h.hp }} HP<template v-if="h.healer"> by {{ h.healer }}</template>
+              </div>
+              <div
+                v-for="(rv, rvi) in (event.combat.revivals ?? [])"
+                :key="'rv' + rvi"
+                class="log-row attack-row heal-line"
+              >
+                ✚ {{ rv.name }} {{ rv.source === 'potion' ? 'drinks a Cure Light Wounds potion and gets back up' : `is revived by ${rv.healer}` }} · {{ rv.hp }} HP
               </div>
             </template>
           </template>
@@ -291,11 +310,13 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
 
 .round-row {
   padding-left: 32px;
+  flex-wrap: wrap; /* the summary and morale tags drop to a second line rather than squeezing the label */
 }
 
 .round-label {
   font-size: 11px;
   color: #d1d5db;
+  white-space: nowrap;
 }
 
 .attack-row {
