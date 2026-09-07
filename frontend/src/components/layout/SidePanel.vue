@@ -181,13 +181,14 @@ function processEvents(events: Array<{ type: string; message: string; expedition
       }
       continue
     }
-    // Every level-up gets a popup — levelling is a big deal, not a feed line
+    // Every level-up gets a popup — levelling is a big deal. It also falls
+    // through to the feed below, so the day's level-ups stay readable after
+    // the popup is dismissed.
     if (event.type === 'level_up') {
       levelUpQueue.value.push({
         message: event.message,
         adventurers: event.adventurers ?? [],
       })
-      continue
     }
 
     // Stairs discovered — ALWAYS show popup, no exceptions
