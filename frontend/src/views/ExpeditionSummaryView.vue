@@ -12,6 +12,7 @@ import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import ExpeditionLogTree from '../components/expeditions/ExpeditionLogTree.vue'
 import type { TurnLog } from '../types/expeditionLog'
+import eventBus from '../eventBus'
 
 const router = useRouter()
 const route = useRoute()
@@ -56,13 +57,9 @@ async function makeChoice(choice: string) {
   try {
     const result = await expeditionsApi.choose(summary.value.expedition_id, choice)
 
-    for (const evt of result.events ?? []) {
-      const typeMap: Record<string, string> = {
-        death: 'error', loot: 'info', stairs: 'success',
-        upkeep: 'warning', expedition_complete: 'success',
-      }
-      notifications.add(evt.message, { type: (typeMap[evt.type] ?? 'info') as any })
-    }
+    // Hand these to the side panel: it owns the level-up and stairs popups
+    // and turns every adventurer name into a link to their sheet
+    if (result.events?.length) eventBus.emit('game-events', result.events)
 
     const who = result.party_name ?? summary.value?.party_name ?? 'The party'
     if (result.status === 'in_progress') {

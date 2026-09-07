@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { AdventurerRef } from '../types'
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning'
 
@@ -14,6 +15,8 @@ export interface NotificationOptions {
   type?: NotificationType
   /** Action link/button shown in the notification */
   action?: NotificationAction
+  /** Adventurers named in the text; each name renders as a link to their sheet */
+  adventurers?: AdventurerRef[]
 }
 
 export interface Notification {
@@ -22,6 +25,7 @@ export interface Notification {
   type: NotificationType
   createdDay: number
   action?: NotificationAction
+  adventurers: AdventurerRef[]
 }
 
 const EXPIRY_DAYS = 7
@@ -38,7 +42,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
     // Deduplicate: don't add if an identical message already exists for this day
     if (messages.value.some((m) => m.text === text && m.createdDay === currentDay)) return
-    messages.value.unshift({ id, text, type, createdDay: currentDay, action: options.action })
+    messages.value.unshift({
+      id,
+      text,
+      type,
+      createdDay: currentDay,
+      action: options.action,
+      adventurers: options.adventurers ?? [],
+    })
   }
 
   function remove(id: number) {

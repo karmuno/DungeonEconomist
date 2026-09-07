@@ -19,7 +19,7 @@ from app.models import (
     Keep,
     Party,
 )
-from app.progression import check_for_level_up
+from app.progression import apply_level_ups, check_for_level_up
 from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator
 
@@ -260,12 +260,22 @@ def _finalize_expedition(
                 # The dead leave their party so its slots free up; an empty
                 # party stands until end of day, then disbands.
                 member.parties = []
-                events.append({"type": "death", "message": f"{member.name} died during the expedition"})
+                events.append({
+                    "type": "death",
+                    "message": f"{member.name} died during the expedition",
+                    "adventurers": [{"id": member.id, "name": member.name}],
+                })
             else:
                 member.hp_current = final_hp
                 member.on_expedition = False
                 member.is_available = True
                 living_members.append(member)
+
+        # Level up now, not at end of day: the XP for this expedition is in
+        # hand, so anyone who crossed a threshold advances before the player
+        # sees a single line about the run.
+        for member in living_members:
+            events.extend(apply_level_ups(member, keep))
 
         # Distribute loot (convert all treasure to copper for even split)
         total_loot_copper = (
@@ -298,7 +308,11 @@ def _finalize_expedition(
                 keep.total_score += debt
                 member.upkeep_debt_cp = 0
                 g, s, c = copper_to_parts(debt)
-                events.append({"type": "upkeep", "message": f"{member.name} paid {format_currency(g, s, c)} in overdue upkeep on return"})
+                events.append({
+                    "type": "upkeep",
+                    "message": f"{member.name} paid {format_currency(g, s, c)} in overdue upkeep on return",
+                    "adventurers": [{"id": member.id, "name": member.name}],
+                })
             else:
                 remaining = member.total_copper()
                 if remaining > 0:
@@ -313,7 +327,11 @@ def _finalize_expedition(
                 member.is_available = False
                 member.parties = []
                 living_members.remove(member)
-                events.append({"type": "upkeep", "message": f"{member.name} couldn't pay overdue upkeep and was sent to debtor's prison"})
+                events.append({
+                    "type": "upkeep",
+                    "message": f"{member.name} couldn't pay overdue upkeep and was sent to debtor's prison",
+                    "adventurers": [{"id": member.id, "name": member.name}],
+                })
         for member in party.members:
             if member.is_dead:
                 member.upkeep_debt_cp = 0
@@ -356,6 +374,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "loot",
                             "message": f"{member.name} found a magic item: {item['name']}!",
+                            "adventurers": [{"id": member.id, "name": member.name}],
                         })
 
         # ── Temple Tier III: Resurrect highest-level dead on return ──
@@ -374,6 +393,7 @@ def _finalize_expedition(
                 events.append({
                     "type": "resurrection",
                     "message": f"{highest.name} was resurrected by the Cathedral at half HP!",
+                    "adventurers": [{"id": highest.id, "name": highest.name}],
                 })
 
         # ── Temple Tier II: Healing Potion purchase chance ──
@@ -397,6 +417,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "crafting",
                             "message": f"{member.name} purchased a Healing Potion for 100gp.",
+                            "adventurers": [{"id": member.id, "name": member.name}],
                         })
 
         # ── Library Tier II: Scroll purchase chance ──
@@ -419,6 +440,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "crafting",
                             "message": f"{member.name} purchased an Arcane Scroll for 100gp.",
+                            "adventurers": [{"id": member.id, "name": member.name}],
                         })
 
         # ── Smithy: Weapon/Armor crafting on return ──
@@ -454,6 +476,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "crafting",
                             "message": f"The Smithy crafted a {quality}{base_item['name']} for {recipient.name}!",
+                            "adventurers": [{"id": recipient.id, "name": recipient.name}],
                         })
 
         # ── Consume potions used during expedition ──
@@ -468,6 +491,7 @@ def _finalize_expedition(
                             events.append({
                                 "type": "item_consumed",
                                 "message": f"{name}'s Healing Potion was consumed to save them!",
+                                "adventurers": [{"id": member.id, "name": member.name}],
                             })
                             break
 

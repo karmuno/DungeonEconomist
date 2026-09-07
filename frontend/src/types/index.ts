@@ -44,6 +44,11 @@ export interface KeepOut {
 
 // Adventurers
 
+export interface AdventurerRef {
+  id: number
+  name: string
+}
+
 export interface LevelUpResult {
   old_level: number
   new_level: number

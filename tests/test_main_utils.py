@@ -722,12 +722,13 @@ def test_sheet_abilities_unlock_by_level_with_uses(client: TestClient, db_sessio
     assert client.get(f"/adventurers/{fighter.id}", headers=auth_headers(token, keep.id)).json()["class_abilities"] == []
 
 
-def _retreating_expedition(db: Session, keep: Keep, adv: Adventurer) -> Expedition:
+def _retreating_expedition(db: Session, keep: Keep, adv: Adventurer, xp: int = 20) -> Expedition:
     """A 7-day expedition sitting on its first decision point, ready to retreat."""
     party = Party(keep_id=keep.id, name="The Bold", on_expedition=True)
     db.add(party)
     db.commit()
-    adv.party_id = party.id
+    party.members.append(adv)
+    adv.on_expedition = True
     db.commit()
 
     decision_point = {"type": "big_haul", "message": "A heavy chest", "after_turn": 1}
@@ -743,7 +744,7 @@ def _retreating_expedition(db: Session, keep: Keep, adv: Adventurer) -> Expediti
         decision_day=keep.current_day,
         started_at=datetime.now(),
         simulation_data={
-            "phases": [{"loot": 10, "silver": 0, "copper": 0, "xp": 20, "deaths": []}],
+            "phases": [{"loot": 10, "silver": 0, "copper": 0, "xp": xp, "deaths": []}],
             "decision_points": [decision_point],
             "log": [{"turn": 1, "events": [], "deaths": []}],
             "turn_summaries": ["Turn 1"],
@@ -803,3 +804,63 @@ def test_expedition_run_to_completion_has_no_actual_return_day(client: TestClien
 
     listed = next(e for e in client.get("/expeditions/", headers=headers).json() if e["id"] == expedition.id)
     assert listed["actual_return_day"] is None
+
+
+def test_adventurer_levels_up_the_moment_expedition_xp_lands(client: TestClient, db_session: Session):
+    """Enough XP to level must advance the adventurer in the same response, not at end of day."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+    adv = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    assert adv.level == 1
+    expedition = _retreating_expedition(db_session, keep, adv, xp=5000)
+    headers = auth_headers(token, keep.id)
+
+    resp = client.post(f"/expeditions/{expedition.id}/choose", json={"choice": "retreat"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+
+    # Levelled before the day ever advanced
+    db_session.refresh(adv)
+    assert adv.level > 1
+    assert keep.current_day == 10
+
+    level_ups = [e for e in resp.json()["events"] if e["type"] == "level_up"]
+    assert level_ups, resp.json()["events"]
+    assert "Rurik" in level_ups[0]["message"]
+
+
+def test_level_up_event_links_to_the_adventurer(client: TestClient, db_session: Session):
+    """Every level-up event names the adventurer and carries their id for the sheet link."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+    adv = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    expedition = _retreating_expedition(db_session, keep, adv, xp=5000)
+    headers = auth_headers(token, keep.id)
+
+    resp = client.post(f"/expeditions/{expedition.id}/choose", json={"choice": "retreat"}, headers=headers)
+    level_ups = [e for e in resp.json()["events"] if e["type"] == "level_up"]
+    assert level_ups
+    assert level_ups[0]["adventurers"] == [{"id": adv.id, "name": "Rurik"}]
+
+
+def test_events_naming_an_adventurer_carry_their_id(client: TestClient, db_session: Session):
+    """Any event whose message names an adventurer must carry a ref the UI can link."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+    hurt = create_adventurer_db(db_session, keep.id, name="Bram", xp=0, gold=0)
+    hurt.hp_current = hurt.hp_max - 1
+    db_session.commit()
+
+    resp = client.post("/time/advance-day", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    events = resp.json()["events"]
+
+    named = [e for e in events if e["type"] in ("healing", "recruitment", "level_up", "death")]
+    assert named, events
+    for event in named:
+        assert event["adventurers"], f"no adventurer ref on: {event}"
+        for ref in event["adventurers"]:
+            assert isinstance(ref["id"], int)
+            assert ref["name"] in event["message"]

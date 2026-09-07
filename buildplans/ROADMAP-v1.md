@@ -10,8 +10,8 @@ the evidence those 10 people produce.
 | :--- | :--- |
 | Released (tagged, on `main`, deployed demo) | **v0.8.1** (2026-03-26) |
 | In progress | **v0.9 — The Polish Release**, on branch `qa` (`VERSION` still `0.8.1`) |
-| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen |
-| Next up | The three remaining v0.9 items below, then v0.9.1 Safe to Invite |
+| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names |
+| Next up | The two remaining v0.9 items below, then v0.9.1 Safe to Invite |
 | Last code commit | 2026-09-07 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -64,10 +64,16 @@ changed because of it? What meaningful action can I take next?*
       2026-09-07 carried `actual_return_day` through to the Expeditions list and the
       expedition detail view, which were both still showing the plan, and added API
       regression tests
+- [x] Resolve one expedition's pending decision individually (row 10)
+- [x] Level-ups are their own moment: an adventurer advances the instant expedition XP is
+      credited rather than at end of day, every level-up raises a popup (not only a new
+      keep record), and each queues so several on one day are seen one at a time
+- [x] Every notification and popup that names an adventurer links to their sheet. Events
+      carry the ids of everyone they name, so the link is exact rather than guessed from
+      the text; the expedition choice and summary views now route their events through the
+      side panel instead of flattening them to bare strings
 
 ### Remaining — the red cells only
-- [ ] Resolve one expedition's pending decision individually (row 10). Cost-check first; if
-      it is more than an evening, move it to the backlog
 - [ ] Dashboard empty-state prompts: no adventurers → Recruit · no party → Form a party ·
       idle party → Launch. This *is* the onboarding for v1.0
 - [ ] One softlock check: all-dead roster and bankrupt keep. Confirm the player can still

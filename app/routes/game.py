@@ -90,6 +90,11 @@ def run_daily_recruitment(keep: Keep, db: Session) -> list:
             new_adventurers.append(adv)
             active_count += 1
 
+    # Assign primary keys now: the arrival event carries the recruit's id so
+    # the notification can link to their sheet, and an unflushed row has none.
+    if new_adventurers:
+        db.flush()
+
     return new_adventurers
 
 
@@ -175,7 +180,8 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
                     db.delete(item)
                 events.append(GameEvent(
                     type="upkeep",
-                    message=f"{adv.name} sacrificed magic items to avoid debtor's prison: {', '.join(item_names)}"
+                    message=f"{adv.name} sacrificed magic items to avoid debtor's prison: {', '.join(item_names)}",
+                    adventurers=[{"id": adv.id, "name": adv.name}],
                 ))
                 row["outcome"] = "sacrificed"
                 row["after_cp"] = row["purse_cp"]
@@ -225,7 +231,8 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
 
             events.append(GameEvent(
                 type="upkeep",
-                message=f"{adv.name} went bankrupt and was sent to debtor's prison"
+                message=f"{adv.name} went bankrupt and was sent to debtor's prison",
+                adventurers=[{"id": adv.id, "name": adv.name}],
             ))
         ledger_rows.append(row)
 
@@ -304,6 +311,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             events.append(GameEvent(
                 type="healing",
                 message=f"{adv.name} fully recovered and is available",
+                adventurers=[{"id": adv.id, "name": adv.name}],
             ))
 
     # Daily recruitment
@@ -311,7 +319,8 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     for adv in new_recruits:
         events.append(GameEvent(
             type="recruitment",
-            message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern"
+            message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern",
+            adventurers=[{"id": adv.id, "name": adv.name}],
         ))
 
     # Auto-delve: launch expeditions for parties with auto-delve enabled
@@ -376,7 +385,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                     expedition_id=expedition.id,
                 ))
             for evt in result.get("events", []):
-                events.append(GameEvent(type=evt["type"], message=evt["message"]))
+                events.append(GameEvent(**evt))
         else:
             if choice == "press_on_next" and dp.get("new_level"):
                 expedition.dungeon_level = dp["new_level"]
@@ -420,7 +429,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
                         # Silent — no popup, just completion events
                         for evt in result.get("events", []):
-                            events.append(GameEvent(type=evt["type"], message=evt["message"]))
+                            events.append(GameEvent(**evt))
                     else:
                         if choice == "press_on_next" and dp.get("new_level"):
                             expedition.dungeon_level = dp["new_level"]
@@ -463,13 +472,15 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                     expedition_id=expedition.id,
                 ))
                 for evt in resolution.get("events", []):
-                    events.append(GameEvent(type=evt["type"], message=evt["message"]))
+                    events.append(GameEvent(**evt))
 
     # Monthly upkeep (every 30 days)
     upkeep_events = process_upkeep(keep, db)
     events.extend(upkeep_events)
 
-    # Auto level-up
+    # Backstop only: adventurers level up the moment their XP is credited
+    # (see _finalize_expedition). This catches anyone left eligible by a path
+    # that grants XP without levelling — normally it finds nobody.
     from app.progression import apply_level_ups
     level_up_candidates = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
@@ -477,7 +488,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
         Adventurer.is_bankrupt == False,
     ).all()
     for adv in level_up_candidates:
-        apply_level_ups(adv, keep, events)
+        events.extend(GameEvent(**evt) for evt in apply_level_ups(adv, keep))
 
     # End-of-day cleanup: empty parties disband (the dead leave their party
     # when an expedition resolves; the empty shell stands until the day ends)

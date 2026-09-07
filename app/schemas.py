@@ -166,6 +166,12 @@ class AdventurerLevelUpInfo(BaseModel):
     current_level: int
     next_level: int
 
+class AdventurerRef(BaseModel):
+    """An adventurer named in an event message, so the UI can link to their sheet."""
+    id: int
+    name: str
+
+
 class GameEvent(BaseModel):
     type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep', 'upkeep_deferred'
     message: str
@@ -173,6 +179,9 @@ class GameEvent(BaseModel):
     first_time: bool = False
     event_subtype: str | None = None  # e.g. 'stairs', 'death', 'big_haul' for expedition_choice events
     data: dict | None = None  # structured payload, e.g. the upkeep-day ledger
+    # Every adventurer named in `message`. The UI turns each name into a link
+    # to that adventurer's sheet, so no name in a notification is a dead end.
+    adventurers: list[AdventurerRef] = []
 
 class GameTimeInfo(BaseModel):
     current_day: int

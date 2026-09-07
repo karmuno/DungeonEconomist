@@ -13,6 +13,8 @@ import UpkeepForecastModal from '../upkeep/UpkeepForecastModal.vue'
 import AdventurerSheetModal from '../adventurers/AdventurerSheetModal.vue'
 import { formatCp } from '../../utils/currency'
 import type { UpkeepDayData } from '../../types/upkeep'
+import type { AdventurerRef } from '../../types'
+import { linkAdventurerNames } from '../../utils/adventurer'
 import * as expeditionsApi from '../../api/expeditions'
 import eventBus from '../../eventBus'
 
@@ -110,9 +112,31 @@ function onUpkeepCollect() {
   }
 }
 
-// Level-up popup
+// Level-up popup. Every level-up gets one — it is the moment the player is
+// meant to feel. Several can land on one day, so they queue and show in turn.
+interface PendingLevelUp {
+  message: string
+  adventurers: AdventurerRef[]
+}
 const showLevelUpPopup = ref(false)
 const levelUpMessage = ref('')
+const levelUpAdventurers = ref<AdventurerRef[]>([])
+const levelUpQueue = ref<PendingLevelUp[]>([])
+
+function checkLevelUpQueue() {
+  if (showLevelUpPopup.value) return
+  const next = levelUpQueue.value.shift()
+  if (!next) return
+  levelUpMessage.value = next.message
+  levelUpAdventurers.value = next.adventurers
+  showLevelUpPopup.value = true
+}
+
+function dismissLevelUp() {
+  showLevelUpPopup.value = false
+  // Let the dialog close before the next one opens
+  requestAnimationFrame(checkLevelUpQueue)
+}
 
 // Stairs discovered popup
 const showStairsPopup = ref(false)
@@ -141,7 +165,7 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   level_up: 'success',
 }
 
-function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null; data?: UpkeepDayData | null }>) {
+function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null; data?: UpkeepDayData | null; adventurers?: AdventurerRef[] }>) {
   // On an upkeep day the ledger modal carries the whole story; its feed
   // lines are suppressed and recreated as clickable notifications on Collect
   const upkeepDay = events.some(e => e.type === 'upkeep' && e.data)
@@ -154,10 +178,12 @@ function processEvents(events: Array<{ type: string; message: string; expedition
       }
       continue
     }
-    // First-time level up — show popup
-    if (event.type === 'level_up' && event.first_time) {
-      levelUpMessage.value = event.message
-      showLevelUpPopup.value = true
+    // Every level-up gets a popup — levelling is a big deal, not a feed line
+    if (event.type === 'level_up') {
+      levelUpQueue.value.push({
+        message: event.message,
+        adventurers: event.adventurers ?? [],
+      })
       continue
     }
 
@@ -181,6 +207,7 @@ function processEvents(events: Array<{ type: string; message: string; expedition
 
     const opts: Parameters<typeof notifications.add>[1] = {
       type: typeMap[event.type] ?? 'info',
+      adventurers: event.adventurers ?? [],
     }
     if (event.type === 'expedition_complete' && event.expedition_id) {
       opts.action = {
@@ -192,6 +219,7 @@ function processEvents(events: Array<{ type: string; message: string; expedition
   }
   
   // Try showing the first one in queue if nothing is showing
+  checkLevelUpQueue()
   checkChoiceQueue()
 }
 
@@ -323,6 +351,7 @@ async function skipToEvent() {
 
 // Any popup closing may leave the queue drained — flush the held refresh
 watch([showChoicePopup, showStairsPopup, showLevelUpPopup], () => {
+  checkLevelUpQueue()
   checkChoiceQueue()
   maybeFlushRefresh()
 })
@@ -387,7 +416,14 @@ onUnmounted(() => {
         class="notif"
         :class="notification.type"
       >
-        <span class="notif-text">{{ notification.text }}</span>
+        <span class="notif-text"><template
+          v-for="(seg, i) in linkAdventurerNames(notification.text, notification.adventurers)"
+          :key="i"
+        ><span
+          v-if="seg.advId"
+          class="adv-name-link"
+          @click.stop="sheetAdvId = seg.advId"
+        >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></span>
         <span
           v-if="notification.action"
           class="notif-action"
@@ -437,14 +473,21 @@ onUnmounted(() => {
   <ModalDialog
     :is-open="showLevelUpPopup"
     title="Level Up!"
-    @close="showLevelUpPopup = false"
+    @close="dismissLevelUp"
   >
     <div class="choice-popup">
-      <p class="choice-popup-msg">{{ levelUpMessage }}</p>
+      <p class="choice-popup-msg"><template
+        v-for="(seg, i) in linkAdventurerNames(levelUpMessage, levelUpAdventurers)"
+        :key="i"
+      ><span
+        v-if="seg.advId"
+        class="adv-name-link"
+        @click.stop="sheetAdvId = seg.advId"
+      >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></p>
       <div class="choice-popup-buttons">
         <button
           class="btn btn-primary"
-          @click="showLevelUpPopup = false"
+          @click="dismissLevelUp"
         >
           Awesome!
         </button>
@@ -759,5 +802,20 @@ onUnmounted(() => {
 
 .at-risk-name:hover {
   text-decoration-color: #ef4444;
+}
+
+/* Adventurer names inside notification and popup text. Rendered inline in
+   this component (not via a wrapper component) so the name is always visible
+   even if a stray rule targets nested spans. */
+.adv-name-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.adv-name-link:hover {
+  text-decoration-style: solid;
 }
 </style>
