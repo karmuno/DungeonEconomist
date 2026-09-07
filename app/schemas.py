@@ -159,7 +159,7 @@ class AdventurerLevelUpInfo(BaseModel):
     next_level: int
 
 class GameEvent(BaseModel):
-    type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep'
+    type: str  # 'recruitment', 'healing', 'expedition_complete', 'auto_start', 'upkeep', 'upkeep_deferred'
     message: str
     expedition_id: int | None = None
     first_time: bool = False

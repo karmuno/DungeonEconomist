@@ -133,7 +133,7 @@ export interface PartyStatus {
 // Game Time
 
 export interface GameEvent {
-  type: 'recruitment' | 'healing' | 'expedition_complete' | 'auto_start' | 'upkeep' | 'expedition_choice' | string
+  type: 'recruitment' | 'healing' | 'expedition_complete' | 'auto_start' | 'upkeep' | 'upkeep_deferred' | 'expedition_choice' | string
   message: string
   expedition_id?: number | null
   event_subtype?: string | null

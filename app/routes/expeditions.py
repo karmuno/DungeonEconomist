@@ -167,8 +167,14 @@ def _finalize_expedition(
     db: Session,
     keep: Keep,
     retreat: bool = False,
+    upkeep_done_today: bool = False,
 ) -> dict:
-    """Apply final results to adventurers and complete the expedition."""
+    """Apply final results to adventurers and complete the expedition.
+
+    upkeep_done_today: True when today's upkeep pass has already run (the
+    player resolving a decision after the day advanced). Inside the day loop
+    the upkeep pass runs after returns, so today is left to it.
+    """
     from app.routes.game import copper_to_parts, format_currency
 
     party = expedition.party
@@ -287,10 +293,12 @@ def _finalize_expedition(
             party_label = party.name if party else "The party"
             events.append({"type": "loot", "message": f"{party_label} brought back {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each)"})
 
-        # Deferred upkeep
+        # Deferred upkeep: cycles missed while away. Today counts only if its
+        # upkeep pass already ran; otherwise the pass charges them at the keep.
         missed_cycles = 0
         if expedition.start_day and keep.current_day > expedition.start_day:
-            for day in range(expedition.start_day + 1, keep.current_day + 1):
+            last_day = keep.current_day + 1 if upkeep_done_today else keep.current_day
+            for day in range(expedition.start_day + 1, last_day):
                 if day % 30 == 0:
                     missed_cycles += 1
 
@@ -318,11 +326,11 @@ def _finalize_expedition(
                     member.is_available = False
                     member.parties = []
                     living_members.remove(member)
-                    events.append({"type": "upkeep", "message": f"{member.name} couldn't pay deferred upkeep and was sent to debtor's prison"})
+                    events.append({"type": "upkeep_deferred", "message": f"{member.name} couldn't pay deferred upkeep and was sent to debtor's prison"})
 
         if deferred_upkeep_collected > 0:
             g, s, c = copper_to_parts(deferred_upkeep_collected)
-            events.append({"type": "upkeep", "message": f"Collected {format_currency(g, s, c)} in deferred upkeep from returning adventurers"})
+            events.append({"type": "upkeep_deferred", "message": f"Collected {format_currency(g, s, c)} in deferred upkeep from returning adventurers"})
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
@@ -799,7 +807,8 @@ def make_expedition_choice(
     was_auto = data.choice == "auto"
 
     if choice == "retreat":
-        result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
+        # The day already advanced (and ran its upkeep pass) before this choice
+        result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True, upkeep_done_today=True)
         db.commit()
         return {
             "status": "completed",

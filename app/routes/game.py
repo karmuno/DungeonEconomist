@@ -123,6 +123,10 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
     if keep.current_day == 0 or keep.current_day % 30 != 0:
         return []
 
+    # Returns earlier in this day pass cleared on_expedition on ORM objects;
+    # the session has autoflush off, so flush or the queries below miss them.
+    db.flush()
+
     events: list[GameEvent] = []
 
     # Only process active adventurers not on expedition and not assigned to buildings
@@ -504,7 +508,10 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
 
 
 # Event types that are considered notable for skip-to-event
-NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "loot", "level_up", "stairs_discovered"}
+NOTABLE_EVENT_TYPES = {
+    "recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "upkeep_deferred",
+    "loot", "level_up", "stairs_discovered",
+}
 
 
 def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:

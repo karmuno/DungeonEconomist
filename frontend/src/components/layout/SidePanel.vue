@@ -136,6 +136,7 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   expedition_complete: 'success',
   death: 'error',
   upkeep: 'warning',
+  upkeep_deferred: 'warning',
   stairs: 'success',
   expedition_choice: 'warning',
   level_up: 'success',

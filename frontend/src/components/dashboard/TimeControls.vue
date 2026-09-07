@@ -25,6 +25,7 @@ function eventNotificationType(event: GameEvent): NotificationType {
     case 'healing':
       return 'success'
     case 'upkeep':
+    case 'upkeep_deferred':
       return 'warning'
     case 'recruitment':
     case 'auto_start':
