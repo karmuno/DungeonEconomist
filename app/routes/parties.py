@@ -50,7 +50,7 @@ def list_parties(
     all_parties = (
         db.query(Party)
         .options(joinedload(Party.members))
-        .filter(Party.keep_id == keep.id)
+        .filter(Party.keep_id == keep.id, Party.disbanded == False)
         .offset(skip)
         .limit(limit)
         .all()
@@ -199,8 +199,8 @@ def remove_adventurer_from_party(
     db.flush()
 
     if len(party.members) == 0:
-        # Party is now empty — delete it automatically
-        delete_party_and_history(party, db)
+        # Party is now empty — disband it automatically
+        disband_party(party, db)
         db.commit()
         return {"deleted": True, "party_id": party_id}
 
@@ -242,31 +242,24 @@ def delete_party(
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    """Delete a party and its associated expeditions. Cannot delete parties on expedition."""
-    party = db.query(Party).filter(Party.id == party_id, Party.keep_id == keep.id).first()
+    """Disband a party. Its expeditions stay in the history. Cannot disband parties on expedition."""
+    party = db.query(Party).filter(Party.id == party_id, Party.keep_id == keep.id, Party.disbanded == False).first()
     if party is None:
         raise HTTPException(status_code=404, detail="Party not found")
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Cannot delete a party currently on expedition")
-    delete_party_and_history(party, db)
+    disband_party(party, db)
     db.commit()
     return {"ok": True}
 
 
-def delete_party_and_history(party: Party, db: Session) -> None:
-    """Delete a party and its expedition records. The caller commits."""
-    from app.models import Expedition, ExpeditionLog, ExpeditionNodeResult
-    party_id = party.id
-    # Clear FK references before deleting
+def disband_party(party: Party, db: Session) -> None:
+    """Disband a party: it leaves every list, but its row and its expeditions
+    stay so the Expeditions tab keeps the history. The caller commits."""
     party.current_expedition_id = None
+    party.on_expedition = False
+    party.auto_delve_healed = False
+    party.auto_delve_full = False
     party.members.clear()
+    party.disbanded = True
     db.flush()
-    expeditions = db.query(Expedition).filter(Expedition.party_id == party_id).all()
-    for exp in expeditions:
-        db.query(ExpeditionNodeResult).filter(ExpeditionNodeResult.expedition_id == exp.id).delete()
-        db.query(ExpeditionLog).filter(ExpeditionLog.expedition_id == exp.id).delete()
-    db.flush()
-    for exp in expeditions:
-        db.delete(exp)
-    db.flush()
-    db.delete(party)

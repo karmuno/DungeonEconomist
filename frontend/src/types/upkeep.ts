@@ -13,17 +13,6 @@ export interface UpkeepLedgerRow {
   outcome: 'paid' | 'sacrificed' | 'prison'
 }
 
-export interface UpkeepDeferredRow {
-  id: number
-  name: string
-  adventurer_class: string
-  level: number
-  xp: number
-  upkeep_cp: number
-  party_name: string | null
-  due_day: number | null
-}
-
 export interface UpkeepDayData {
   day: number
   adventurer_count: number
@@ -34,8 +23,6 @@ export interface UpkeepDayData {
   unpaid_cp: number
   prison_names: string[]
   rows: UpkeepLedgerRow[]
-  deferred: UpkeepDeferredRow[]
-  deferred_cp: number
 }
 
 export interface UpkeepForecastRow {

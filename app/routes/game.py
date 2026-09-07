@@ -123,18 +123,17 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
     if keep.current_day == 0 or keep.current_day % 30 != 0:
         return []
 
-    # Returns earlier in this day pass cleared on_expedition on ORM objects;
-    # the session has autoflush off, so flush or the queries below miss them.
+    # Earlier steps in this day pass changed ORM objects; the session has
+    # autoflush off, so flush or the query below reads stale state.
     db.flush()
 
     events: list[GameEvent] = []
 
-    # Only process active adventurers not on expedition and not assigned to buildings
+    # Everyone pays, in the dungeon or not. Only building staff are exempt.
     adventurers = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
-        Adventurer.on_expedition == False,
         Adventurer.is_assigned == False,
     ).all()
     total_copper_transferred = 0
@@ -216,34 +215,9 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
             ))
         ledger_rows.append(row)
 
-    # Deferred: members out on expedition owe on return
-    deferred_rows: list[dict] = []
-    on_expedition = db.query(Adventurer).filter(
-        Adventurer.keep_id == keep.id,
-        Adventurer.is_dead == False,
-        Adventurer.is_bankrupt == False,
-        Adventurer.on_expedition == True,
-    ).all()
-    for adv in on_expedition:
-        cost_copper = math.floor(adv.xp * 1)
-        if cost_copper <= 0:
-            continue
-        party = adv.parties[0] if adv.parties else None
-        expedition = party.current_expedition if party else None
-        deferred_rows.append({
-            "id": adv.id,
-            "name": adv.name,
-            "adventurer_class": adv.adventurer_class.value,
-            "level": adv.level,
-            "xp": adv.xp,
-            "upkeep_cp": cost_copper,
-            "party_name": party.name if party else None,
-            "due_day": expedition.return_day if expedition else None,
-        })
-
     upkeep_data = {
         "day": keep.current_day,
-        "adventurer_count": len(ledger_rows) + len(deferred_rows),
+        "adventurer_count": len(ledger_rows),
         "treasury_before_cp": treasury_before_cp,
         "treasury_after_cp": keep.treasury_total_copper(),
         "collected_cp": total_copper_transferred,
@@ -251,8 +225,6 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
         "unpaid_cp": unpaid_cp,
         "prison_names": prison_names,
         "rows": ledger_rows,
-        "deferred": deferred_rows,
-        "deferred_cp": sum(r["upkeep_cp"] for r in deferred_rows),
     }
 
     if total_copper_transferred > 0:
@@ -495,21 +467,21 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
 
     # End-of-day cleanup: empty parties disband (the dead leave their party
     # when an expedition resolves; the empty shell stands until the day ends)
-    from app.routes.parties import delete_party_and_history
-    empty_parties = [p for p in keep.parties if not p.on_expedition and len(p.members) == 0]
+    from app.routes.parties import disband_party
+    empty_parties = [p for p in keep.parties if not p.disbanded and not p.on_expedition and len(p.members) == 0]
     for empty_party in empty_parties:
         events.append(GameEvent(
             type="party_disbanded",
             message=f"Party '{empty_party.name}' disbanded",
         ))
-        delete_party_and_history(empty_party, db)
+        disband_party(empty_party, db)
 
     return events
 
 
 # Event types that are considered notable for skip-to-event
 NOTABLE_EVENT_TYPES = {
-    "recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "upkeep_deferred",
+    "recruitment", "expedition_complete", "expedition_choice", "death", "upkeep",
     "loot", "level_up", "stairs_discovered",
 }
 
@@ -661,7 +633,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
     ).count()
-    party_count = db.query(Party).filter(Party.keep_id == keep.id).count()
+    party_count = db.query(Party).filter(Party.keep_id == keep.id, Party.disbanded == False).count()
     expedition_count = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(Party.keep_id == keep.id).count()
 
     graveyard_count = db.query(Adventurer).filter(
@@ -720,7 +692,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         })
 
     # Parties with status (skip wiped parties — empty and not on expedition)
-    all_parties = db.query(Party).filter(Party.keep_id == keep.id).all()
+    all_parties = db.query(Party).filter(Party.keep_id == keep.id, Party.disbanded == False).all()
     parties_summary = []
     for p in all_parties:
         if p.on_expedition:
@@ -766,8 +738,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     unassigned_summary = [_adv_summary_local(a) for a in unassigned]
 
     # Upkeep forecast: what the next upkeep day will collect, and who can't pay.
-    # Assigned adventurers are exempt; expedition members owe on return but
-    # appear in the single list (the day itself separates deferred).
+    # Everyone pays on the day, in the dungeon or not; building staff are exempt.
     next_upkeep_day = ((keep.current_day // 30) + 1) * 30
     forecast_rows = []
     payers = db.query(Adventurer).filter(

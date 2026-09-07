@@ -95,7 +95,7 @@ const hpBarColor = computed(() => {
         <span class="cs-stat-value">{{ adventurer.hit_dice ?? '—' }}</span>
         <span class="cs-stat-label">HD</span>
       </div>
-      <div class="cs-stat">
+      <div class="cs-stat" title="Wealth: Amount of money the adventurer currently possesses.">
         <span class="cs-stat-value cs-gold-value">{{ formatCurrency(adventurer.gold, adventurer.silver, adventurer.copper) }}</span>
         <span class="cs-stat-label">WEALTH</span>
       </div>

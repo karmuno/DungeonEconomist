@@ -25,10 +25,6 @@ const collectedXp = computed(() =>
   (props.data?.rows ?? []).filter(r => r.outcome === 'paid').reduce((s, r) => s + r.xp, 0)
 )
 
-const deferredXp = computed(() =>
-  (props.data?.deferred ?? []).reduce((s, r) => s + r.xp, 0)
-)
-
 function fmtXp(xp: number): string {
   return xp.toLocaleString('en-US')
 }
@@ -52,9 +48,6 @@ function fmtXp(xp: number): string {
         <span class="outcome-after">{{ formatCp(data.treasury_after_cp) }}</span>
         <span v-if="data.prison_names.length" class="outcome-prison">
           {{ data.prison_names.length }} to debtor's prison
-        </span>
-        <span v-if="data.deferred_cp > 0" class="outcome-deferred">
-          {{ formatCp(data.deferred_cp) }} deferred
         </span>
         <button class="collect-btn" @click="emit('collect')">
           {{ reopened ? 'Close' : 'Collect' }}
@@ -106,33 +99,6 @@ function fmtXp(xp: number): string {
         </div>
       </div>
 
-      <!-- 3. On Expedition — deferred -->
-      <div v-if="data.deferred.length" class="uk-section">
-        <div class="section-label">
-          On Expedition <span class="label-sub">collected on return</span>
-        </div>
-        <div class="deferred-grid">
-          <div class="grid-head">Adventurer</div>
-          <div class="grid-head num">XP</div>
-          <div class="grid-head num">Upkeep</div>
-          <div class="grid-head num">Due</div>
-          <template v-for="row in data.deferred" :key="row.id">
-            <div class="cell name-cell">
-              <span class="adv-link" @click="emit('openSheet', row.id)">{{ row.name }}</span>
-              <span class="cell-sub">{{ row.adventurer_class }} Lv {{ row.level }}</span>
-            </div>
-            <div class="cell num xp-cell">{{ fmtXp(row.xp) }}</div>
-            <div class="cell num deferred-cell">{{ formatCp(row.upkeep_cp) }}</div>
-            <div class="cell num due-cell">
-              {{ row.party_name ?? '—' }}<template v-if="row.due_day != null"> · due day {{ row.due_day }}</template>
-            </div>
-          </template>
-          <div class="cell totals-cell totals-label">Deferred</div>
-          <div class="cell totals-cell num xp-cell">{{ fmtXp(deferredXp) }}</div>
-          <div class="cell totals-cell num deferred-cell">{{ formatCp(data.deferred_cp) }}</div>
-          <div class="cell totals-cell"></div>
-        </div>
-      </div>
     </div>
   </ModalDialog>
 </template>

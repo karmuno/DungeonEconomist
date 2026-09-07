@@ -521,7 +521,7 @@ def test_active_summary_hides_unwitnessed_turns(client: TestClient, db_session: 
     assert summary["total_loot"] == 5
 
 
-# ── Deferred upkeep ──────────────────────────────────────────────────────────
+# ── Upkeep while away ────────────────────────────────────────────────────────
 
 _QUIET_SIM = {
     "log": [],
@@ -538,7 +538,7 @@ _QUIET_SIM = {
 }
 
 
-def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict, decision_day: int | None = None):
+def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict):
     """Three 2000-XP adventurers (100gp each) out on an uneventful expedition."""
     from app.models import Expedition
 
@@ -557,7 +557,6 @@ def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict, d
         dungeon_level=1,
         result="in_progress",
         resolved_phases=0,
-        decision_day=decision_day,
         simulation_data=sim,
     )
     db.add(exp)
@@ -571,36 +570,9 @@ def _upkeep_event(events: list[dict]) -> dict | None:
     return next((e for e in events if e["type"] == "upkeep" and e.get("data")), None)
 
 
-def test_same_day_return_is_charged_once_by_the_ledger(client: TestClient, db_session: Session):
-    """A party returning on upkeep day pays at the keep like everyone else:
-    listed in the ledger, not under deferred, and not charged twice."""
-    account, keep, token = create_account_and_keep(db_session)
-    keep.current_day = 28
-    db_session.commit()
-    party, members, exp = _party_away(db_session, keep, start_day=28, return_day=30, sim=_QUIET_SIM)
-
-    client.post("/time/advance-day", headers=auth_headers(token, keep.id))  # day 29
-    events = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]  # day 30
-
-    assert any(e["type"] == "expedition_complete" for e in events)
-    assert not any(e["type"] == "upkeep_deferred" for e in events)
-    ledger = _upkeep_event(events)
-    assert ledger is not None
-    assert sorted(r["name"] for r in ledger["data"]["rows"]) == ["Away0", "Away1", "Away2"]
-    assert all(r["outcome"] == "paid" and r["upkeep_cp"] == 2000 for r in ledger["data"]["rows"])
-    assert ledger["data"]["deferred"] == []
-    assert ledger["data"]["collected_cp"] == 6000
-
-    db_session.refresh(keep)
-    assert keep.treasury_total_copper() == 6000
-    for m in members:
-        db_session.refresh(m)
-        assert m.total_copper() == 10000 - 2000
-
-
-def test_deferred_upkeep_collected_on_later_return(client: TestClient, db_session: Session):
-    """Out over day 30: deferred on the ledger, then collected on return as
-    its own event type so the feed never confuses it with the ledger."""
+def test_adventurers_in_the_dungeon_pay_upkeep_on_the_day(client: TestClient, db_session: Session):
+    """No deferral: a party out over day 30 pays on day 30 like everyone else,
+    and nothing more is collected when it comes home."""
     account, keep, token = create_account_and_keep(db_session)
     keep.current_day = 29
     db_session.commit()
@@ -609,17 +581,16 @@ def test_deferred_upkeep_collected_on_later_return(client: TestClient, db_sessio
     day30 = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
     ledger = _upkeep_event(day30)
     assert ledger is not None
-    assert ledger["data"]["rows"] == []
-    assert sorted(r["name"] for r in ledger["data"]["deferred"]) == ["Away0", "Away1", "Away2"]
-    assert all(r["upkeep_cp"] == 2000 and r["due_day"] == 31 for r in ledger["data"]["deferred"])
+    assert sorted(r["name"] for r in ledger["data"]["rows"]) == ["Away0", "Away1", "Away2"]
+    assert all(r["outcome"] == "paid" and r["upkeep_cp"] == 2000 for r in ledger["data"]["rows"])
+    assert ledger["data"]["collected_cp"] == 6000
+    assert "deferred" not in ledger["data"]
     db_session.refresh(keep)
-    assert keep.treasury_total_copper() == 0
+    assert keep.treasury_total_copper() == 6000
 
     day31 = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
-    collected = [e for e in day31 if e["type"] == "upkeep_deferred"]
-    assert len(collected) == 1
-    assert collected[0]["message"].startswith("Collected 60gp in deferred upkeep")
-
+    assert any(e["type"] == "expedition_complete" for e in day31)
+    assert not any(e["type"].startswith("upkeep") for e in day31)
     db_session.refresh(keep)
     assert keep.treasury_total_copper() == 6000
     for m in members:
@@ -627,33 +598,35 @@ def test_deferred_upkeep_collected_on_later_return(client: TestClient, db_sessio
         assert m.total_copper() == 10000 - 2000
 
 
-def test_retreat_decided_on_upkeep_day_still_pays_that_day(client: TestClient, db_session: Session):
-    """The day advanced, the ledger deferred the party, then the player
-    retreats: today's cycle is collected on return, exactly once."""
+def test_disbanded_party_keeps_its_expeditions(client: TestClient, db_session: Session):
+    """Removing the last member disbands the party; it leaves the party list
+    but its expedition still shows on the Expeditions tab."""
     account, keep, token = create_account_and_keep(db_session)
-    keep.current_day = 29
+    party = Party(name="Old Guard", keep_id=keep.id)
+    db_session.add(party)
     db_session.commit()
-    sim = {
-        **_QUIET_SIM,
-        "decision_points": [{"after_turn": 0, "type": "trap", "message": "A trap!"}],
-        "phases": [{"loot": 0, "silver": 0, "copper": 0, "xp": 0, "deaths": []}],
-        "party_status": {"members_total": 3},
-    }
-    party, members, exp = _party_away(db_session, keep, start_day=29, return_day=31, sim=sim, decision_day=30)
+    adv = create_adventurer_db(db_session, keep.id, name="Last One", xp=0, gold=0)
+    party.members.append(adv)
+    from app.models import Expedition
+    exp = Expedition(
+        party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1,
+        result="completed", simulation_data=_QUIET_SIM,
+    )
+    db_session.add(exp)
+    db_session.commit()
 
-    day30 = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
-    assert any(e["type"] == "expedition_choice" for e in day30)
-    assert len(_upkeep_event(day30)["data"]["deferred"]) == 3
-
-    r = client.post(f"/expeditions/{exp.id}/choose", json={"choice": "retreat"}, headers=auth_headers(token, keep.id))
+    r = client.post(
+        "/parties/remove-member/",
+        json={"party_id": party.id, "adventurer_id": adv.id},
+        headers=auth_headers(token, keep.id),
+    )
     assert r.status_code == 200, r.text
-    assert any(e["type"] == "upkeep_deferred" for e in r.json()["events"])
+    assert r.json() == {"deleted": True, "party_id": party.id}
 
-    db_session.refresh(keep)
-    assert keep.treasury_total_copper() == 6000
-    for m in members:
-        db_session.refresh(m)
-        assert m.total_copper() == 10000 - 2000
+    parties = client.get("/parties/", headers=auth_headers(token, keep.id)).json()
+    assert [p["name"] for p in parties] == []
+    expeditions = client.get("/expeditions/", headers=auth_headers(token, keep.id)).json()
+    assert [(e["id"], e["party_name"]) for e in expeditions] == [(exp.id, "Old Guard")]
 
 
 # ── Character sheet: to-hit and class abilities ─────────────────────────────

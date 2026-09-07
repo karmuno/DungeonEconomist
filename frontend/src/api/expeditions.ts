@@ -76,6 +76,7 @@ export interface ChoiceResponse {
   status: string
   retreated?: boolean
   auto_choice?: string | null
+  party_name?: string | null
   pending_event?: PendingEvent
   events?: Array<{ type: string; message: string }>
   next_event?: { message: string; expedition_id: number; event_type: string }

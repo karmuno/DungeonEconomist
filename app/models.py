@@ -176,6 +176,8 @@ class Party(Base):
     auto_delve_full = Column(Boolean, default=False, nullable=False)
     auto_decide_events = Column(Boolean, default=False, nullable=False)
     auto_delve_level = Column(Integer, nullable=True)  # null = max unlocked
+    # Disbanded parties stay as rows so their expeditions remain in the history
+    disbanded = Column(Boolean, default=False, nullable=False, server_default="0")
 
     members = relationship('Adventurer', secondary=party_adventurer, back_populates='parties')
     expeditions = relationship('Expedition', foreign_keys='Expedition.party_id', back_populates='party')

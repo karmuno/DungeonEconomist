@@ -64,16 +64,17 @@ async function makeChoice(choice: string) {
       notifications.add(evt.message, { type: (typeMap[evt.type] ?? 'info') as any })
     }
 
+    const who = result.party_name ?? summary.value?.party_name ?? 'The party'
     if (result.status === 'in_progress') {
       const msg = result.auto_choice
-        ? `The party decided to press on!`
-        : 'The expedition continues...'
+        ? `${who} decided to press on!`
+        : `${who} continues the expedition`
       notifications.add(msg, 'info')
     } else if (result.status === 'completed') {
       await player.fetchPlayer()
       const retMsg = result.auto_choice === 'retreat'
-        ? 'The party decided to retreat!'
-        : result.retreated ? 'The party retreated safely' : 'The expedition is complete!'
+        ? `${who} decided to retreat!`
+        : result.retreated ? `${who} retreated safely` : `${who} completed the expedition`
       notifications.add(retMsg,
         {
           type: result.retreated ? 'info' : 'success',

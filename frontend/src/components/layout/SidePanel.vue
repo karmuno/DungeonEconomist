@@ -136,7 +136,6 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   expedition_complete: 'success',
   death: 'error',
   upkeep: 'warning',
-  upkeep_deferred: 'warning',
   stairs: 'success',
   expedition_choice: 'warning',
   level_up: 'success',
@@ -224,9 +223,10 @@ async function popupChoice(choice: string) {
     } else if (result.status === 'completed') {
       showChoicePopup.value = false
       await player.fetchPlayer()
+      const who = result.party_name ?? 'The party'
       const retMsg = result.auto_choice === 'retreat'
-        ? 'The party decided to retreat!'
-        : result.retreated ? 'The party retreated safely' : 'The expedition is complete!'
+        ? `${who} decided to retreat!`
+        : result.retreated ? `${who} retreated safely` : `${who} completed the expedition`
       notifications.add(retMsg,
         {
           type: result.retreated ? 'info' : 'success',

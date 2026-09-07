@@ -1,6 +1,5 @@
 import contextlib
 import json
-import math
 import random as _random
 from datetime import datetime
 
@@ -167,14 +166,8 @@ def _finalize_expedition(
     db: Session,
     keep: Keep,
     retreat: bool = False,
-    upkeep_done_today: bool = False,
 ) -> dict:
-    """Apply final results to adventurers and complete the expedition.
-
-    upkeep_done_today: True when today's upkeep pass has already run (the
-    player resolving a decision after the day advanced). Inside the day loop
-    the upkeep pass runs after returns, so today is left to it.
-    """
+    """Apply final results to adventurers and complete the expedition."""
     from app.routes.game import copper_to_parts, format_currency
 
     party = expedition.party
@@ -292,45 +285,6 @@ def _finalize_expedition(
             total_g, total_s, total_c = copper_to_parts(total_loot_copper)
             party_label = party.name if party else "The party"
             events.append({"type": "loot", "message": f"{party_label} brought back {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each)"})
-
-        # Deferred upkeep: cycles missed while away. Today counts only if its
-        # upkeep pass already ran; otherwise the pass charges them at the keep.
-        missed_cycles = 0
-        if expedition.start_day and keep.current_day > expedition.start_day:
-            last_day = keep.current_day + 1 if upkeep_done_today else keep.current_day
-            for day in range(expedition.start_day + 1, last_day):
-                if day % 30 == 0:
-                    missed_cycles += 1
-
-        deferred_upkeep_collected = 0
-        if missed_cycles > 0:
-            for member in list(living_members):
-                cost_copper = math.floor(member.xp * 1) * missed_cycles
-                if cost_copper <= 0:
-                    continue
-                if member.total_copper() >= cost_copper:
-                    member.subtract_currency(cost_copper)
-                    keep.add_treasury(cost_copper)
-                    keep.total_score += cost_copper
-                    deferred_upkeep_collected += cost_copper
-                else:
-                    remaining = member.total_copper()
-                    if remaining > 0:
-                        keep.add_treasury(remaining)
-                        keep.total_score += remaining
-                    member.gold = 0
-                    member.silver = 0
-                    member.copper = 0
-                    member.is_bankrupt = True
-                    member.bankruptcy_day = keep.current_day
-                    member.is_available = False
-                    member.parties = []
-                    living_members.remove(member)
-                    events.append({"type": "upkeep_deferred", "message": f"{member.name} couldn't pay deferred upkeep and was sent to debtor's prison"})
-
-        if deferred_upkeep_collected > 0:
-            g, s, c = copper_to_parts(deferred_upkeep_collected)
-            events.append({"type": "upkeep_deferred", "message": f"Collected {format_currency(g, s, c)} in deferred upkeep from returning adventurers"})
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
@@ -808,13 +762,13 @@ def make_expedition_choice(
     was_auto = data.choice == "auto"
 
     if choice == "retreat":
-        # The day already advanced (and ran its upkeep pass) before this choice
-        result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True, upkeep_done_today=True)
+        result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
         db.commit()
         return {
             "status": "completed",
             "retreated": True,
             "auto_choice": "retreat" if was_auto else None,
+            "party_name": expedition.party.name if expedition.party else None,
             "events": result.get("events", []),
         }
 
@@ -854,6 +808,7 @@ def make_expedition_choice(
     return {
         "status": "in_progress",
         "auto_choice": auto_choice_label,
+        "party_name": expedition.party.name if expedition.party else None,
         "message": "The expedition continues...",
         "events": [],
     }
