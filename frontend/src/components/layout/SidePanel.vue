@@ -125,6 +125,9 @@ const levelUpQueue = ref<PendingLevelUp[]>([])
 
 function checkLevelUpQueue() {
   if (showLevelUpPopup.value) return
+  // A pending decision or the upkeep ledger blocks the game and comes first;
+  // level-ups wait their turn rather than stacking on top of them
+  if (showChoicePopup.value || showUpkeepModal.value) return
   const next = levelUpQueue.value.shift()
   if (!next) return
   levelUpMessage.value = next.message
@@ -218,9 +221,10 @@ function processEvents(events: Array<{ type: string; message: string; expedition
     notifications.add(event.message, opts)
   }
   
-  // Try showing the first one in queue if nothing is showing
-  checkLevelUpQueue()
+  // Try showing the first one in queue if nothing is showing. Choices first:
+  // they gate the level-up queue, so their state must be settled.
   checkChoiceQueue()
+  checkLevelUpQueue()
 }
 
 async function popupChoice(choice: string) {
@@ -350,9 +354,9 @@ async function skipToEvent() {
 }
 
 // Any popup closing may leave the queue drained — flush the held refresh
-watch([showChoicePopup, showStairsPopup, showLevelUpPopup], () => {
-  checkLevelUpQueue()
+watch([showChoicePopup, showStairsPopup, showLevelUpPopup, showUpkeepModal], () => {
   checkChoiceQueue()
+  checkLevelUpQueue()
   maybeFlushRefresh()
 })
 
