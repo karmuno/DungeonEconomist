@@ -21,3 +21,18 @@ export function formatGameDayShort(day: number): string {
   if (day <= 0) return 'Day 0'
   return `Day ${day}`
 }
+
+/**
+ * Effective end of an expedition. An early retreat keeps its planned
+ * `return_day`; `actual_return_day` records when the party really came home.
+ * Returns the day to display, the days actually spent, and whether the plan broke.
+ */
+export function expeditionEnd(
+  startDay: number,
+  returnDay: number,
+  actualReturnDay?: number | null,
+): { day: number; days: number; early: boolean } {
+  const early = actualReturnDay != null && actualReturnDay !== returnDay
+  const day = early ? actualReturnDay : returnDay
+  return { day, days: day - startDay + 1, early }
+}

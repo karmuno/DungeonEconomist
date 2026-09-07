@@ -90,6 +90,11 @@ def run_daily_recruitment(keep: Keep, db: Session) -> list:
             new_adventurers.append(adv)
             active_count += 1
 
+    # Assign primary keys now: the arrival event carries the recruit's id so
+    # the notification can link to their sheet, and an unflushed row has none.
+    if new_adventurers:
+        db.flush()
+
     return new_adventurers
 
 
@@ -123,18 +128,25 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
     if keep.current_day == 0 or keep.current_day % 30 != 0:
         return []
 
+    # Earlier steps in this day pass changed ORM objects; the session has
+    # autoflush off, so flush or the query below reads stale state.
+    db.flush()
+
     events: list[GameEvent] = []
 
-    # Only process active adventurers not on expedition and not assigned to buildings
+    # Everyone pays, in the dungeon or not. Only building staff are exempt.
     adventurers = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
-        Adventurer.on_expedition == False,
         Adventurer.is_assigned == False,
     ).all()
     total_copper_transferred = 0
     bankrupt_count = 0
+    treasury_before_cp = keep.treasury_total_copper()
+    ledger_rows: list[dict] = []
+    prison_names: list[str] = []
+    unpaid_cp = 0
 
     for adv in adventurers:
         # Upkeep cost: 1 copper per XP
@@ -142,6 +154,18 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
 
         if cost_copper <= 0:
             continue
+
+        row = {
+            "id": adv.id,
+            "name": adv.name,
+            "adventurer_class": adv.adventurer_class.value,
+            "level": adv.level,
+            "xp": adv.xp,
+            "upkeep_cp": cost_copper,
+            "purse_cp": adv.total_copper(),
+            "after_cp": adv.total_copper() - cost_copper,
+            "outcome": "paid",
+        }
 
         if adv.total_copper() >= cost_copper:
             adv.subtract_currency(cost_copper)
@@ -156,8 +180,26 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
                     db.delete(item)
                 events.append(GameEvent(
                     type="upkeep",
-                    message=f"{adv.name} sacrificed magic items to avoid debtor's prison: {', '.join(item_names)}"
+                    message=f"{adv.name} sacrificed magic items to avoid debtor's prison: {', '.join(item_names)}",
+                    adventurers=[{"id": adv.id, "name": adv.name}],
                 ))
+                row["outcome"] = "sacrificed"
+                row["after_cp"] = row["purse_cp"]
+                ledger_rows.append(row)
+                continue
+
+            # In the dungeon and short: pay what they can now, carry the rest as
+            # a debt settled on return (loot may cover it). Prison waits at the gate.
+            if adv.on_expedition:
+                paid_now = adv.total_copper()
+                if paid_now > 0:
+                    adv.subtract_currency(paid_now)
+                    keep.add_treasury(paid_now)
+                    keep.total_score += paid_now
+                    total_copper_transferred += paid_now
+                adv.upkeep_debt_cp = (adv.upkeep_debt_cp or 0) + (cost_copper - paid_now)
+                row["outcome"] = "owed"
+                ledger_rows.append(row)
                 continue
 
             # Bankruptcy is permanent — adventurer goes to debtor's prison
@@ -183,21 +225,41 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
             # Remove from all parties
             adv.parties = []
 
+            row["outcome"] = "prison"
+            prison_names.append(adv.name)
+            unpaid_cp += cost_copper - row["purse_cp"]
+
             events.append(GameEvent(
                 type="upkeep",
-                message=f"{adv.name} went bankrupt and was sent to debtor's prison"
+                message=f"{adv.name} went bankrupt and was sent to debtor's prison",
+                adventurers=[{"id": adv.id, "name": adv.name}],
             ))
+        ledger_rows.append(row)
+
+    upkeep_data = {
+        "day": keep.current_day,
+        "adventurer_count": len(ledger_rows),
+        "treasury_before_cp": treasury_before_cp,
+        "treasury_after_cp": keep.treasury_total_copper(),
+        "collected_cp": total_copper_transferred,
+        "collected_from": len([r for r in ledger_rows if r["outcome"] == "paid"]),
+        "unpaid_cp": unpaid_cp,
+        "prison_names": prison_names,
+        "rows": ledger_rows,
+    }
 
     if total_copper_transferred > 0:
         g, s, c = copper_to_parts(total_copper_transferred)
         events.insert(0, GameEvent(
             type="upkeep",
-            message=f"Upkeep day! {format_currency(g, s, c)} collected to treasury"
+            message=f"Upkeep day! {format_currency(g, s, c)} collected to treasury",
+            data=upkeep_data,
         ))
     else:
         events.insert(0, GameEvent(
             type="upkeep",
-            message="Upkeep day! No gold collected (adventurers have no XP costs yet)"
+            message="Upkeep day! No gold collected (adventurers have no XP costs yet)",
+            data=upkeep_data,
         ))
 
     return events
@@ -249,6 +311,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
             events.append(GameEvent(
                 type="healing",
                 message=f"{adv.name} fully recovered and is available",
+                adventurers=[{"id": adv.id, "name": adv.name}],
             ))
 
     # Daily recruitment
@@ -256,7 +319,8 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
     for adv in new_recruits:
         events.append(GameEvent(
             type="recruitment",
-            message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern"
+            message=f"{adv.name} ({adv.adventurer_class.value}) arrived at the tavern",
+            adventurers=[{"id": adv.id, "name": adv.name}],
         ))
 
     # Auto-delve: launch expeditions for parties with auto-delve enabled
@@ -321,7 +385,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                     expedition_id=expedition.id,
                 ))
             for evt in result.get("events", []):
-                events.append(GameEvent(type=evt["type"], message=evt["message"]))
+                events.append(GameEvent(**evt))
         else:
             if choice == "press_on_next" and dp.get("new_level"):
                 expedition.dungeon_level = dp["new_level"]
@@ -365,7 +429,7 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
                         # Silent — no popup, just completion events
                         for evt in result.get("events", []):
-                            events.append(GameEvent(type=evt["type"], message=evt["message"]))
+                            events.append(GameEvent(**evt))
                     else:
                         if choice == "press_on_next" and dp.get("new_level"):
                             expedition.dungeon_level = dp["new_level"]
@@ -408,13 +472,15 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
                     expedition_id=expedition.id,
                 ))
                 for evt in resolution.get("events", []):
-                    events.append(GameEvent(type=evt["type"], message=evt["message"]))
+                    events.append(GameEvent(**evt))
 
     # Monthly upkeep (every 30 days)
     upkeep_events = process_upkeep(keep, db)
     events.extend(upkeep_events)
 
-    # Auto level-up
+    # Backstop only: adventurers level up the moment their XP is credited
+    # (see _finalize_expedition). This catches anyone left eligible by a path
+    # that grants XP without levelling — normally it finds nobody.
     from app.progression import apply_level_ups
     level_up_candidates = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
@@ -422,13 +488,27 @@ def _advance_one_day(keep: Keep, db: Session) -> list[GameEvent]:
         Adventurer.is_bankrupt == False,
     ).all()
     for adv in level_up_candidates:
-        apply_level_ups(adv, keep, events)
+        events.extend(GameEvent(**evt) for evt in apply_level_ups(adv, keep))
+
+    # End-of-day cleanup: empty parties disband (the dead leave their party
+    # when an expedition resolves; the empty shell stands until the day ends)
+    from app.routes.parties import disband_party
+    empty_parties = [p for p in keep.parties if not p.disbanded and not p.on_expedition and len(p.members) == 0]
+    for empty_party in empty_parties:
+        events.append(GameEvent(
+            type="party_disbanded",
+            message=f"Party '{empty_party.name}' disbanded",
+        ))
+        disband_party(empty_party, db)
 
     return events
 
 
 # Event types that are considered notable for skip-to-event
-NOTABLE_EVENT_TYPES = {"recruitment", "expedition_complete", "expedition_choice", "death", "upkeep", "loot", "level_up", "stairs_discovered"}
+NOTABLE_EVENT_TYPES = {
+    "recruitment", "expedition_complete", "expedition_choice", "death", "upkeep",
+    "loot", "level_up", "stairs_discovered",
+}
 
 
 def _check_pending_decisions(keep: Keep, db: Session) -> list[GameEvent]:
@@ -578,7 +658,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
     ).count()
-    party_count = db.query(Party).filter(Party.keep_id == keep.id).count()
+    party_count = db.query(Party).filter(Party.keep_id == keep.id, Party.disbanded == False).count()
     expedition_count = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(Party.keep_id == keep.id).count()
 
     graveyard_count = db.query(Adventurer).filter(
@@ -637,7 +717,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         })
 
     # Parties with status (skip wiped parties — empty and not on expedition)
-    all_parties = db.query(Party).filter(Party.keep_id == keep.id).all()
+    all_parties = db.query(Party).filter(Party.keep_id == keep.id, Party.disbanded == False).all()
     parties_summary = []
     for p in all_parties:
         if p.on_expedition:
@@ -682,11 +762,42 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     ).all()
     unassigned_summary = [_adv_summary_local(a) for a in unassigned]
 
+    # Upkeep forecast: what the next upkeep day will collect, and who can't pay.
+    # Everyone pays on the day, in the dungeon or not; building staff are exempt.
+    next_upkeep_day = ((keep.current_day // 30) + 1) * 30
+    forecast_rows = []
+    payers = db.query(Adventurer).filter(
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_dead == False,
+        Adventurer.is_bankrupt == False,
+        Adventurer.is_assigned == False,
+    ).all()
+    for adv in payers:
+        cost_cp = math.floor(adv.xp * 1)
+        if cost_cp <= 0:
+            continue
+        purse_cp = adv.total_copper()
+        forecast_rows.append({
+            "id": adv.id,
+            "name": adv.name,
+            "adventurer_class": adv.adventurer_class.value,
+            "level": adv.level,
+            "xp": adv.xp,
+            "upkeep_cp": cost_cp,
+            "purse_cp": purse_cp,
+            "short_cp": max(0, cost_cp - purse_cp),
+        })
+    upkeep_forecast = {
+        "next_day": next_upkeep_day,
+        "days_until": next_upkeep_day - keep.current_day,
+        "total_cp": sum(r["upkeep_cp"] for r in forecast_rows),
+        "treasury_now_cp": keep.treasury_total_copper(),
+        "rows": forecast_rows,
+    }
+
     # Hint for new players
     hint = None
-    if party_count == 0 and adventurer_count > 0:
-        hint = "Form a party in the Tavern to get started."
-    elif party_count > 0 and len(active_expeditions) == 0:
+    if party_count > 0 and len(active_expeditions) == 0:
         hint = "launch_expedition"
     elif not built_types:
         cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
@@ -709,6 +820,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "buildings": buildings_summary,
         "parties": parties_summary,
         "unassigned_adventurers": unassigned_summary,
+        "upkeep_forecast": upkeep_forecast,
         "hint": hint,
         "active_expeditions": [
             {

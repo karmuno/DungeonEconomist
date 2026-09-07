@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDashboardStats } from '../api/game'
+import * as expeditionsApi from '../api/expeditions'
 import * as partiesApi from '../api/parties'
 import * as buildingsApi from '../api/buildings'
 import * as adventurersApi from '../api/adventurers'
@@ -37,7 +38,7 @@ async function handleLevelUp() {
 }
 
 // Expand state
-const expandedPartyId = ref<number | null>(null)
+const expandedPartyIds = ref<Set<number>>(new Set())
 const expandedBuilding = ref<string | null>(null)
 
 // Drag state
@@ -52,7 +53,9 @@ async function fetchStats() {
   }
 }
 
-watch(() => gameTime.currentDay, fetchStats)
+// Deliberately NOT watching gameTime.currentDay: the SidePanel emits
+// 'refresh-dashboard' once the day's event popup is on screen, so state
+// never updates ahead of its event being shown.
 watch(() => gameTime.expeditionVersion, fetchStats)
 onMounted(() => {
   fetchStats()
@@ -68,6 +71,23 @@ function progressPct(exp: DashboardStats['active_expeditions'][0]): number {
   return Math.min(100, Math.round((exp.days_elapsed / exp.duration_days) * 100))
 }
 
+// Clicking the Decision badge re-opens the pending choice popup via the
+// SidePanel's expedition-choice queue.
+async function openDecision(expeditionId: number) {
+  try {
+    const pending = await expeditionsApi.getPending(expeditionId)
+    if (!pending.pending_event) return
+    eventBus.emit('game-events', [{
+      type: 'expedition_choice',
+      message: pending.pending_event.message,
+      expedition_id: expeditionId,
+      event_subtype: pending.pending_event.type,
+    }])
+  } catch {
+    notifications.add('Failed to load the pending decision', 'error')
+  }
+}
+
 function partyStatusClass(status: string): string {
   switch (status) {
     case 'Ready': return 'status-ready'
@@ -78,8 +98,30 @@ function partyStatusClass(status: string): string {
   }
 }
 
+type DashboardParty = DashboardStats['parties'][number]
+
+// The status badge is the shortest path to whatever that party is doing:
+// out delving -> its expedition, otherwise -> launch the next one.
+function partyStatusRoute(p: DashboardParty): string | null {
+  if (p.status === 'On Expedition') {
+    return p.expedition_id ? `/expedition/${p.expedition_id}/summary` : null
+  }
+  return p.members.length > 0 ? `/launch-expedition/${p.id}` : null
+}
+
+function goToPartyStatus(p: DashboardParty) {
+  const route = partyStatusRoute(p)
+  if (route) router.push(route)
+}
+
 function toggleParty(id: number) {
-  expandedPartyId.value = expandedPartyId.value === id ? null : id
+  const next = new Set(expandedPartyIds.value)
+  if (next.has(id)) {
+    next.delete(id)
+  } else {
+    next.add(id)
+  }
+  expandedPartyIds.value = next
 }
 
 function toggleBuilding(type: string) {
@@ -259,7 +301,12 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
             <div class="active-exp-info">
               <span class="active-exp-party">{{ exp.party_name }}</span>
               <span class="active-exp-meta">Depth {{ exp.dungeon_level }}</span>
-              <span v-if="exp.result === 'awaiting_choice'" class="badge badge-warning">Decision</span>
+              <span
+                v-if="exp.result === 'awaiting_choice'"
+                class="badge badge-warning decision-badge"
+                title="Open the pending decision"
+                @click.stop="openDecision(exp.id)"
+              >Decision</span>
             </div>
             <div class="active-exp-progress">
               <div class="progress-track">
@@ -324,13 +371,18 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
             @drop="onPartyDrop($event, p.id)"
           >
             <div class="party-row clickable" @click="toggleParty(p.id)">
-              <span class="party-expand">{{ expandedPartyId === p.id ? '&#9660;' : '&#9654;' }}</span>
+              <span class="party-expand">{{ expandedPartyIds.has(p.id) ? '&#9660;' : '&#9654;' }}</span>
               <span class="party-name">{{ p.name }}</span>
               <span class="party-size">{{ p.member_count }}/6</span>
               <span class="party-avg-level">avg Lv {{ avgPartyLevel(p.members) }}</span>
-              <span class="badge" :class="partyStatusClass(p.status)">{{ p.status }}</span>
+              <span
+                class="badge"
+                :class="[partyStatusClass(p.status), { 'status-link': partyStatusRoute(p) }]"
+                :title="p.status === 'On Expedition' ? 'View expedition' : partyStatusRoute(p) ? 'Launch expedition' : undefined"
+                @click.stop="goToPartyStatus(p)"
+              >{{ p.status }}</span>
             </div>
-            <div v-if="expandedPartyId === p.id" class="party-members">
+            <div v-if="expandedPartyIds.has(p.id)" class="party-members">
               <div
                 v-for="m in p.members"
                 :key="m.id"
@@ -522,6 +574,19 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .status-expedition { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
 .status-empty { background: rgba(128, 128, 128, 0.15); color: #888; }
 
+/* A status that goes somewhere: dotted underline, brightening on hover */
+.status-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: currentColor;
+  text-underline-offset: 2px;
+}
+.status-link:hover {
+  text-decoration-style: solid;
+  filter: brightness(1.25);
+}
+
 /* Unassigned */
 .unassigned-list { display: flex; flex-direction: column; gap: 3px; }
 .unassigned-row {
@@ -550,6 +615,8 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 }
 
 .badge-warning { background: rgba(241, 196, 15, 0.15); color: #fbbf24; }
+.decision-badge { cursor: pointer; }
+.decision-badge:hover { background: rgba(241, 196, 15, 0.3); }
 
 /* Auto-delve */
 .auto-delve-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--border-color); margin-top: 6px; }

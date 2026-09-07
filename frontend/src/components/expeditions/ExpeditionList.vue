@@ -2,7 +2,7 @@
 import type { ExpeditionSummary } from '../../types'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
-import { formatGameDayShort } from '../../utils/calendar'
+import { expeditionEnd, formatGameDayShort } from '../../utils/calendar'
 
 defineProps<{
   expeditions: ExpeditionSummary[]
@@ -16,6 +16,16 @@ function statusLabel(result: string): string {
   if (result === 'in_progress') return 'In Progress'
   if (result === 'awaiting_choice') return 'Awaiting Decision'
   return 'Completed'
+}
+
+// Show what actually happened; an early retreat's plan lives in the tooltip.
+function ended(exp: ExpeditionSummary) {
+  return expeditionEnd(exp.start_day, exp.return_day, exp.actual_return_day)
+}
+
+function plannedTitle(exp: ExpeditionSummary): string | undefined {
+  if (!ended(exp).early) return undefined
+  return `Planned: ${formatGameDayShort(exp.return_day)} · ${exp.duration_days} days`
 }
 </script>
 
@@ -44,9 +54,9 @@ function statusLabel(result: string): string {
         >
           <td>{{ exp.party_name }}</td>
           <td>{{ exp.dungeon_level }}</td>
-          <td>{{ exp.duration_days }}</td>
+          <td :title="plannedTitle(exp)">{{ ended(exp).days }}</td>
           <td>{{ formatGameDayShort(exp.start_day) }}</td>
-          <td>{{ formatGameDayShort(exp.return_day) }}</td>
+          <td :title="plannedTitle(exp)">{{ formatGameDayShort(ended(exp).day) }}</td>
           <td class="text-gold">{{ exp.treasure_total }}gp</td>
           <td>{{ exp.xp_earned }}</td>
           <td>

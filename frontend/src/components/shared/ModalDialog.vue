@@ -4,6 +4,8 @@ import { onMounted, onUnmounted, watch } from 'vue'
 const props = defineProps<{
   isOpen: boolean
   title: string
+  width?: string
+  zIndex?: number
 }>()
 
 const emit = defineEmits<{
@@ -41,10 +43,12 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="modal-overlay" @click.self="emit('close')">
-      <div class="modal-content">
+    <div v-if="isOpen" class="modal-overlay" :style="zIndex != null ? { zIndex } : undefined" @click.self="emit('close')">
+      <div class="modal-content" :style="width ? { maxWidth: width, width: '100%' } : undefined">
         <div class="card-header">
-          <h3>{{ title }}</h3>
+          <slot name="header">
+            <h3>{{ title }}</h3>
+          </slot>
           <button class="btn btn-secondary btn-sm" @click="emit('close')">✕</button>
         </div>
         <div class="card-body">

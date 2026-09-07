@@ -1,6 +1,5 @@
 import contextlib
 import json
-import math
 import random as _random
 from datetime import datetime
 
@@ -11,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_keep
 from app.database import get_db
 from app.dungeons import DUNGEON_LEVEL_NAMES, get_level_duration
+from app.expedition import starting_resources
 from app.expedition_events import build_phases, calculate_retreat_results
 from app.models import (
     Expedition,
@@ -19,7 +19,7 @@ from app.models import (
     Keep,
     Party,
 )
-from app.progression import check_for_level_up
+from app.progression import apply_level_ups, check_for_level_up
 from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator
 
@@ -182,6 +182,9 @@ def _finalize_expedition(
         resolved = expedition.resolved_phases or 0
         partial = calculate_retreat_results(sim_result, resolved)
         effective_result = {**sim_result, **partial}
+        # Record the game day the party actually came home — return_day keeps
+        # the planned date, so early retreats can show PLANNED vs ACTUAL.
+        effective_result["actual_return_day"] = keep.current_day
         expedition.simulation_data = effective_result
     else:
         effective_result = sim_result
@@ -228,7 +231,9 @@ def _finalize_expedition(
 
         xp_per_member = int(effective_result.get("xp_per_party_member", 0))
 
-        for member in party.members:
+        # Iterate a snapshot: dead members are detached from the party inside
+        # the loop, and mutating party.members while iterating skips entries
+        for member in list(party.members):
             is_dead = member.name in dead_names
             replayed_hp = sim_hp.get(member.name, member.hp_current)
             # Clamp to real hp_max (armor buffer may have inflated starting_hp)
@@ -252,12 +257,25 @@ def _finalize_expedition(
                 member.death_party_name = party.name if party else None
                 member.on_expedition = False
                 member.is_available = False
-                events.append({"type": "death", "message": f"{member.name} died during the expedition"})
+                # The dead leave their party so its slots free up; an empty
+                # party stands until end of day, then disbands.
+                member.parties = []
+                events.append({
+                    "type": "death",
+                    "message": f"{member.name} died during the expedition",
+                    "adventurers": [{"id": member.id, "name": member.name}],
+                })
             else:
                 member.hp_current = final_hp
                 member.on_expedition = False
                 member.is_available = True
                 living_members.append(member)
+
+        # Level up now, not at end of day: the XP for this expedition is in
+        # hand, so anyone who crossed a threshold advances before the player
+        # sees a single line about the run.
+        for member in living_members:
+            events.extend(apply_level_ups(member, keep))
 
         # Distribute loot (convert all treasure to copper for even split)
         total_loot_copper = (
@@ -275,44 +293,48 @@ def _finalize_expedition(
             share_copper = total_loot_copper // max(1, living_count)
             g, s, c = copper_to_parts(share_copper)
             total_g, total_s, total_c = copper_to_parts(total_loot_copper)
-            events.append({"type": "loot", "message": f"Earned {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each to {living_count} adventurer{'s' if living_count != 1 else ''})"})
+            party_label = party.name if party else "The party"
+            events.append({"type": "loot", "message": f"{party_label} brought back {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each)"})
 
-        # Deferred upkeep
-        missed_cycles = 0
-        if expedition.start_day and keep.current_day > expedition.start_day:
-            for day in range(expedition.start_day + 1, keep.current_day + 1):
-                if day % 30 == 0:
-                    missed_cycles += 1
-
-        deferred_upkeep_collected = 0
-        if missed_cycles > 0:
-            for member in list(living_members):
-                cost_copper = math.floor(member.xp * 1) * missed_cycles
-                if cost_copper <= 0:
-                    continue
-                if member.total_copper() >= cost_copper:
-                    member.subtract_currency(cost_copper)
-                    keep.add_treasury(cost_copper)
-                    keep.total_score += cost_copper
-                    deferred_upkeep_collected += cost_copper
-                else:
-                    remaining = member.total_copper()
-                    if remaining > 0:
-                        keep.add_treasury(remaining)
-                        keep.total_score += remaining
-                    member.gold = 0
-                    member.silver = 0
-                    member.copper = 0
-                    member.is_bankrupt = True
-                    member.bankruptcy_day = keep.current_day
-                    member.is_available = False
-                    member.parties = []
-                    living_members.remove(member)
-                    events.append({"type": "upkeep", "message": f"{member.name} couldn't pay deferred upkeep and was sent to debtor's prison"})
-
-        if deferred_upkeep_collected > 0:
-            g, s, c = copper_to_parts(deferred_upkeep_collected)
-            events.append({"type": "upkeep", "message": f"Collected {format_currency(g, s, c)} in deferred upkeep from returning adventurers"})
+        # Settle upkeep that came due in the dungeon, now that loot is in hand.
+        # Those who still can't pay go to debtor's prison from the keep's gate.
+        for member in list(living_members):
+            debt = member.upkeep_debt_cp or 0
+            if debt <= 0:
+                continue
+            if member.total_copper() >= debt:
+                member.subtract_currency(debt)
+                keep.add_treasury(debt)
+                keep.total_score += debt
+                member.upkeep_debt_cp = 0
+                g, s, c = copper_to_parts(debt)
+                events.append({
+                    "type": "upkeep",
+                    "message": f"{member.name} paid {format_currency(g, s, c)} in overdue upkeep on return",
+                    "adventurers": [{"id": member.id, "name": member.name}],
+                })
+            else:
+                remaining = member.total_copper()
+                if remaining > 0:
+                    keep.add_treasury(remaining)
+                    keep.total_score += remaining
+                member.gold = 0
+                member.silver = 0
+                member.copper = 0
+                member.upkeep_debt_cp = 0
+                member.is_bankrupt = True
+                member.bankruptcy_day = keep.current_day
+                member.is_available = False
+                member.parties = []
+                living_members.remove(member)
+                events.append({
+                    "type": "upkeep",
+                    "message": f"{member.name} couldn't pay overdue upkeep and was sent to debtor's prison",
+                    "adventurers": [{"id": member.id, "name": member.name}],
+                })
+        for member in party.members:
+            if member.is_dead:
+                member.upkeep_debt_cp = 0
 
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
@@ -352,6 +374,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "loot",
                             "message": f"{member.name} found a magic item: {item['name']}!",
+                            "adventurers": [{"id": member.id, "name": member.name}],
                         })
 
         # ── Temple Tier III: Resurrect highest-level dead on return ──
@@ -370,6 +393,7 @@ def _finalize_expedition(
                 events.append({
                     "type": "resurrection",
                     "message": f"{highest.name} was resurrected by the Cathedral at half HP!",
+                    "adventurers": [{"id": highest.id, "name": highest.name}],
                 })
 
         # ── Temple Tier II: Healing Potion purchase chance ──
@@ -393,6 +417,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "crafting",
                             "message": f"{member.name} purchased a Healing Potion for 100gp.",
+                            "adventurers": [{"id": member.id, "name": member.name}],
                         })
 
         # ── Library Tier II: Scroll purchase chance ──
@@ -415,6 +440,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "crafting",
                             "message": f"{member.name} purchased an Arcane Scroll for 100gp.",
+                            "adventurers": [{"id": member.id, "name": member.name}],
                         })
 
         # ── Smithy: Weapon/Armor crafting on return ──
@@ -450,6 +476,7 @@ def _finalize_expedition(
                         events.append({
                             "type": "crafting",
                             "message": f"The Smithy crafted a {quality}{base_item['name']} for {recipient.name}!",
+                            "adventurers": [{"id": recipient.id, "name": recipient.name}],
                         })
 
         # ── Consume potions used during expedition ──
@@ -464,6 +491,7 @@ def _finalize_expedition(
                             events.append({
                                 "type": "item_consumed",
                                 "message": f"{name}'s Healing Potion was consumed to save them!",
+                                "adventurers": [{"id": member.id, "name": member.name}],
                             })
                             break
 
@@ -495,7 +523,8 @@ def _finalize_expedition(
             })
 
     if retreat:
-        events.insert(0, {"type": "expedition_complete", "message": "The party retreated from the dungeon"})
+        retreat_label = party.name if party else "The party"
+        events.insert(0, {"type": "expedition_complete", "message": f"{retreat_label} retreated from the dungeon"})
 
     return {"events": events, "simulation_data": effective_result}
 
@@ -558,6 +587,7 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
         m["name"]: m.get("current_hp", m.get("hit_points", 10))
         for m in party_members
     }
+    sim_result["starting_spells"], sim_result["starting_heals"] = starting_resources(party_members)
     build_phases(sim_result, dungeon_level, keep.max_dungeon_level)
 
     decision_points = sim_result.get("decision_points", [])
@@ -699,6 +729,7 @@ def launch_expedition(
         m["name"]: m.get("current_hp", m.get("hit_points", 10))
         for m in party_members
     }
+    sim_result["starting_spells"], sim_result["starting_heals"] = starting_resources(party_members)
 
     build_phases(sim_result, requested_level, keep.max_dungeon_level)
 
@@ -793,6 +824,7 @@ def make_expedition_choice(
             "status": "completed",
             "retreated": True,
             "auto_choice": "retreat" if was_auto else None,
+            "party_name": expedition.party.name if expedition.party else None,
             "events": result.get("events", []),
         }
 
@@ -832,6 +864,7 @@ def make_expedition_choice(
     return {
         "status": "in_progress",
         "auto_choice": auto_choice_label,
+        "party_name": expedition.party.name if expedition.party else None,
         "message": "The expedition continues...",
         "events": [],
     }
@@ -893,6 +926,7 @@ def get_expedition_results(
                         })
                 result["party_members_ready_for_level_up"] = members_ready
 
+        result["actual_return_day"] = (db_expedition.simulation_data or {}).get("actual_return_day")
         return result
     except ValueError:
         party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
@@ -942,6 +976,7 @@ def get_expedition_results(
             "start_day": db_expedition.start_day,
             "duration_days": db_expedition.duration_days,
             "return_day": db_expedition.return_day,
+            "actual_return_day": (db_expedition.simulation_data or {}).get("actual_return_day"),
             "treasure_total": sum(node.loot for node in node_results),
             "treasure_silver": 0,
             "treasure_copper": 0,
@@ -973,6 +1008,7 @@ def list_expeditions(keep: Keep = Depends(get_current_keep), db: Session = Depen
             "start_day": e.start_day,
             "duration_days": e.duration_days,
             "return_day": e.return_day,
+            "actual_return_day": sim.get("actual_return_day"),
             "result": e.result,
             "treasure_total": sim.get("treasure_total", 0),
             "xp_earned": sim.get("xp_earned", 0),
@@ -1087,14 +1123,21 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     decision_points = sim.get("decision_points", [])
     resolved = expedition.resolved_phases or 0
 
-    # Calculate totals from phases resolved so far + current phase
+    # Totals and deaths follow the witnessed rule: the pending phase counts
+    # only once its event is on screen (awaiting_choice). Including it while
+    # the expedition is merely in_progress leaks the pre-simulated future.
+    if expedition.result == "awaiting_choice":
+        visible_phases = resolved + 1
+    else:
+        visible_phases = resolved
+
     total_loot = 0
     total_silver = 0
     total_copper = 0
     total_xp = 0
     all_deaths = []
     for i, phase in enumerate(phases):
-        if i > resolved:
+        if i >= visible_phases:
             break
         total_loot += phase.get("loot", 0)
         total_silver += phase.get("silver", 0)
@@ -1102,15 +1145,21 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         total_xp += phase.get("xp", 0)
         all_deaths.extend(phase.get("deaths", []))
 
-    # Events log: show turns up to the current decision point
-    cutoff_turn = None
-    if resolved < len(decision_points):
-        cutoff_turn = decision_points[resolved].get("after_turn")
+    # Events log: show only what the player has WITNESSED. The whole run is
+    # pre-simulated at launch, so replaying past the last fired decision point
+    # would leak the future (deaths visible on the dashboard at launch day).
+    if expedition.result == "awaiting_choice" and resolved < len(decision_points):
+        # The pending event is on screen — its turn counts as witnessed
+        cutoff_turn = decision_points[resolved].get("after_turn") or 0
+    elif 0 < resolved <= len(decision_points):
+        cutoff_turn = decision_points[resolved - 1].get("after_turn") or 0
+    else:
+        cutoff_turn = 0
 
     events_log = []
     for turn in log:
         turn_num = turn.get("turn", 0)
-        if cutoff_turn and turn_num > cutoff_turn:
+        if turn_num > cutoff_turn:
             break
         events_log.append(turn)
 
@@ -1142,15 +1191,15 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     if expedition.result == "awaiting_choice" and expedition.pending_event:
         pending_event = expedition.pending_event
 
-    # Spells/heals at the current decision point (not end-of-expedition)
-    spells_left = sim.get("spells_left", 0)
-    heals_left = sim.get("heals_left", 0)
+    # Spells/heals as of the last WITNESSED turn. Before anything is witnessed,
+    # use the launch snapshot — never the end-of-run leftovers.
     if events_log:
         last_turn = events_log[-1]
-        if "spells_left" in last_turn:
-            spells_left = last_turn["spells_left"]
-        if "heals_left" in last_turn:
-            heals_left = last_turn["heals_left"]
+        spells_left = last_turn.get("spells_left", sim.get("spells_left", 0))
+        heals_left = last_turn.get("heals_left", sim.get("heals_left", 0))
+    else:
+        spells_left = sim.get("starting_spells", sim.get("spells_left", 0))
+        heals_left = sim.get("starting_heals", sim.get("heals_left", 0))
 
     # Filter turn summaries to only include turns the player has seen
     all_summaries = sim.get("turn_summaries", [])
@@ -1168,6 +1217,8 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "duration_days": expedition.duration_days,
         "result": expedition.result,
         "dungeon_level": expedition.dungeon_level,
+        "dungeon_name": keep.dungeon_name,
+        "actual_return_day": None,
         "member_results": member_results,
         "total_loot": total_loot,
         "total_silver": total_silver,
@@ -1179,7 +1230,8 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "spells_left": spells_left,
         "heals_left": heals_left,
         "turn_summaries": visible_summaries,
-        "stairs_found": sim.get("stairs_found"),
+        # Passive stairs discovery is revealed at completion, not mid-run
+        "stairs_found": None,
     }
 
 
@@ -1255,6 +1307,8 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "duration_days": expedition.duration_days,
         "result": expedition.result,
         "dungeon_level": expedition.dungeon_level,
+        "dungeon_name": keep.dungeon_name,
+        "actual_return_day": sim.get("actual_return_day"),
         "member_results": member_results,
         "total_loot": total_loot,
         "total_xp": total_xp,

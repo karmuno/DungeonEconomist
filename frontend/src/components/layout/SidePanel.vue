@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameTimeStore } from '../../stores/gameTime'
 import { usePlayerStore } from '../../stores/player'
@@ -8,6 +8,13 @@ import { formatCurrency } from '../../utils/currency'
 import { formatGameDay } from '../../utils/calendar'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ExpeditionEventModal from '../expeditions/ExpeditionEventModal.vue'
+import UpkeepDayModal from '../upkeep/UpkeepDayModal.vue'
+import UpkeepForecastModal from '../upkeep/UpkeepForecastModal.vue'
+import AdventurerSheetModal from '../adventurers/AdventurerSheetModal.vue'
+import { formatCp } from '../../utils/currency'
+import type { UpkeepDayData } from '../../types/upkeep'
+import type { AdventurerRef } from '../../types'
+import { linkAdventurerNames } from '../../utils/adventurer'
 import * as expeditionsApi from '../../api/expeditions'
 import eventBus from '../../eventBus'
 
@@ -31,20 +38,108 @@ interface PendingChoice {
 }
 const choiceQueue = ref<PendingChoice[]>([])
 
+// Dashboard state must not refresh before the event that caused it is ON
+// SCREEN. Once the popup appears the state may update — clicking out of an
+// unresolved popup should show the current party state.
+const pendingRefresh = ref(false)
+
+function maybeFlushRefresh() {
+  if (!pendingRefresh.value) return
+  pendingRefresh.value = false
+  // Bump the version (Dashboard, Tavern, Summary all watch it) now that the
+  // event is visible
+  gameTime.expeditionVersion++
+}
+
 function checkChoiceQueue() {
-  if (showChoicePopup.value || choiceQueue.value.length === 0) return
-  
+  if (showChoicePopup.value) return
+  if (choiceQueue.value.length === 0) {
+    maybeFlushRefresh()
+    return
+  }
+
   const next = choiceQueue.value.shift()!
   choiceMessage.value = next.message
   choiceExpeditionId.value = next.expeditionId
   choiceEventType.value = next.eventType
   showChoicePopup.value = true
+  // The event is on screen — state may update now
+  maybeFlushRefresh()
 }
 
 
-// Level-up popup
+// Upkeep day modal — the treasury and roster must not update until Collect
+const upkeepReport = ref<UpkeepDayData | null>(null)
+const showUpkeepModal = ref(false)
+const upkeepReopened = ref(false)
+const pendingPlayerFetch = ref(false)
+const showForecast = ref(false)
+const sheetAdvId = ref<number | null>(null)
+
+const shortRows = computed(() =>
+  (player.upkeepForecast?.rows ?? []).filter(r => r.short_cp > 0)
+)
+
+function reopenUpkeep() {
+  if (!upkeepReport.value) return
+  upkeepReopened.value = true
+  showUpkeepModal.value = true
+}
+
+function onUpkeepCollect() {
+  showUpkeepModal.value = false
+  if (upkeepReopened.value) return
+  const d = upkeepReport.value
+  if (d) {
+    if (d.prison_names.length > 0) {
+      const names = d.prison_names.length === 1
+        ? d.prison_names[0]
+        : `${d.prison_names.slice(0, -1).join(', ')} and ${d.prison_names[d.prison_names.length - 1]}`
+      notifications.add(
+        `${names} could not pay upkeep and ${d.prison_names.length === 1 ? 'was' : 'were'} sent to debtor's prison.`,
+        { type: 'warning', action: { label: 'Upkeep', callback: reopenUpkeep } },
+      )
+    }
+    notifications.add(
+      `Upkeep collected: ${formatCp(d.collected_cp)} from ${d.collected_from} adventurer${d.collected_from === 1 ? '' : 's'}.`,
+      { type: 'success', action: { label: 'Upkeep', callback: reopenUpkeep } },
+    )
+  }
+  if (pendingPlayerFetch.value) {
+    pendingPlayerFetch.value = false
+    player.fetchPlayer()
+    gameTime.expeditionVersion++
+  }
+}
+
+// Level-up popup. Every level-up gets one — it is the moment the player is
+// meant to feel. Several can land on one day, so they queue and show in turn.
+interface PendingLevelUp {
+  message: string
+  adventurers: AdventurerRef[]
+}
 const showLevelUpPopup = ref(false)
 const levelUpMessage = ref('')
+const levelUpAdventurers = ref<AdventurerRef[]>([])
+const levelUpQueue = ref<PendingLevelUp[]>([])
+
+function checkLevelUpQueue() {
+  if (showLevelUpPopup.value) return
+  // A pending decision or the upkeep ledger blocks the game and comes first;
+  // level-ups wait their turn rather than stacking on top of them
+  if (showChoicePopup.value || showUpkeepModal.value) return
+  const next = levelUpQueue.value.shift()
+  if (!next) return
+  levelUpMessage.value = next.message
+  levelUpAdventurers.value = next.adventurers
+  showLevelUpPopup.value = true
+}
+
+function dismissLevelUp() {
+  showLevelUpPopup.value = false
+  // Let the dialog close before the next one opens
+  requestAnimationFrame(checkLevelUpQueue)
+}
 
 // Stairs discovered popup
 const showStairsPopup = ref(false)
@@ -73,13 +168,27 @@ const typeMap: Record<string, 'info' | 'success' | 'error' | 'warning'> = {
   level_up: 'success',
 }
 
-function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null }>) {
+function processEvents(events: Array<{ type: string; message: string; expedition_id?: number | null; first_time?: boolean; event_subtype?: string | null; data?: UpkeepDayData | null; adventurers?: AdventurerRef[] }>) {
+  // On an upkeep day the ledger modal carries the whole story; its feed
+  // lines are suppressed and recreated as clickable notifications on Collect
+  const upkeepDay = events.some(e => e.type === 'upkeep' && e.data)
   for (const event of events) {
-    // First-time level up — show popup
-    if (event.type === 'level_up' && event.first_time) {
-      levelUpMessage.value = event.message
-      showLevelUpPopup.value = true
+    if (event.type === 'upkeep' && upkeepDay) {
+      if (event.data) {
+        upkeepReport.value = event.data
+        upkeepReopened.value = false
+        showUpkeepModal.value = true
+      }
       continue
+    }
+    // Every level-up gets a popup — levelling is a big deal. It also falls
+    // through to the feed below, so the day's level-ups stay readable after
+    // the popup is dismissed.
+    if (event.type === 'level_up') {
+      levelUpQueue.value.push({
+        message: event.message,
+        adventurers: event.adventurers ?? [],
+      })
     }
 
     // Stairs discovered — ALWAYS show popup, no exceptions
@@ -89,19 +198,20 @@ function processEvents(events: Array<{ type: string; message: string; expedition
       continue
     }
 
-    // Expedition choice — queue it
+    // Expedition choice — queue it. No expeditionVersion bump here: state
+    // must not refresh before the player has seen the queued event.
     if (event.type === 'expedition_choice' && event.expedition_id) {
       choiceQueue.value.push({
         message: event.message,
         expeditionId: event.expedition_id,
         eventType: event.event_subtype ?? '',
       })
-      gameTime.expeditionVersion++
       continue
     }
 
     const opts: Parameters<typeof notifications.add>[1] = {
       type: typeMap[event.type] ?? 'info',
+      adventurers: event.adventurers ?? [],
     }
     if (event.type === 'expedition_complete' && event.expedition_id) {
       opts.action = {
@@ -112,8 +222,10 @@ function processEvents(events: Array<{ type: string; message: string; expedition
     notifications.add(event.message, opts)
   }
   
-  // Try showing the first one in queue if nothing is showing
+  // Try showing the first one in queue if nothing is showing. Choices first:
+  // they gate the level-up queue, so their state must be settled.
   checkChoiceQueue()
+  checkLevelUpQueue()
 }
 
 async function popupChoice(choice: string) {
@@ -144,9 +256,10 @@ async function popupChoice(choice: string) {
     } else if (result.status === 'completed') {
       showChoicePopup.value = false
       await player.fetchPlayer()
+      const who = result.party_name ?? 'The party'
       const retMsg = result.auto_choice === 'retreat'
-        ? 'The party decided to retreat!'
-        : result.retreated ? 'The party retreated safely' : 'The expedition is complete!'
+        ? `${who} decided to retreat!`
+        : result.retreated ? `${who} retreated safely` : `${who} completed the expedition`
       notifications.add(retMsg,
         {
           type: result.retreated ? 'info' : 'success',
@@ -179,8 +292,9 @@ async function popupChoice(choice: string) {
 
 async function viewExpedition() {
   showChoicePopup.value = false
+  const wasTpk = choiceEventType.value === 'tpk'
   // If this was a TPK, auto-resolve the decision point so the expedition isn't stuck
-  if (choiceEventType.value === 'tpk' && choiceExpeditionId.value) {
+  if (wasTpk && choiceExpeditionId.value) {
     try {
       const result = await expeditionsApi.choose(choiceExpeditionId.value, 'press_on')
       if (result.events?.length) processEvents(result.events)
@@ -188,7 +302,10 @@ async function viewExpedition() {
       gameTime.expeditionVersion++
     } catch { /* expedition may already be resolved */ }
   }
-  if (choiceExpeditionId.value) {
+  if (wasTpk) {
+    // "Rest in Peace" returns to the dashboard, not the graveyard's summary
+    router.push('/')
+  } else if (choiceExpeditionId.value) {
     router.push(`/expedition/${choiceExpeditionId.value}/summary`)
   }
   // Check queue if they just closed the modal to navigate away
@@ -201,9 +318,17 @@ const skipping = ref(false)
 async function advanceDay() {
   try {
     const result = await gameTime.advanceDay()
-    await player.fetchPlayer()
-    notifications.onDayAdvanced(result.current_day) // Moved here
-    processEvents(result.events) // Pass only events
+    // Popups open in the same tick as the response — no awaits before them,
+    // so nothing can render post-advance state ahead of the event popup
+    notifications.onDayAdvanced(result.current_day)
+    processEvents(result.events)
+    pendingRefresh.value = true
+    maybeFlushRefresh()
+    if (showUpkeepModal.value) {
+      pendingPlayerFetch.value = true
+    } else {
+      await player.fetchPlayer()
+    }
   } catch {
     notifications.add('Failed to advance time', 'error')
   }
@@ -213,15 +338,28 @@ async function skipToEvent() {
   skipping.value = true
   try {
     const result = await gameTime.skipToEvent()
-    await player.fetchPlayer()
     notifications.onDayAdvanced(result.current_day)
     processEvents(result.events)
+    pendingRefresh.value = true
+    maybeFlushRefresh()
+    if (showUpkeepModal.value) {
+      pendingPlayerFetch.value = true
+    } else {
+      await player.fetchPlayer()
+    }
   } catch (e) {
     notifications.add('Failed to skip time', 'error')
   } finally {
     skipping.value = false
   }
 }
+
+// Any popup closing may leave the queue drained — flush the held refresh
+watch([showChoicePopup, showStairsPopup, showLevelUpPopup, showUpkeepModal], () => {
+  checkChoiceQueue()
+  checkLevelUpQueue()
+  maybeFlushRefresh()
+})
 
 onMounted(() => {
   eventBus.on('game-events', processEvents)
@@ -245,6 +383,25 @@ onUnmounted(() => {
     <div class="panel-section">
       <h3 class="section-label">Treasury</h3>
       <div class="treasury-value">{{ formatCurrency(player.treasuryGold, player.treasurySilver, player.treasuryCopper) }}</div>
+      <div
+        v-if="player.upkeepForecast && player.upkeepForecast.total_cp > 0"
+        class="forecast-line"
+        @click="showForecast = true"
+      >
+        <span class="forecast-amount">+{{ formatCp(player.upkeepForecast.total_cp) }}</span>
+        <span class="forecast-when">upkeep · day {{ player.upkeepForecast.next_day }}</span>
+      </div>
+      <div v-if="shortRows.length > 0" class="at-risk" @click="showForecast = true">
+        <div class="at-risk-head">
+          {{ shortRows.length }} adventurer{{ shortRows.length === 1 ? '' : 's' }} cannot afford upkeep:
+        </div>
+        <div
+          v-for="r in shortRows"
+          :key="r.id"
+          class="at-risk-name"
+          @click.stop="sheetAdvId = r.id"
+        >{{ r.name }}</div>
+      </div>
     </div>
 
     <div class="time-controls">
@@ -264,7 +421,14 @@ onUnmounted(() => {
         class="notif"
         :class="notification.type"
       >
-        <span class="notif-text">{{ notification.text }}</span>
+        <span class="notif-text"><template
+          v-for="(seg, i) in linkAdventurerNames(notification.text, notification.adventurers)"
+          :key="i"
+        ><span
+          v-if="seg.advId"
+          class="adv-name-link"
+          @click.stop="sheetAdvId = seg.advId"
+        >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></span>
         <span
           v-if="notification.action"
           class="notif-action"
@@ -293,18 +457,42 @@ onUnmounted(() => {
     @close="viewExpedition"
   />
 
+  <UpkeepDayModal
+    :is-open="showUpkeepModal"
+    :data="upkeepReport"
+    :reopened="upkeepReopened"
+    @collect="onUpkeepCollect"
+    @open-sheet="sheetAdvId = $event"
+  />
+
+  <UpkeepForecastModal
+    :is-open="showForecast"
+    :forecast="player.upkeepForecast"
+    @close="showForecast = false"
+    @open-sheet="sheetAdvId = $event"
+  />
+
+  <AdventurerSheetModal :adventurer-id="sheetAdvId" @close="sheetAdvId = null" />
+
   <!-- Level-Up Popup -->
   <ModalDialog
     :is-open="showLevelUpPopup"
     title="Level Up!"
-    @close="showLevelUpPopup = false"
+    @close="dismissLevelUp"
   >
     <div class="choice-popup">
-      <p class="choice-popup-msg">{{ levelUpMessage }}</p>
+      <p class="choice-popup-msg"><template
+        v-for="(seg, i) in linkAdventurerNames(levelUpMessage, levelUpAdventurers)"
+        :key="i"
+      ><span
+        v-if="seg.advId"
+        class="adv-name-link"
+        @click.stop="sheetAdvId = seg.advId"
+      >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></p>
       <div class="choice-popup-buttons">
         <button
           class="btn btn-primary"
-          @click="showLevelUpPopup = false"
+          @click="dismissLevelUp"
         >
           Awesome!
         </button>
@@ -569,4 +757,70 @@ onUnmounted(() => {
   min-width: 120px;
 }
 
+
+.forecast-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.forecast-amount {
+  font-size: 11px;
+  color: #4ade80;
+  text-decoration: underline;
+  text-decoration-color: #374151;
+  text-underline-offset: 2px;
+}
+
+.forecast-line:hover .forecast-amount {
+  text-decoration-color: #4ade80;
+}
+
+.forecast-when {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.at-risk {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.at-risk-head {
+  font-size: 10px;
+  color: #ef4444;
+}
+
+.at-risk-name {
+  font-size: 10px;
+  color: #ef4444;
+  padding-left: 8px;
+  text-decoration: underline;
+  text-decoration-color: rgba(239, 68, 68, 0.3);
+  text-underline-offset: 2px;
+}
+
+.at-risk-name:hover {
+  text-decoration-color: #ef4444;
+}
+
+/* Adventurer names inside notification and popup text. Rendered inline in
+   this component (not via a wrapper component) so the name is always visible
+   even if a stray rule targets nested spans. */
+.adv-name-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.adv-name-link:hover {
+  text-decoration-style: solid;
+}
 </style>

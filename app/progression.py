@@ -98,20 +98,26 @@ def get_class_level_bonuses(adventurer_class: AdventurerClass | str, new_level: 
     return {}
 
 
-def apply_level_ups(adv, keep, events) -> None:
-    """Check for and apply level ups to an adventurer, adding events."""
-    from app.schemas import GameEvent
+def apply_level_ups(adv, keep) -> list[dict]:
+    """Apply every level an adventurer has earned, newest XP included.
 
+    Called the moment XP is credited, not at end of day, so a level-up lands
+    with the expedition that earned it. Returns one event dict per level
+    gained; callers wrap them in GameEvent or pass them along as-is.
+    """
+    events = []
     while check_for_level_up(adv.level, adv.xp, adv.adventurer_class):
         old_level = adv.level
         adv.level += 1
         hp_gain = calculate_hp_gain(adv.adventurer_class, old_level)
         adv.hp_max += hp_gain
         adv.hp_current += hp_gain
-        events.append(GameEvent(
-            type="level_up",
-            message=f"{adv.name} leveled up to {adv.level}! (+{hp_gain} HP)",
-            first_time=adv.level > (keep.highest_level_achieved or 1),
-        ))
+        events.append({
+            "type": "level_up",
+            "message": f"{adv.name} leveled up to {adv.level}! (+{hp_gain} HP)",
+            "first_time": adv.level > (keep.highest_level_achieved or 1),
+            "adventurers": [{"id": adv.id, "name": adv.name}],
+        })
         if adv.level > (keep.highest_level_achieved or 1):
             keep.highest_level_achieved = adv.level
+    return events

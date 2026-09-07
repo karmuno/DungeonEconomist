@@ -136,12 +136,8 @@ def _do_turn_attempt(cleric: dict, monsters: list[dict]) -> tuple[list[dict], di
 
 # ─── MU/Elf spell ─────────────────────────────────────────────────────────────
 
-_SPELL_NAMES = {1: "Sleep", 2: "Hold Person", 3: "Fireball",
-                4: "Lightning Bolt", 5: "Cloudkill"}
-
-
-def get_spell_name(level: int) -> str:
-    return _SPELL_NAMES.get(level, "Disintegrate")
+def get_spell_name(level: int) -> str:  # noqa: ARG001 — one spell for the MVP; level kept for callers
+    return "Sleep"
 
 
 # ─── Attack resolution ────────────────────────────────────────────────────────
@@ -168,6 +164,9 @@ def _do_attack(attacker: dict, target: dict) -> dict:
         "target": target["name"],
         "roll": roll,
         "needed": needed,
+        # d20-style presentation of the same check: roll + attack_bonus >= target_ac
+        "attack_bonus": 20 - thac0,
+        "target_ac": 20 - target["ac"],
         "hit": hit,
         "damage": damage,
         "target_died": target_died,
@@ -245,6 +244,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 "cleric_turned": False,
                 "monsters_turned": 0,
                 "revived_adventurers": [],
+                "revivals": [],
                 "hp_lost": 0,
                 "xp_earned": xp,
                 "monsters_killed": monsters_killed,
@@ -465,6 +465,9 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             break
 
     # ── Post-combat: Potion auto-revive ────────────────────────────────────────
+    # Every revive is logged so the turn-by-turn can explain a "slain" adventurer
+    # who is still standing, and so the healing is credited to whoever provided it.
+    revivals: list[dict] = []
     potion_revived = []
     if not party_fled:
         for pc in party:
@@ -474,6 +477,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 pc["potion_consumed"] = True
                 potion_revived.append(pc["name"])
                 revived_adventurers.append(pc["name"])
+                revivals.append({"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"})
 
     # ── Post-combat: Cleric revival ───────────────────────────────────────────
     if not party_fled:
@@ -492,6 +496,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     break
                 dead["current_hp"] = 1
                 revived_adventurers.append(dead["name"])
+                revivals.append({"name": dead["name"], "hp": 1, "healer": pc["name"], "source": "cleric"})
                 capacity -= 1
             pc["revivals_remaining"] = capacity
 
@@ -516,7 +521,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 old_hp = target["current_hp"]
                 target["current_hp"] = min(target.get("hit_points", old_hp + amount), old_hp + amount)
                 healed = target["current_hp"] - old_hp
-                healed_adventurers.append({"name": target["name"], "hp": healed})
+                healed_adventurers.append({"name": target["name"], "hp": healed, "healer": pc["name"]})
                 charges -= 1
             pc["heals_remaining"] = charges
 
@@ -547,6 +552,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
         "cleric_turned": cleric_turned,
         "monsters_turned": monsters_turned,
         "revived_adventurers": revived_adventurers,
+        "revivals": revivals,
         "healed_adventurers": healed_adventurers,
         "hp_lost": hp_lost_party,
         "xp_earned": xp,
@@ -564,6 +570,24 @@ class EncounterType(Enum):
     TRAP = "Trap/Hazard"
     CLUE = "Clue or Empty Room"
     TREASURE = "Unguarded Treasure"
+
+
+def starting_resources(party: list[dict]) -> tuple[int, int]:
+    """Spell and heal charges a fresh party enters the dungeon with.
+
+    Mirrors the initialization in Expedition.__init__ — keep the two in sync.
+    Returns (spells, heals).
+    """
+    spells = 0
+    heals = 0
+    for member in party:
+        cls = member.get("character_class", "")
+        level = member.get("level", 1)
+        if cls == "Cleric":
+            heals += level // 2
+        if cls in ("Magic-User", "Elf"):
+            spells += level * member.get("spell_multiplier", 1) + member.get("scroll_count", 0)
+    return spells, heals
 
 
 class Expedition:

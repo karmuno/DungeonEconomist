@@ -1,5 +1,6 @@
 import { get, post } from './client'
 import type { ExpeditionResult, ExpeditionSummary, ExpeditionCreate } from '../types'
+import type { AdventurerRef } from '../types'
 
 export function list(): Promise<ExpeditionSummary[]> {
   return get<ExpeditionSummary[]>('/expeditions/')
@@ -35,6 +36,8 @@ export interface ExpeditionSummaryDetail {
   duration_days: number
   result: string
   dungeon_level?: number
+  dungeon_name?: string | null
+  actual_return_day?: number | null
   member_results: ExpeditionMemberResult[]
   total_loot: number
   total_silver: number
@@ -74,8 +77,9 @@ export interface ChoiceResponse {
   status: string
   retreated?: boolean
   auto_choice?: string | null
+  party_name?: string | null
   pending_event?: PendingEvent
-  events?: Array<{ type: string; message: string }>
+  events?: Array<{ type: string; message: string; first_time?: boolean; adventurers?: AdventurerRef[] }>
   next_event?: { message: string; expedition_id: number; event_type: string }
 }
 
