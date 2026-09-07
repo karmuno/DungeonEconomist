@@ -797,9 +797,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
 
     # Hint for new players
     hint = None
-    if party_count == 0 and adventurer_count > 0:
-        hint = "Form a party in the Tavern to get started."
-    elif party_count > 0 and len(active_expeditions) == 0:
+    if party_count > 0 and len(active_expeditions) == 0:
         hint = "launch_expedition"
     elif not built_types:
         cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
