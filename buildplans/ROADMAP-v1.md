@@ -87,7 +87,10 @@ minimums. Not an analytics project, not a security review, not a load test.
 - [ ] Restore from a backup once, on purpose. Write the steps into `docs/DEPLOYMENT.md`
 
 ### Don't get owned on day one
-- [ ] `pip-audit` and `npm audit`; fix criticals only
+- [ ] Move Python deps to a `[project]` table in `pyproject.toml` with a real `uv.lock`
+      (dev tools in a `dev` group); Dockerfile and README install from the lock. Today's
+      `uv.lock` is a phantom: no `[project]` table, so `uv sync` installs nothing
+- [ ] `pip-audit` and `npm audit` against that lock; fix criticals only
 - [ ] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production
 - [ ] 30-minute smoke in Chrome, Firefox, Safari
 
