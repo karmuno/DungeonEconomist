@@ -1,0 +1,2 @@
+# Shell scripts must stay LF: npm invokes them through sh on Windows, where CRLF breaks `set -o pipefail`.
+*.sh text eol=lf
