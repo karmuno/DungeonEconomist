@@ -98,6 +98,22 @@ function partyStatusClass(status: string): string {
   }
 }
 
+type DashboardParty = DashboardStats['parties'][number]
+
+// The status badge is the shortest path to whatever that party is doing:
+// out delving -> its expedition, otherwise -> launch the next one.
+function partyStatusRoute(p: DashboardParty): string | null {
+  if (p.status === 'On Expedition') {
+    return p.expedition_id ? `/expedition/${p.expedition_id}/summary` : null
+  }
+  return p.members.length > 0 ? `/launch-expedition/${p.id}` : null
+}
+
+function goToPartyStatus(p: DashboardParty) {
+  const route = partyStatusRoute(p)
+  if (route) router.push(route)
+}
+
 function toggleParty(id: number) {
   const next = new Set(expandedPartyIds.value)
   if (next.has(id)) {
@@ -359,7 +375,12 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
               <span class="party-name">{{ p.name }}</span>
               <span class="party-size">{{ p.member_count }}/6</span>
               <span class="party-avg-level">avg Lv {{ avgPartyLevel(p.members) }}</span>
-              <span class="badge" :class="partyStatusClass(p.status)">{{ p.status }}</span>
+              <span
+                class="badge"
+                :class="[partyStatusClass(p.status), { 'status-link': partyStatusRoute(p) }]"
+                :title="p.status === 'On Expedition' ? 'View expedition' : partyStatusRoute(p) ? 'Launch expedition' : undefined"
+                @click.stop="goToPartyStatus(p)"
+              >{{ p.status }}</span>
             </div>
             <div v-if="expandedPartyIds.has(p.id)" class="party-members">
               <div
@@ -552,6 +573,19 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .status-healing { background: rgba(241, 196, 15, 0.15); color: #fbbf24; }
 .status-expedition { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
 .status-empty { background: rgba(128, 128, 128, 0.15); color: #888; }
+
+/* A status that goes somewhere: dotted underline, brightening on hover */
+.status-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: currentColor;
+  text-underline-offset: 2px;
+}
+.status-link:hover {
+  text-decoration-style: solid;
+  filter: brightness(1.25);
+}
 
 /* Unassigned */
 .unassigned-list { display: flex; flex-direction: column; gap: 3px; }

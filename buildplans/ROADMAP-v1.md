@@ -10,8 +10,8 @@ the evidence those 10 people produce.
 | :--- | :--- |
 | Released (tagged, on `main`, deployed demo) | **v0.8.1** (2026-03-26) |
 | In progress | **v0.9 — The Polish Release**, on branch `qa` (`VERSION` still `0.8.1`) |
-| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names |
-| Next up | The two remaining v0.9 items below, then v0.9.1 Safe to Invite |
+| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names; clickable party status |
+| Next up | One full playthrough, then tag v0.9 and start v0.9.1 Safe to Invite |
 | Last code commit | 2026-09-07 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -72,15 +72,21 @@ changed because of it? What meaningful action can I take next?*
       carry the ids of everyone they name, so the link is exact rather than guessed from
       the text; the expedition choice and summary views now route their events through the
       side panel instead of flattening them to bare strings
+- [x] A party's status badge on the Dashboard is a link to what that party is doing:
+      Ready or Healing opens Launch Expedition for it, On Expedition opens that
+      expedition's summary
 
-### Remaining — the red cells only
-- [ ] Dashboard empty-state prompts: no adventurers → Recruit · no party → Form a party ·
-      idle party → Launch. This *is* the onboarding for v1.0
-- [ ] One softlock check: all-dead roster and bankrupt keep. Confirm the player can still
-      recruit and continue. Fix softlocks only, no polish
+### Cut 2026-09-07 — both rested on a false premise
+- Dashboard empty-state prompts (no adventurers → Recruit · no party → Form a party) and
+  the all-dead / bankrupt softlock check. Both assumed recruitment is a player action with
+  a cost. It is not: `run_daily_recruitment` rolls free every day inside `advance_day`, so
+  there is no Recruit button to prompt and no state a player can be stuck in. From an empty
+  keep the only move is Skip to Event until enough adventurers have arrived to delve, and
+  that already works. The real gap they were reaching for — getting from the Dashboard into
+  the loop in one click — is the status-badge link above
 
-Then one full playthrough (Create Account → Recruit → Form Party → Expedition → Heal → Repeat
-→ Upkeep → Build) and tag.
+Then one full playthrough (Create Account → Skip to Event until adventurers arrive → Form
+Party → Expedition → Heal → Repeat → Upkeep → Build) and tag.
 
 ---
 
