@@ -182,6 +182,20 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
                 ledger_rows.append(row)
                 continue
 
+            # In the dungeon and short: pay what they can now, carry the rest as
+            # a debt settled on return (loot may cover it). Prison waits at the gate.
+            if adv.on_expedition:
+                paid_now = adv.total_copper()
+                if paid_now > 0:
+                    adv.subtract_currency(paid_now)
+                    keep.add_treasury(paid_now)
+                    keep.total_score += paid_now
+                    total_copper_transferred += paid_now
+                adv.upkeep_debt_cp = (adv.upkeep_debt_cp or 0) + (cost_copper - paid_now)
+                row["outcome"] = "owed"
+                ledger_rows.append(row)
+                continue
+
             # Bankruptcy is permanent — adventurer goes to debtor's prison
             remaining = adv.total_copper()
             if remaining > 0:

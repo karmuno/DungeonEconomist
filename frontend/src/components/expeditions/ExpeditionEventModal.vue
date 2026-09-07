@@ -323,7 +323,7 @@ function hpColor(member: ExpeditionMemberResult): string {
             <div class="grid-head num">Dmg Dealt</div>
             <div class="grid-head num">Dmg Taken</div>
             <div class="grid-head num">Spells Cast</div>
-            <div class="grid-head num">Damage Healed</div>
+            <div class="grid-head num">HP Healed</div>
             <template v-for="row in ledgerRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
                 <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>

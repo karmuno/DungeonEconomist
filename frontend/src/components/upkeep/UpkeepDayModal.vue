@@ -54,9 +54,8 @@ function fmtXp(xp: number): string {
         </button>
       </div>
 
-      <!-- 2. At the Keep ledger -->
+      <!-- 2. Ledger -->
       <div v-if="data.rows.length" class="uk-section">
-        <div class="section-label">At the Keep</div>
         <div class="ledger-grid">
           <div class="grid-head">Adventurer</div>
           <div class="grid-head num">XP</div>
@@ -73,6 +72,7 @@ function fmtXp(xp: number): string {
               <span class="cell-sub">{{ row.adventurer_class }} Lv {{ row.level }}</span>
               <span v-if="row.outcome === 'prison'" class="prison-badge">Debtor's Prison</span>
               <span v-else-if="row.outcome === 'sacrificed'" class="sacrificed-badge">Items sacrificed</span>
+              <span v-else-if="row.outcome === 'owed'" class="owed-badge">Pays on return</span>
             </div>
             <div class="cell num xp-cell">{{ fmtXp(row.xp) }}</div>
             <div class="cell num upkeep-cell" :class="{ 'text-prison': row.outcome === 'prison' }">
@@ -271,6 +271,17 @@ function fmtXp(xp: number): string {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.15);
   white-space: nowrap;
+}
+
+.owed-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.15);
 }
 
 .sacrificed-badge {

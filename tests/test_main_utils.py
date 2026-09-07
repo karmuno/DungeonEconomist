@@ -538,14 +538,14 @@ _QUIET_SIM = {
 }
 
 
-def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict):
-    """Three 2000-XP adventurers (100gp each) out on an uneventful expedition."""
+def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict, gold: int = 100):
+    """Three 2000-XP adventurers (100gp each by default) out on an uneventful expedition."""
     from app.models import Expedition
 
     party = Party(name="Away Team", keep_id=keep.id, on_expedition=True)
     db.add(party)
     db.commit()
-    members = [create_adventurer_db(db, keep.id, name=f"Away{i}", xp=2000, gold=100) for i in range(3)]
+    members = [create_adventurer_db(db, keep.id, name=f"Away{i}", xp=2000, gold=gold) for i in range(3)]
     for m in members:
         m.on_expedition = True
         party.members.append(m)
@@ -596,6 +596,48 @@ def test_adventurers_in_the_dungeon_pay_upkeep_on_the_day(client: TestClient, db
     for m in members:
         db_session.refresh(m)
         assert m.total_copper() == 10000 - 2000
+
+
+def test_short_adventurers_in_the_dungeon_settle_on_return(client: TestClient, db_session: Session):
+    """Can't cover upkeep while away: they pay what they have on the day and
+    carry the rest. Loot on return covers it, so nobody goes to prison."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 29
+    db_session.commit()
+    sim = {**_QUIET_SIM, "treasure_total": 90}  # 90gp split three ways = 30gp each
+    party, members, exp = _party_away(db_session, keep, start_day=29, return_day=31, sim=sim, gold=10)
+
+    day30 = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
+    ledger = _upkeep_event(day30)
+    assert all(r["outcome"] == "owed" for r in ledger["data"]["rows"])
+    assert ledger["data"]["prison_names"] == []
+    db_session.refresh(keep)
+    assert keep.treasury_total_copper() == 3 * 1000  # the 10gp each they had
+    for m in members:
+        db_session.refresh(m)
+        assert m.upkeep_debt_cp == 1000 and m.total_copper() == 0 and not m.is_bankrupt
+
+    day31 = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
+    assert sum("paid 10gp in overdue upkeep" in e["message"] for e in day31) == 3
+    db_session.refresh(keep)
+    assert keep.treasury_total_copper() == 3 * 2000
+    for m in members:
+        db_session.refresh(m)
+        assert m.upkeep_debt_cp == 0 and m.total_copper() == 3000 - 1000 and not m.is_bankrupt
+
+
+def test_short_adventurers_with_no_loot_go_to_prison_on_return(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 29
+    db_session.commit()
+    party, members, exp = _party_away(db_session, keep, start_day=29, return_day=31, sim=_QUIET_SIM, gold=0)
+
+    client.post("/time/advance-day", headers=auth_headers(token, keep.id))  # day 30: owed
+    day31 = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
+    assert sum("sent to debtor's prison" in e["message"] for e in day31) == 3
+    for m in members:
+        db_session.refresh(m)
+        assert m.is_bankrupt and m.bankruptcy_day == 31 and m.upkeep_debt_cp == 0
 
 
 def test_disbanded_party_keeps_its_expeditions(client: TestClient, db_session: Session):

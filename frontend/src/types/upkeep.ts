@@ -10,7 +10,8 @@ export interface UpkeepLedgerRow {
   upkeep_cp: number
   purse_cp: number
   after_cp: number
-  outcome: 'paid' | 'sacrificed' | 'prison'
+  /** owed: in the dungeon and short; the debt is settled when the party returns */
+  outcome: 'paid' | 'sacrificed' | 'prison' | 'owed'
 }
 
 export interface UpkeepDayData {

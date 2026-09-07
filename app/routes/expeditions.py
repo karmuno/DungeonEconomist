@@ -286,6 +286,38 @@ def _finalize_expedition(
             party_label = party.name if party else "The party"
             events.append({"type": "loot", "message": f"{party_label} brought back {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each)"})
 
+        # Settle upkeep that came due in the dungeon, now that loot is in hand.
+        # Those who still can't pay go to debtor's prison from the keep's gate.
+        for member in list(living_members):
+            debt = member.upkeep_debt_cp or 0
+            if debt <= 0:
+                continue
+            if member.total_copper() >= debt:
+                member.subtract_currency(debt)
+                keep.add_treasury(debt)
+                keep.total_score += debt
+                member.upkeep_debt_cp = 0
+                g, s, c = copper_to_parts(debt)
+                events.append({"type": "upkeep", "message": f"{member.name} paid {format_currency(g, s, c)} in overdue upkeep on return"})
+            else:
+                remaining = member.total_copper()
+                if remaining > 0:
+                    keep.add_treasury(remaining)
+                    keep.total_score += remaining
+                member.gold = 0
+                member.silver = 0
+                member.copper = 0
+                member.upkeep_debt_cp = 0
+                member.is_bankrupt = True
+                member.bankruptcy_day = keep.current_day
+                member.is_available = False
+                member.parties = []
+                living_members.remove(member)
+                events.append({"type": "upkeep", "message": f"{member.name} couldn't pay overdue upkeep and was sent to debtor's prison"})
+        for member in party.members:
+            if member.is_dead:
+                member.upkeep_debt_cp = 0
+
         party.members = [m for m in party.members if not m.is_dead and not m.is_bankrupt]
 
         # TPK cleanup: disable auto-delve so a ghost party doesn't keep launching.
