@@ -4,15 +4,15 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-09-06**
+**Status as of 2026-09-07**
 
 | | |
 | :--- | :--- |
 | Released (tagged, on `main`, deployed demo) | **v0.8.1** (2026-03-26) |
 | In progress | **v0.9 — The Polish Release**, on branch `qa` (`VERSION` still `0.8.1`) |
-| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit |
+| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history |
 | Next up | The four remaining v0.9 items below, then v0.9.1 Safe to Invite |
-| Last code commit | 2026-08-23 |
+| Last code commit | 2026-09-07 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
 
@@ -43,10 +43,24 @@ changed because of it? What meaningful action can I take next?*
 - [x] Party lifecycle: dead members leave, empty parties disband at end of day (audit C11);
       return copy "[Party] brought back X (Y each)" (B11)
 - [x] Building costs cut to 10% (50/250/1250gp), provisional
+- [x] Class ability text rewritten (2026-09-07, from `class-text-rewrite.csv`): one d20-style
+      TO-HIT replaces THAC0 + ATK; HD, LVL, WEALTH, UPKEEP and items carry help text; every
+      unlocked ability is listed with its per-expedition uses; Cleric abilities match the sim
+      (Turn Undead, Revive, Cure Light Wounds); one spell (Sleep). Combat log reads
+      "roll + bonus To-Hit vs Armor Class"; heals, revives (potion or Cleric) and scroll casts
+      are logged; HP Healed credits the healer
+- [x] Hide Tier II+ building UI (upgrade button, next-tier block, Tier II+ slots and stats)
+      until tier slot placement is fixed — see note under Post-cohort backlog. Data and the
+      upgrade endpoint stay
+- [x] Upkeep simplified: everyone pays on the day, in the dungeon or not; building staff
+      exempt. Someone away and short pays what they have and settles the rest on return
+      (loot counts); prison only at the gate. Deferred upkeep is gone
+- [x] Disbanded parties (last member removed, wiped, or deleted) keep their row and their
+      expeditions, so the Expeditions tab keeps the history. Dashboard parties expand
+      independently; Dwarves may train at the Training Grounds; retreat and return
+      notifications name the party
 
 ### Remaining — the red cells only
-- [ ] Rewrite all class ability text; replace THAC0 / HD jargon with plain labels or tooltips
-      (audit row 15, character sheet)
 - [ ] Fix Expedition Summary showing the original end date after an early retreat (row 9)
 - [ ] Resolve one expedition's pending decision individually (row 10). Cost-check first; if
       it is more than an evening, move it to the backlog
@@ -230,6 +244,17 @@ shows it matters.
 - Analytics beyond `player_events`
 - Wizard's Tower, Fighter Stronghold, non-combat events, room flavor text
 - Engine extraction into a shared subtree (`engine-extraction.md`)
+- Retirement bonuses (Temple, Training Grounds, Library, Smithy): `retire_bonus_desc` in
+  `buildings.json` is flavor text only, not wired to any effect — `retired_adventurer_id` is
+  just a FK recording who retired where. Only the assigned-staff tier bonuses are implemented
+- Real 3-tier building implementation with actual tier slots. Today `max_assigned` /
+  `min_adventurer_level` per tier (`app/buildings.py` `get_tier_slots`) only gate who can be
+  *assigned* (`can_assign_new`'s greedy bottom-up fill); the Tier II/III bonus math in
+  `app/routes/expeditions.py` (`_get_building_bonuses`) re-derives "who counts" by scanning
+  `assigned_adventurers` for a level floor, with no idea which nominal tier slot anyone
+  occupies. Needs an actual occupied-tier field per assignment (not just a level check) so a
+  building's total assigned count can't blow past its Tier II/III slot count for bonus
+  purposes. Tier II+ UI hidden in v0.9 pending this (see above)
 
 ## Other documents in this folder
 - `ROADMAP-v0.6.md`, `BuildPlans.md`, `MVPBuildPlan.md`, `Prototype.md`, `DesignDoc.txt`:
