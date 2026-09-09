@@ -484,25 +484,27 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             revivals.append({"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"})
 
     # ── Post-combat: Cleric revival ───────────────────────────────────────────
-    if not party_fled:
-        for pc in party:
-            if pc.get("character_class") != "Cleric":
-                continue
-            if pc["current_hp"] <= 0:
-                continue
-            if pc.get("level", 1) < 2:
-                continue
-            capacity = pc.get("revivals_remaining", 0)
-            dead_allies = [m for m in party
-                           if m["current_hp"] <= 0 and m["name"] not in revived_adventurers]
-            for dead in dead_allies:
-                if capacity <= 0:
-                    break
-                dead["current_hp"] = 1
-                revived_adventurers.append(dead["name"])
-                revivals.append({"name": dead["name"], "hp": 1, "healer": pc["name"], "source": "cleric"})
-                capacity -= 1
-            pc["revivals_remaining"] = capacity
+    # Fires even on a rout. The revival is an abstraction: it represents the Cleric
+    # reaching the ally *before* they die, not raising a corpse afterwards, even though
+    # the simulation resolves it after the fact. Running away does not undo that.
+    for pc in party:
+        if pc.get("character_class") != "Cleric":
+            continue
+        if pc["current_hp"] <= 0:
+            continue
+        if pc.get("level", 1) < 2:
+            continue
+        capacity = pc.get("revivals_remaining", 0)
+        dead_allies = [m for m in party
+                       if m["current_hp"] <= 0 and m["name"] not in revived_adventurers]
+        for dead in dead_allies:
+            if capacity <= 0:
+                break
+            dead["current_hp"] = 1
+            revived_adventurers.append(dead["name"])
+            revivals.append({"name": dead["name"], "hp": 1, "healer": pc["name"], "source": "cleric"})
+            capacity -= 1
+        pc["revivals_remaining"] = capacity
 
     # ── Post-combat: Cleric heal ──────────────────────────────────────────────
     healed_adventurers: list[dict] = []

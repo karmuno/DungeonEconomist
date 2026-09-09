@@ -155,11 +155,10 @@ this release rather than opening a fourth gate.
       adventurers across 468 expeditions, 793 died and **773 of those deaths were at level 1**
       — 3.9% ever reached level 2. A rout also no longer forfeits recovery: the potion
       auto-revive and the Cleric heal now fire even when the party flees. XP stays 0 on a
-      flee, as before.
-      **Open question, deliberately not decided:** a third guard still blocks **Cleric
-      *revival*** on a rout (`app/expedition.py:487`). Leaving it means a routed party
-      abandons its fallen, which is a real cost that is not a death spiral; removing it makes
-      recovery consistent. Cody's call
+      flee, as before. **Cleric revival fires on a rout too** (Cody, 2026-09-09): the
+      revival is an abstraction for the Cleric reaching an ally *before* they die, not for
+      raising a corpse afterwards, so running away does not undo it. All three post-combat
+      recovery steps now behave the same way
 - [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
       (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
       localStorage, never its validity. A stale token therefore renders the dashboard, every
