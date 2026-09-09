@@ -142,8 +142,16 @@ this release rather than opening a fourth gate.
       `Assigned` added to the default so the roster shows every living adventurer.
 
 ### See when it breaks
-- [x] Server-side exception logging: **Sentry** (`sentry-sdk[fastapi]==2.69.1`, wired in
-      `app/main.py`, 2026-09-09)
+- [x] Exception logging on **both** sides: **Sentry**. Backend `sentry-sdk[fastapi]==2.69.1`
+      in `app/main.py`; frontend `@sentry/vue` in `frontend/src/main.ts` (2026-09-09), its own
+      project and DSN, errors only — no tracing, no session replay. Both gate on a DSN being
+      set, so local dev reports nothing. Both tag `release` with the same build string
+      (`app/version.py` mirrors `vite.config.ts`), so an error names the build it came from and
+      "did my fix land?" is answerable. `FastAPI(version=...)` now reads the same source
+      instead of a hardcoded `0.8.1`. **Frontend needs `VITE_SENTRY_DSN` set wherever the
+      bundle is BUILT** — Vite inlines it — see `.env.example`.
+      Not done: source-map upload, so production traces name minified lines. Vue component
+      names and breadcrumbs still come through; add `@sentry/vite-plugin` if that isn't enough
 
 ### See what players do
 - [x] **Graveyard and Debtor's Prison get the Roster's filters** (2026-09-09, Cody): search,
@@ -276,7 +284,11 @@ shows it matters.
 ### Cut from the old v0.9.1 / v0.9.2 / v0.9.3
 - Attachment events beyond death and level-up (high-level death, party wipe, continued after
   a meaningful death) as instrumented events
-- Failed-API-call and critical-UI-failure visibility
+- Failed-API-call and critical-UI-failure visibility. **Partly reversed 2026-09-09:**
+  uncaught frontend errors now reach Sentry. Still cut: deliberate reporting of failed API
+  calls that the UI swallows, and frontend error boundaries. Reversed because every bug found
+  in the 2026-09-09 pass — the auth flash, the empty Tavern — was frontend, and a backend-only
+  Sentry would have seen none of them
 - New Postgres integration tests (beyond running the existing suite)
 - Authentication-flow review, input-validation review
 - Load and concurrency testing; VPS capacity estimate; slow-query work

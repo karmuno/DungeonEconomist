@@ -8,12 +8,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import create_tables
+from app.version import get_app_version
 
 if os.environ.get("SENTRY_DSN"):
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
         send_default_pii=True,
         traces_sample_rate=0,
+        release=get_app_version(),
     )
 from app.routes import admin as admin_routes
 from app.routes import adventurers, expeditions, game, parties
@@ -28,7 +30,7 @@ create_tables()
 app = FastAPI(
     title="Venturekeep",
     description="Retro RPG Party Management Simulation",
-    version="0.8.1"
+    version=get_app_version(),
 )
 
 # CORS — lock down in production, permissive for local dev

@@ -32,6 +32,9 @@ COPY alembic.ini ./
 # Copy built frontend from first stage
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
+# Bake the version in: this stage has no .git/, VERSION or scripts/ to compute it
+COPY --from=version-info /version.txt ./version.txt
+
 # Render sets PORT env var; default to 8000
 ENV PORT=8000
 EXPOSE ${PORT}

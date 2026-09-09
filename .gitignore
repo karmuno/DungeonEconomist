@@ -185,3 +185,6 @@ frontend/dist/
 # Claude Code — ignore local state, allow shared rules
 .claude/*
 !.claude/rules/
+
+# Baked at Docker build time by scripts/get-version.sh
+version.txt
