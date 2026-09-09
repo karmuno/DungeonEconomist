@@ -107,17 +107,26 @@ this release rather than opening a fourth gate.
 
 - [ ] **The character sheet shows "+1" without saying what it does.** Half-built already:
       `itemHelp()` (`AdventurerDetail.vue:44`) covers **weapon and armor only**, and only as a
-      hover `title` — invisible on touch and undiscoverable anywhere. `itemBonusLabel()`
-      (`frontend/src/utils/adventurer.ts:12`) returns a bare `+N` for weapon, armor and
-      artifact and an **empty string for potion and scroll**, so a consumable shows an emoji
-      and a name and nothing else. Every effect is already defined in `app/magic_items.py`
+      hover `title` — invisible on touch and undiscoverable anywhere. Potion, scroll and
+      artifact get no explanation at all. Every effect is defined in `app/magic_items.py`
       (`get_weapon_bonus`, `get_armor_bonus`, `get_scroll_count`, `get_spell_multiplier`,
-      `has_potion`) — derive the copy from that module so it cannot drift from the sim:
-      weapon = +N to hit · armor = +N HP buffer for the delve · scroll = consumable, +N spell
-      casts · artifact = multiplies spell uses · potion = consumable, heals mid-delve.
-      **One shipped string is wrong:** `itemHelp` says armor *"Reduces damage received"*, but
-      `app/routes/expeditions.py:562` adds the bonus to starting HP as `armor_buffer` — it is
-      temporary hit points, not damage reduction. Fix that regardless of the rest
+      `has_potion`) — derive the copy from that module so it cannot drift from the sim.
+      **Cody writes the player-facing copy, not Claude** (2026-09-09), same as
+      `class-text-rewrite.csv`. Claude's job is to state what each item actually does
+      mechanically and wire the strings up.
+      Not a defect: `itemBonusLabel()` returning an empty string for potions and scrolls is
+      correct — consumables carry no standing bonus. A quantity badge ("how many of this do I
+      have") is **future work**, not v1.0
+- [ ] **Armor does the wrong thing.** `app/routes/expeditions.py:562` adds the item bonus to
+      starting HP as `armor_buffer`, i.e. temporary hit points. Cody's ruling 2026-09-09: it
+      should be **either per-attack damage reduction, or a bonus to the wearer's Armor Class**.
+      AC is currently uniform and invisible — `app/expedition.py:21` hardcodes `PC_AC = 7`
+      ("all PCs in leather-equivalent armor"), so no adventurer differs from another and the
+      character sheet never displays it. Taking the AC route therefore also means surfacing AC
+      on the sheet and in the combat log, which already reads "roll + bonus To-Hit vs Armor
+      Class". Decide which of the two before writing any copy, since the description follows
+      the mechanic. The existing tooltip *"Armor: Reduces damage received"* describes the
+      intended behaviour rather than the shipped one
 - [ ] **The expedition summary never names what was found.** It shows `total_loot` as
       currency only (`ExpeditionSummaryView.vue:173`); magic items appear nowhere, so a
       party can come back with a +2 sword and the screen that reports the delve stays silent
@@ -200,6 +209,12 @@ this release rather than opening a fourth gate.
 - [ ] One `player_events` table and inserts for: account created · adventurer recruited ·
       party formed · expedition started · expedition completed · adventurer died · adventurer
       levelled · building bought/upgraded · return session
+- [ ] **A party wipe records how it happened** (Cody, 2026-09-09): the monster type and the
+      number of them that did it, plus the party's **average level at the time of the wipe**.
+      A TPK is the sharpest attachment signal the cohort can produce, and "they died" without
+      what killed them or how outmatched they were answers none of the questions the decision
+      gate asks. Capture it on the wipe event, not by reconstruction afterwards — levels and
+      party membership change once the dust settles
 - [ ] One admin query or console command that answers: did they enter the core loop, where
       did they leave, did they return, did they reach a death or a level-up
 
