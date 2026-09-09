@@ -12,11 +12,33 @@ export interface FilterState {
 
 const ALL_STATUSES = ['Available', 'Recovering', 'On Expedition', 'Assigned'] as const
 
-const props = defineProps<{
-  modelValue: FilterState
-  /** Graveyard and Debtor's Prison have exactly one status, so they hide the control. */
-  hideStatus?: boolean
-}>()
+export interface SortOption {
+  value: string
+  label: string
+}
+
+const DEFAULT_SORT_OPTIONS: readonly SortOption[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'level', label: 'Level' },
+  { value: 'adventurer_class', label: 'Class' },
+  { value: 'party', label: 'Party' },
+  { value: 'hp_current', label: 'HP' },
+  { value: 'xp', label: 'XP' },
+  { value: 'wealth', label: 'Wealth' },
+  { value: 'to_hit', label: 'To-Hit' },
+  { value: 'hit_dice', label: 'HD' },
+]
+
+const props = withDefaults(
+  defineProps<{
+    modelValue: FilterState
+    /** Graveyard and Debtor's Prison have exactly one status, so they hide the control. */
+    hideStatus?: boolean
+    /** Each tab sorts on the fields its own data actually carries. */
+    sortOptions?: readonly SortOption[]
+  }>(),
+  { sortOptions: () => DEFAULT_SORT_OPTIONS },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: FilterState]
@@ -115,12 +137,9 @@ const classOptions = Object.values(AdventurerClass)
         :value="modelValue.sortBy"
         @change="update('sortBy', ($event.target as HTMLSelectElement).value)"
       >
-        <option value="name">Name</option>
-        <option value="level">Level</option>
-        <option value="adventurer_class">Class</option>
-        <option value="party">Party</option>
-        <option value="hp_current">HP</option>
-        <option value="xp">XP</option>
+        <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </option>
       </select>
     </div>
     <div class="form-group">

@@ -149,8 +149,12 @@ this release rather than opening a fourth gate.
 - [x] **Graveyard and Debtor's Prison get the Roster's filters** (2026-09-09, Cody): search,
       class and sort-by, with no status control since each tab holds exactly one status. The
       Roster's filter and sort logic was factored into one `applyFilters` used by all three
-      tabs rather than triplicated. On the Graveyard, "Party" sorts on `death_party_name` —
-      the party they died with — since the dead hold no current party
+      tabs rather than triplicated. Every tab sorts on every field its own data carries —
+      shared: name, level, class, XP, wealth (normalised to copper), to-hit, HD; Roster adds
+      party and HP; Graveyard adds **Died** (`death_day`) and sorts "Party" on
+      `death_party_name`, the party they died with; Debtor's Prison adds **Bankrupted**
+      (`bankruptcy_day`) and HP, and drops Party entirely. Null numerics sort to the bottom
+      descending, so "newest first" puts unknown dates last
 - [ ] One `player_events` table and inserts for: account created · adventurer recruited ·
       party formed · expedition started · expedition completed · adventurer died · adventurer
       levelled · building bought/upgraded · return session

@@ -80,20 +80,57 @@ function applyFilters(
   const sortKey = f.sortBy
   const partyName = opts.partyName ?? (() => '')
 
+  // Unknown (null) numerics sort to the bottom descending, which is what "newest first" wants.
+  const num = (v: unknown) => (v === null || v === undefined ? Number.NEGATIVE_INFINITY : Number(v))
+  const totalCopper = (a: AdventurerOut) => a.gold * 100 + a.silver * 10 + a.copper
+
   result.sort((a, b) => {
     if (sortKey === 'party') {
       return dir * partyName(a).localeCompare(partyName(b))
+    }
+    if (sortKey === 'wealth') {
+      return dir * (totalCopper(a) - totalCopper(b))
     }
     const aVal = a[sortKey as keyof AdventurerOut]
     const bVal = b[sortKey as keyof AdventurerOut]
     if (typeof aVal === 'string' && typeof bVal === 'string') {
       return dir * aVal.localeCompare(bVal)
     }
-    return dir * (Number(aVal) - Number(bVal))
+    return dir * (num(aVal) - num(bVal))
   })
 
   return result
 }
+
+const COMMON_SORTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'level', label: 'Level' },
+  { value: 'adventurer_class', label: 'Class' },
+  { value: 'xp', label: 'XP' },
+  { value: 'wealth', label: 'Wealth' },
+  { value: 'to_hit', label: 'To-Hit' },
+  { value: 'hit_dice', label: 'HD' },
+]
+
+const ROSTER_SORTS = [
+  ...COMMON_SORTS,
+  { value: 'party', label: 'Party' },
+  { value: 'hp_current', label: 'HP' },
+]
+
+// "Party" here is who they died with. HP is omitted: the Graveyard hides it.
+const GRAVEYARD_SORTS = [
+  ...COMMON_SORTS,
+  { value: 'party', label: 'Party (died with)' },
+  { value: 'death_day', label: 'Died' },
+]
+
+// No party column: the bankrupt hold no party, current or remembered.
+const DEBTOR_SORTS = [
+  ...COMMON_SORTS,
+  { value: 'hp_current', label: 'HP' },
+  { value: 'bankruptcy_day', label: 'Bankrupted' },
+]
 
 const filteredAdventurers = computed(() =>
   applyFilters(adventurers.value, filters.value, {
@@ -260,7 +297,7 @@ onMounted(fetchAll)
 
     <!-- Roster Tab -->
     <template v-if="activeTab === 'roster'">
-      <AdventurerFilters v-model="filters" class="mb-2" />
+      <AdventurerFilters v-model="filters" :sort-options="ROSTER_SORTS" class="mb-2" />
 
       <LoadingSpinner v-if="loading" />
       <template v-else>
@@ -279,7 +316,7 @@ onMounted(fetchAll)
     <template v-if="activeTab === 'graveyard'">
       <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
       <template v-else>
-        <AdventurerFilters v-model="graveyardFilters" hide-status class="mb-2" />
+        <AdventurerFilters v-model="graveyardFilters" hide-status :sort-options="GRAVEYARD_SORTS" class="mb-2" />
         <AdventurerList
           v-if="filteredGraveyard.length > 0"
           :adventurers="filteredGraveyard"
@@ -294,7 +331,7 @@ onMounted(fetchAll)
     <template v-if="activeTab === 'debtors'">
       <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
       <template v-else>
-        <AdventurerFilters v-model="debtorFilters" hide-status class="mb-2" />
+        <AdventurerFilters v-model="debtorFilters" hide-status :sort-options="DEBTOR_SORTS" class="mb-2" />
         <AdventurerList
           v-if="filteredDebtors.length > 0"
           :adventurers="filteredDebtors"
