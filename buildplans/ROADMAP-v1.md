@@ -99,6 +99,32 @@ the game or their progress, and I can see what they did.*
 Merges the old v0.9.1 Observable, v0.9.2 Survivable and v0.9.3 Public Keep down to their
 minimums. Not an analytics project, not a security review, not a load test.
 
+### Before strangers see it
+
+Widens the goal above: a stranger's first thirty seconds must not look broken, and the
+mechanics they meet first must read correctly. Gameplay and UX rather than safety, kept in
+this release rather than opening a fourth gate.
+
+- [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
+      (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
+      localStorage, never its validity. A stale token therefore renders the dashboard, every
+      API call 401s, and only a refresh lands on the login screen; and a logged-out visitor
+      with leftover storage sees a flash of dashboard first. Fix: validate the session before
+      the first navigation resolves, hold the first render behind that check, clear the token
+      and redirect on 401
+- [ ] **Buildings grant XP, not recruitment.** Replace the `recruitment_bonus` flag
+      (`app/buildings.py:103`; four buildings in `app/data/buildings.json`) with **+10% XP
+      gain for the building's relevant class**. Recruitment is already free and automatic, so
+      the current bonus buys nothing a player can feel. Needs a new bonus key threaded through
+      `_get_building_bonuses` (`app/routes/expeditions.py:43`) into `app/progression.py`.
+      The +10% is provisional, like the 10% building costs
+- [ ] **Auto-delve is one checkbox.** Collapse `auto_delve_healed` and `auto_delve_full`
+      (`app/models.py:177-178`) into a single flag, with the tooltip *"Party will
+      automatically start an expedition when it has 6 fully-healed members."* Move
+      `auto_delve_level` off the party settings and onto the **Delve** screen as
+      **"Auto-delve to this level"**, offered after a party is formed. Schema change — needs
+      an Alembic migration
+
 ### See when it breaks
 - [ ] Server-side exception logging (none exists today): a FastAPI exception handler to a
       log file, or Sentry free tier
@@ -225,7 +251,8 @@ shows it matters.
 ### Cut from the old v0.9.4
 - Targeted balance pass: death rate by level, loot-vs-risk, upkeep scaling (1cp/XP), building
   bonus tuning, the provisional 10% building costs, magic item drop rate vs. Library, class
-  ability power, resurrection cost. The cohort answers "do players survive long enough to
+  ability power, resurrection cost, and the provisional +10% building XP bonus added to
+  v0.9.1. The cohort answers "do players survive long enough to
   become attached"; you cannot
 
 ### Open flags (from `Strategy_Reconciliation.md`)
