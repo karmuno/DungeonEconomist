@@ -6,7 +6,7 @@ from pathlib import Path
 
 _DATA_PATH = Path(__file__).parent / "data" / "treasure.json"
 
-with open(_DATA_PATH) as f:
+with open(_DATA_PATH, encoding="utf-8") as f:
     TREASURE_CONFIG = json.load(f)
 
 

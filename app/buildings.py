@@ -5,7 +5,7 @@ from pathlib import Path
 
 _DATA_PATH = Path(__file__).parent / "data" / "buildings.json"
 
-with open(_DATA_PATH) as f:
+with open(_DATA_PATH, encoding="utf-8") as f:
     BUILDING_CONFIG = json.load(f)
 
 BUILDING_TYPES = list(BUILDING_CONFIG.keys())

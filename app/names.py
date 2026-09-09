@@ -8,7 +8,7 @@ from app.models import AdventurerClass
 
 _DATA_PATH = Path(__file__).parent / "data" / "names.json"
 
-with open(_DATA_PATH) as f:
+with open(_DATA_PATH, encoding="utf-8") as f:
     _NAMES = json.load(f)
 
 _FIRST_NAMES = {
