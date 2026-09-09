@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { AdventurerClass } from '../../types'
 
 export interface FilterState {
@@ -29,16 +29,17 @@ const DEFAULT_SORT_OPTIONS: readonly SortOption[] = [
   { value: 'hit_dice', label: 'HD' },
 ]
 
-const props = withDefaults(
-  defineProps<{
-    modelValue: FilterState
-    /** Graveyard and Debtor's Prison have exactly one status, so they hide the control. */
-    hideStatus?: boolean
-    /** Each tab sorts on the fields its own data actually carries. */
-    sortOptions?: readonly SortOption[]
-  }>(),
-  { sortOptions: () => DEFAULT_SORT_OPTIONS },
-)
+const props = defineProps<{
+  modelValue: FilterState
+  /** Graveyard and Debtor's Prison have exactly one status, so they hide the control. */
+  hideStatus?: boolean
+  /** Each tab sorts on the fields its own data actually carries. */
+  sortOptions?: readonly SortOption[]
+}>()
+
+// Not a withDefaults factory: those are hoisted out of the setup scope and cannot
+// reference DEFAULT_SORT_OPTIONS, which fails the SFC compiler but not vue-tsc.
+const resolvedSortOptions = computed(() => props.sortOptions ?? DEFAULT_SORT_OPTIONS)
 
 const emit = defineEmits<{
   'update:modelValue': [value: FilterState]
@@ -137,7 +138,7 @@ const classOptions = Object.values(AdventurerClass)
         :value="modelValue.sortBy"
         @change="update('sortBy', ($event.target as HTMLSelectElement).value)"
       >
-        <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">
+        <option v-for="opt in resolvedSortOptions" :key="opt.value" :value="opt.value">
           {{ opt.label }}
         </option>
       </select>
