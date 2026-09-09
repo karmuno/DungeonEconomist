@@ -16,6 +16,7 @@ if os.environ.get("SENTRY_DSN"):
         send_default_pii=True,
         traces_sample_rate=0,
         release=get_app_version(),
+        environment=os.environ.get("APP_ENV", "development"),
     )
 from app.routes import admin as admin_routes
 from app.routes import adventurers, expeditions, game, parties

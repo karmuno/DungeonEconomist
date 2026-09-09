@@ -13,6 +13,9 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     app,
     dsn: import.meta.env.VITE_SENTRY_DSN,
+    // 'development' under `npm run dev`, 'production' in a build, so local
+    // debugging does not pollute the cohort's errors.
+    environment: import.meta.env.MODE,
     integrations: [],
     tracesSampleRate: 0,
     // Same build string as the version badge, so an error names the build it came from.
