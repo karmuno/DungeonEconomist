@@ -19,6 +19,10 @@ get_pc_thac0 = get_thac0
 # ─── PC combat constants ──────────────────────────────────────────────────────
 
 PC_AC = 7  # All PCs in leather-equivalent armor (descending AC system)
+# Party morale for the 2d6 check. Was 11 (fails only on a 12, so 2.8% per check and
+# ~5.5% per lethal combat) which meant parties fought to the death almost always, against
+# a bestiary whose own morale runs 7-9. At 7 a check fails 41.7% of the time.
+PARTY_MORALE = 7
 
 
 def get_monster_thac0(hit_dice: float) -> int:
@@ -445,7 +449,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
         if party_deaths_in_round > 0 and not party_fled:
             if "first" not in party_morale_done:
                 party_morale_done.add("first")
-                check = _morale_check("party", 11)
+                check = _morale_check("party", PARTY_MORALE)
                 round_entry["morale_checks"].append(check)
                 if not check["passed"]:
                     party_fled = True
@@ -454,7 +458,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     and "half" not in party_morale_done
                     and party_deaths_total >= len(party) / 2):
                 party_morale_done.add("half")
-                check = _morale_check("party", 11)
+                check = _morale_check("party", PARTY_MORALE)
                 round_entry["morale_checks"].append(check)
                 if not check["passed"]:
                     party_fled = True
@@ -469,15 +473,15 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
     # who is still standing, and so the healing is credited to whoever provided it.
     revivals: list[dict] = []
     potion_revived = []
-    if not party_fled:
-        for pc in party:
-            if pc["current_hp"] <= 0 and pc.get("has_potion") and pc["name"] not in revived_adventurers:
-                pc["current_hp"] = 1
-                pc["has_potion"] = False
-                pc["potion_consumed"] = True
-                potion_revived.append(pc["name"])
-                revived_adventurers.append(pc["name"])
-                revivals.append({"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"})
+    # Fires even on a rout: a potion you are carrying does not care that you ran.
+    for pc in party:
+        if pc["current_hp"] <= 0 and pc.get("has_potion") and pc["name"] not in revived_adventurers:
+            pc["current_hp"] = 1
+            pc["has_potion"] = False
+            pc["potion_consumed"] = True
+            potion_revived.append(pc["name"])
+            revived_adventurers.append(pc["name"])
+            revivals.append({"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"})
 
     # ── Post-combat: Cleric revival ───────────────────────────────────────────
     if not party_fled:
@@ -502,28 +506,28 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
 
     # ── Post-combat: Cleric heal ──────────────────────────────────────────────
     healed_adventurers: list[dict] = []
-    if not party_fled:
-        for pc in party:
-            if pc.get("character_class") != "Cleric":
-                continue
-            if pc["current_hp"] <= 0:
-                continue
-            charges = pc.get("heals_remaining", 0)
-            while charges > 0:
-                wounded = [
-                    m for m in party
-                    if m["current_hp"] > 0 and m["current_hp"] < m.get("hit_points", m["current_hp"])
-                ]
-                if not wounded:
-                    break
-                target = min(wounded, key=lambda m: m["current_hp"] / m.get("hit_points", 1))
-                amount = random.randint(1, 6) + 1
-                old_hp = target["current_hp"]
-                target["current_hp"] = min(target.get("hit_points", old_hp + amount), old_hp + amount)
-                healed = target["current_hp"] - old_hp
-                healed_adventurers.append({"name": target["name"], "hp": healed, "healer": pc["name"]})
-                charges -= 1
-            pc["heals_remaining"] = charges
+    # Fires even on a rout: binding wounds after a withdrawal is the whole point.
+    for pc in party:
+        if pc.get("character_class") != "Cleric":
+            continue
+        if pc["current_hp"] <= 0:
+            continue
+        charges = pc.get("heals_remaining", 0)
+        while charges > 0:
+            wounded = [
+                m for m in party
+                if m["current_hp"] > 0 and m["current_hp"] < m.get("hit_points", m["current_hp"])
+            ]
+            if not wounded:
+                break
+            target = min(wounded, key=lambda m: m["current_hp"] / m.get("hit_points", 1))
+            amount = random.randint(1, 6) + 1
+            old_hp = target["current_hp"]
+            target["current_hp"] = min(target.get("hit_points", old_hp + amount), old_hp + amount)
+            healed = target["current_hp"] - old_hp
+            healed_adventurers.append({"name": target["name"], "hp": healed, "healer": pc["name"]})
+            charges -= 1
+        pc["heals_remaining"] = charges
 
     # ── Determine outcome ─────────────────────────────────────────────────────
     if party_fled:

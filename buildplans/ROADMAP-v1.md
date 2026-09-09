@@ -148,6 +148,18 @@ this release rather than opening a fourth gate.
       under-reports whatever the bonuses happen to be. Preferably shipped alongside the
       buildings-XP item below, since that changes the one effect currently visible, but either
       can land alone
+- [x] **Parties retreat instead of dying** (2026-09-09, Cody). Party morale was hardcoded to
+      **11**, so a 2d6 check failed only on a 12: 2.8% per check, ~5.5% per lethal combat,
+      against a bestiary whose own morale runs 7-9. Parties fought to the death. Now
+      `PARTY_MORALE = 7` (`app/expedition.py`), which fails 41.7% per check. Evidence: of 969
+      adventurers across 468 expeditions, 793 died and **773 of those deaths were at level 1**
+      — 3.9% ever reached level 2. A rout also no longer forfeits recovery: the potion
+      auto-revive and the Cleric heal now fire even when the party flees. XP stays 0 on a
+      flee, as before.
+      **Open question, deliberately not decided:** a third guard still blocks **Cleric
+      *revival*** on a rout (`app/expedition.py:487`). Leaving it means a routed party
+      abandons its fallen, which is a real cost that is not a death spiral; removing it makes
+      recovery consistent. Cody's call
 - [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
       (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
       localStorage, never its validity. A stale token therefore renders the dashboard, every
@@ -322,6 +334,18 @@ shows it matters.
 - Assign/unassign to party or building from the character sheet (row 15)
 - Highlight which tab is home (row 14); "Form an Adventuring Party" copy (row 5)
 - Keep creation feedback beyond the header name (row 5)
+
+### v1.1 — queued 2026-09-09
+- **A morale check when the party is at half its total HP or less.** Today morale only fires
+  after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
+  dead never check at all. An HP-threshold check lets a party leave before the first corpse,
+  which is what actually prevents a wipe rather than mitigating one.
+- **A flee raises an event.** Every time a party breaks off combat the player should see it.
+  Today the outcome `"Party Fled"` is set and **nothing anywhere reads it** — no event, no
+  notification, no branch. With morale at 7 this will now happen often, so it needs to be
+  visible or the player will not understand why a delve went badly.
+- **Armor should reduce damage or raise Armor Class**, not add temporary hit points. Balance
+  change, deferred so the cohort's death data lands first. See the armor item in v0.9.1.
 
 ### Deferred 2026-09-09
 - Pagination on the Tavern's three tabs. `list_adventurers` still caps at 100 rows, so a keep
