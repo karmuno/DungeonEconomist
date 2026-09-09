@@ -34,8 +34,8 @@ const showDetail = ref(false)
 const selectedPartyId = ref<number | null>(null)
 const confirmingDisband = ref(false)
 
-// Default roster: show Available + Recovering (not On Expedition)
-const DEFAULT_STATUSES = new Set(['Available', 'Recovering', 'On Expedition'])
+// Default roster: every living adventurer. Dead and bankrupt have their own tabs.
+const DEFAULT_STATUSES = new Set(['Available', 'Recovering', 'On Expedition', 'Assigned'])
 
 const filters = ref({
   classFilter: '',
@@ -103,7 +103,7 @@ function adventurerParty(advId: number): PartyOut | undefined {
 async function fetchAll() {
   loading.value = true
   try {
-    adventurers.value = await adventurersApi.list(true)
+    adventurers.value = await adventurersApi.list()
     parties.value = await partiesApi.list()
     if (activeTab.value === 'graveyard') fetchGraveyard()
     if (activeTab.value === 'debtors') fetchDebtors()

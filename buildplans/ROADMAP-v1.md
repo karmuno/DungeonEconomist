@@ -124,7 +124,7 @@ this release rather than opening a fourth gate.
       automatically start an expedition when it has 6 fully-healed members."* Move
       `auto_delve_level` off the party settings and onto the **Delve** screen as
       **"Auto-delve to this level"**, offered after a party is formed. No schema change
-- [ ] **Tavern roster empty while adventurers exist.** Reported 2026-09-09. **Root cause:**
+- [x] **Tavern roster empty while adventurers exist.** Reported 2026-09-09. **Root cause:**
       the Tavern calls `adventurersApi.list(true)` (`AdventurersView.vue:106`) — i.e.
       `include_all=true` — so `list_adventurers` (`app/routes/adventurers.py:100`) skips its
       dead/bankrupt SQL filter and returns the first 100 rows of *everyone*, unordered, which
@@ -136,10 +136,14 @@ this release rather than opening a fourth gate.
       Prison tabs backed by separate endpoints, so it never needs the dead — drop the `true`.
       The 100-row cap stays latent for any keep with 100+ *living* adventurers; paginate or
       filter server-side if that becomes real
+      **Fixed 2026-09-09:** Roster fetches living only; `list_adventurers` orders newest
+      first; Graveyard and Debtor's Prison order by `death_day` / `bankruptcy_day` descending;
+      Dead and Bankrupt dropped from the Roster's status filter (both have their own tabs) and
+      `Assigned` added to the default so the roster shows every living adventurer.
 
 ### See when it breaks
-- [ ] Server-side exception logging (none exists today): a FastAPI exception handler to a
-      log file, or Sentry free tier
+- [x] Server-side exception logging: **Sentry** (`sentry-sdk[fastapi]==2.69.1`, wired in
+      `app/main.py`, 2026-09-09)
 
 ### See what players do
 - [ ] One `player_events` table and inserts for: account created · adventurer recruited ·
@@ -250,6 +254,15 @@ shows it matters.
 - Assign/unassign to party or building from the character sheet (row 15)
 - Highlight which tab is home (row 14); "Form an Adventuring Party" copy (row 5)
 - Keep creation feedback beyond the header name (row 5)
+
+### Deferred 2026-09-09
+- Pagination on the Tavern's three tabs. `list_adventurers` still caps at 100 rows, so a keep
+  with 100+ *living* adventurers silently truncates — now ordered newest-first, so it degrades
+  gracefully instead of showing an empty screen. Graveyard and Debtor's Prison have the
+  opposite problem: both are unbounded `.all()` queries that run `add_progression_data` over
+  every dead or bankrupt row on each load. Neither is a cohort risk — ten strangers start at
+  zero adventurers — and both bite a long-lived keep. Re-enters if a cohort player approaches
+  100 living adventurers, or when graveyard load time becomes noticeable
 
 ### Cut from the old v0.9.1 / v0.9.2 / v0.9.3
 - Attachment events beyond death and level-up (high-level death, party wipe, continued after

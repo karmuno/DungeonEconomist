@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import nullslast
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_keep
@@ -111,7 +112,7 @@ def list_adventurers(
             Adventurer.is_dead == False,
             Adventurer.is_bankrupt == False,
         )
-    adventurers = query.offset(skip).limit(limit).all()
+    adventurers = query.order_by(Adventurer.id.desc()).offset(skip).limit(limit).all()
     current_hps = _get_active_expedition_hps(keep, db)
     return [add_progression_data(adv, current_hps) for adv in adventurers]
 
@@ -122,7 +123,7 @@ def get_graveyard(keep: Keep = Depends(get_current_keep), db: Session = Depends(
     dead = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_dead == True,
-    ).all()
+    ).order_by(nullslast(Adventurer.death_day.desc()), Adventurer.id.desc()).all()
     return [add_progression_data(a) for a in dead]
 
 
@@ -132,7 +133,7 @@ def get_debtors_prison(keep: Keep = Depends(get_current_keep), db: Session = Dep
     bankrupt = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
         Adventurer.is_bankrupt == True,
-    ).all()
+    ).order_by(nullslast(Adventurer.bankruptcy_day.desc()), Adventurer.id.desc()).all()
     return [add_progression_data(a) for a in bankrupt]
 
 
