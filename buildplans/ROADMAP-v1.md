@@ -105,6 +105,19 @@ Widens the goal above: a stranger's first thirty seconds must not look broken, a
 mechanics they meet first must read correctly. Gameplay and UX rather than safety, kept in
 this release rather than opening a fourth gate.
 
+- [ ] **The character sheet shows "+1" without saying what it does.** Half-built already:
+      `itemHelp()` (`AdventurerDetail.vue:44`) covers **weapon and armor only**, and only as a
+      hover `title` — invisible on touch and undiscoverable anywhere. `itemBonusLabel()`
+      (`frontend/src/utils/adventurer.ts:12`) returns a bare `+N` for weapon, armor and
+      artifact and an **empty string for potion and scroll**, so a consumable shows an emoji
+      and a name and nothing else. Every effect is already defined in `app/magic_items.py`
+      (`get_weapon_bonus`, `get_armor_bonus`, `get_scroll_count`, `get_spell_multiplier`,
+      `has_potion`) — derive the copy from that module so it cannot drift from the sim:
+      weapon = +N to hit · armor = +N HP buffer for the delve · scroll = consumable, +N spell
+      casts · artifact = multiplies spell uses · potion = consumable, heals mid-delve.
+      **One shipped string is wrong:** `itemHelp` says armor *"Reduces damage received"*, but
+      `app/routes/expeditions.py:562` adds the bonus to starting HP as `armor_buffer` — it is
+      temporary hit points, not damage reduction. Fix that regardless of the rest
 - [ ] **The expedition summary never names what was found.** It shows `total_loot` as
       currency only (`ExpeditionSummaryView.vue:173`); magic items appear nowhere, so a
       party can come back with a +2 sword and the screen that reports the delve stays silent
