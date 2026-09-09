@@ -146,6 +146,11 @@ this release rather than opening a fourth gate.
       `app/main.py`, 2026-09-09)
 
 ### See what players do
+- [x] **Graveyard and Debtor's Prison get the Roster's filters** (2026-09-09, Cody): search,
+      class and sort-by, with no status control since each tab holds exactly one status. The
+      Roster's filter and sort logic was factored into one `applyFilters` used by all three
+      tabs rather than triplicated. On the Graveyard, "Party" sorts on `death_party_name` —
+      the party they died with — since the dead hold no current party
 - [ ] One `player_events` table and inserts for: account created · adventurer recruited ·
       party formed · expedition started · expedition completed · adventurer died · adventurer
       levelled · building bought/upgraded · return session

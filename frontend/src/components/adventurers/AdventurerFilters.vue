@@ -14,6 +14,8 @@ const ALL_STATUSES = ['Available', 'Recovering', 'On Expedition', 'Assigned'] as
 
 const props = defineProps<{
   modelValue: FilterState
+  /** Graveyard and Debtor's Prison have exactly one status, so they hide the control. */
+  hideStatus?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -85,7 +87,7 @@ const classOptions = Object.values(AdventurerClass)
         <option v-for="cls in classOptions" :key="cls" :value="cls">{{ cls }}</option>
       </select>
     </div>
-    <div class="form-group" ref="dropdownRef">
+    <div v-if="!hideStatus" class="form-group" ref="dropdownRef">
       <label class="form-label">Status</label>
       <button
         class="form-select status-trigger"

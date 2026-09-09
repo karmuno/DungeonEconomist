@@ -37,39 +37,52 @@ const confirmingDisband = ref(false)
 // Default roster: every living adventurer. Dead and bankrupt have their own tabs.
 const DEFAULT_STATUSES = new Set(['Available', 'Recovering', 'On Expedition', 'Assigned'])
 
-const filters = ref({
-  classFilter: '',
-  statuses: new Set(DEFAULT_STATUSES),
-  nameSearch: '',
-  sortBy: 'name',
-  sortDir: 'asc' as 'asc' | 'desc',
-})
+function makeFilters(statuses: Set<string> = new Set()) {
+  return {
+    classFilter: '',
+    statuses,
+    nameSearch: '',
+    sortBy: 'name',
+    sortDir: 'asc' as 'asc' | 'desc',
+  }
+}
+type ViewFilters = ReturnType<typeof makeFilters>
 
-const filteredAdventurers = computed(() => {
-  let result = [...adventurers.value]
+const filters = ref(makeFilters(new Set(DEFAULT_STATUSES)))
+const graveyardFilters = ref(makeFilters())
+const debtorFilters = ref(makeFilters())
 
-  // Status filter via multi-select
-  if (filters.value.statuses.size > 0) {
-    result = result.filter((a) => filters.value.statuses.has(displayStatus(a)))
+/**
+ * Shared filter + sort for all three tabs. Status is only meaningful on the Roster;
+ * the other two tabs hold exactly one status, so they opt out.
+ */
+function applyFilters(
+  list: AdventurerOut[],
+  f: ViewFilters,
+  opts: { useStatus?: boolean; partyName?: (a: AdventurerOut) => string } = {},
+): AdventurerOut[] {
+  let result = [...list]
+
+  if (opts.useStatus && f.statuses.size > 0) {
+    result = result.filter((a) => f.statuses.has(displayStatus(a)))
   }
 
-  if (filters.value.classFilter) {
-    result = result.filter((a) => a.adventurer_class === filters.value.classFilter)
+  if (f.classFilter) {
+    result = result.filter((a) => a.adventurer_class === f.classFilter)
   }
 
-  if (filters.value.nameSearch) {
-    const search = filters.value.nameSearch.toLowerCase()
+  if (f.nameSearch) {
+    const search = f.nameSearch.toLowerCase()
     result = result.filter((a) => a.name.toLowerCase().includes(search))
   }
 
-  const dir = filters.value.sortDir === 'asc' ? 1 : -1
-  const sortKey = filters.value.sortBy
+  const dir = f.sortDir === 'asc' ? 1 : -1
+  const sortKey = f.sortBy
+  const partyName = opts.partyName ?? (() => '')
 
   result.sort((a, b) => {
     if (sortKey === 'party') {
-      const aParty = partyNameMap.value[a.id] ?? ''
-      const bParty = partyNameMap.value[b.id] ?? ''
-      return dir * aParty.localeCompare(bParty)
+      return dir * partyName(a).localeCompare(partyName(b))
     }
     const aVal = a[sortKey as keyof AdventurerOut]
     const bVal = b[sortKey as keyof AdventurerOut]
@@ -80,7 +93,23 @@ const filteredAdventurers = computed(() => {
   })
 
   return result
-})
+}
+
+const filteredAdventurers = computed(() =>
+  applyFilters(adventurers.value, filters.value, {
+    useStatus: true,
+    partyName: (a) => partyNameMap.value[a.id] ?? '',
+  }),
+)
+
+// On the Graveyard, "Party" means the party they died with, not a current one.
+const filteredGraveyard = computed(() =>
+  applyFilters(graveyard.value, graveyardFilters.value, {
+    partyName: (a) => a.death_party_name ?? '',
+  }),
+)
+
+const filteredDebtors = computed(() => applyFilters(debtors.value, debtorFilters.value))
 
 const partyNameMap = computed(() => {
   const map: Record<number, string> = {}
@@ -249,22 +278,30 @@ onMounted(fetchAll)
     <!-- Graveyard Tab -->
     <template v-if="activeTab === 'graveyard'">
       <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
-      <AdventurerList
-        v-else
-        :adventurers="graveyard"
-        :hide-hp="true"
-        @select="onSelect"
-      />
+      <template v-else>
+        <AdventurerFilters v-model="graveyardFilters" hide-status class="mb-2" />
+        <AdventurerList
+          v-if="filteredGraveyard.length > 0"
+          :adventurers="filteredGraveyard"
+          :hide-hp="true"
+          @select="onSelect"
+        />
+        <EmptyState v-else message="No adventurers match your filters" />
+      </template>
     </template>
 
     <!-- Debtor's Prison Tab -->
     <template v-if="activeTab === 'debtors'">
       <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
-      <AdventurerList
-        v-else
-        :adventurers="debtors"
-        @select="onSelect"
-      />
+      <template v-else>
+        <AdventurerFilters v-model="debtorFilters" hide-status class="mb-2" />
+        <AdventurerList
+          v-if="filteredDebtors.length > 0"
+          :adventurers="filteredDebtors"
+          @select="onSelect"
+        />
+        <EmptyState v-else message="No adventurers match your filters" />
+      </template>
     </template>
 
     <!-- Adventurer Detail Modal -->
