@@ -149,6 +149,26 @@ git clone https://github.com/karmuno/DungeonEconomist.git venturekeep
 cd venturekeep
 ```
 
+### Frontend error tracking (before you build)
+
+The frontend's Sentry DSN is compiled **into** the JavaScript bundle, so it must exist before
+the image is built. Vite reads it at build time; `--env-file` at run time is far too late.
+
+```bash
+nano ~/venturekeep/frontend/.env
+```
+
+One line, and the `VITE_` prefix is mandatory — without it Vite will not expose the value and
+error tracking silently reports nothing:
+
+```
+VITE_SENTRY_DSN=https://your-public-key@o00000.ingest.us.sentry.io/00000
+```
+
+Use the **frontend** Sentry project's DSN, not the backend one. The file is untracked, so
+`git pull` will not remove it, but it also will not exist on a fresh clone — recreate it
+before the first build on a new server.
+
 Build the Docker image:
 
 ```bash
@@ -170,7 +190,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 Create the env file (paste your generated secret key and real DB password):
 
 ```bash
-nano ~/venturekeep/.env.production
+nano ~/venturekeep/.env
 ```
 
 Contents:
@@ -180,12 +200,21 @@ DATABASE_URL=postgresql://venturekeep:CHANGE_THIS_TO_A_REAL_PASSWORD@venturekeep
 VENTUREKEEP_SECRET_KEY=PASTE_YOUR_GENERATED_KEY_HERE
 CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 PORT=8000
+SENTRY_DSN=https://your-backend-dsn@o00000.ingest.us.sentry.io/00000
+APP_ENV=production
 ```
 
 Key points:
 - The `DATABASE_URL` host is `venturekeep-db` — the container name on the shared Docker network. Not `localhost`, not `172.17.0.1`.
 - Update `CORS_ORIGINS` with your actual domain (e.g. `https://yourdomain.com` or `https://game.yourdomain.com` for a subdomain). For initial testing without a domain, set it to `*`.
 - The DB password here must match what you used in Step 3.
+- **Do not quote any value.** Docker's `--env-file` does not strip quotes the way a shell or
+  python-dotenv does, so `SENTRY_DSN="https://..."` arrives with literal quote characters and
+  Sentry rejects it silently. Verify with `docker exec venturekeep-app printenv SENTRY_DSN`.
+- `APP_ENV` is what tags errors as production in Sentry. Omit it and server errors report as
+  `development`. It is backend-only — it does nothing in `frontend/.env`.
+- This file is read by Docker at `docker run`, not by the app. The app also loads a `.env` for
+  local development, but that file never enters the image.
 
 ---
 
@@ -196,7 +225,7 @@ docker run -d \
   --name venturekeep-app \
   --restart unless-stopped \
   --network venturekeep-net \
-  --env-file ~/venturekeep/.env.production \
+  --env-file ~/venturekeep/.env \
   -p 127.0.0.1:8000:8000 \
   venturekeep:latest
 ```
@@ -388,7 +417,7 @@ docker run -d \
   --name venturekeep-app \
   --restart unless-stopped \
   --network venturekeep-net \
-  --env-file ~/venturekeep/.env.production \
+  --env-file ~/venturekeep/.env \
   -p 127.0.0.1:8000:8000 \
   venturekeep:latest
 ```
@@ -431,4 +460,4 @@ gunzip -c ~/venturekeep-data/backups/venturekeep-20260326.sql.gz | \
 
 **Alembic migration fails:** Check `docker logs venturekeep-app` for the specific error. Postgres enum types are stricter than SQLite — migrations that work locally may need fixes for production. To retry migrations after a code fix: rebuild the image and restart the container.
 
-**Empty `docker logs` output:** The container may be restarting too fast. Use `docker logs -f venturekeep-app` to follow in real time, or `docker run --rm -it --network venturekeep-net --env-file ~/venturekeep/.env.production venturekeep:latest bash` to get a shell inside the image and debug manually.
+**Empty `docker logs` output:** The container may be restarting too fast. Use `docker logs -f venturekeep-app` to follow in real time, or `docker run --rm -it --network venturekeep-net --env-file ~/venturekeep/.env venturekeep:latest bash` to get a shell inside the image and debug manually.
