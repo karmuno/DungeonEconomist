@@ -9,3 +9,4 @@ python-jose[cryptography]==3.5.0
 bcrypt==5.0.0
 alembic==1.18.4
 psycopg2-binary==2.9.10
+sentry-sdk[fastapi]==2.69.1

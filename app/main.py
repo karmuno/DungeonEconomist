@@ -1,12 +1,20 @@
 import os
 from pathlib import Path
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import create_tables
+
+if os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        send_default_pii=True,
+        traces_sample_rate=0,
+    )
 from app.routes import admin as admin_routes
 from app.routes import adventurers, expeditions, game, parties
 from app.routes import auth as auth_routes
