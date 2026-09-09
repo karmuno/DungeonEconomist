@@ -339,6 +339,15 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **Healing and revivals belong in the round they happened, not after it.** Today
+  `resolve_combat_rounds` builds `revivals` and `healed_adventurers` *after* the round loop
+  closes, so they carry no round number, and `ExpeditionLogTree.vue:214-227` renders them as a
+  flat list hanging off the end of the combat — "healed for 2 HP", "drinks a Cure Light Wounds
+  potion and gets back up", "is revived by ..." all appear at the edge of the turn with no
+  sense of when. Needs both ends: the sim tags each heal and revival with a round, and the log
+  tree renders it inside that round's block alongside the attacks. Note this makes the
+  presentation match the fiction already committed — the Cleric revival is an abstraction for
+  reaching an ally *before* they die, so it should read in the round they fell, not afterwards.
 - **A flee raises an event.** Every time a party breaks off combat the player should see it.
   Today the outcome `"Party Fled"` is set and **nothing anywhere reads it** — no event, no
   notification, no branch. With morale at 7 this will now happen often, so it needs to be
