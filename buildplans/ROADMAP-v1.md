@@ -339,6 +339,17 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **The live expedition summary should show healing per member.** Today a member row can read
+  a loss next to full health — "-4" beside "6/6 HP" — which looks like a bug because nothing
+  reconciles the two numbers. It is not a bug: `_replay_member_hp`
+  (`app/routes/expeditions.py:1046`) applies attack damage, then revivals, then
+  `healed_adventurers`, so the *final* HP is right; the damage figure and the HP bar are simply
+  computed from different halves of the story with the healing invisible between them.
+  Surfacing, not new mechanics: the replay already consumes per-member healing and revivals and
+  just folds them into one number instead of returning them. Have it return per-member healing
+  and revival totals, and render them on the member row
+  (`ExpeditionSummaryView.vue:246`, `ExpeditionEventModal.vue`) so the arithmetic reads: took
+  4, healed 4, ended 6/6. Pairs naturally with the in-round healing display above
 - **Healing and revivals belong in the round they happened, not after it.** Today
   `resolve_combat_rounds` builds `revivals` and `healed_adventurers` *after* the round loop
   closes, so they carry no round number, and `ExpeditionLogTree.vue:214-227` renders them as a
