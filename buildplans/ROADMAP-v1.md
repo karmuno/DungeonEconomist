@@ -8,8 +8,8 @@ the evidence those 10 people produce.
 
 | | |
 | :--- | :--- |
-| Released (tagged on `rc`) | **v0.9 — The Polish Release** (2026-09-07) |
-| Previous release (on `main`, deployed demo) | **v0.8.1** (2026-03-26) |
+| Released (tagged on `rc`, merged to `main`, deployed to demo) | **v0.9 — The Polish Release** (2026-09-07) |
+| Previous release | **v0.8.1** (2026-03-26) |
 | In progress | **v0.9.1 — Safe to Invite** |
 | Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names; clickable party status |
 | Next up | v0.9.1 Safe to Invite, then v1.0 Let Them Delve |
