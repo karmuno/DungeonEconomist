@@ -188,3 +188,7 @@ frontend/dist/
 
 # Baked at Docker build time by scripts/get-version.sh
 version.txt
+
+# Real env files. .env.example is the tracked template.
+.env.*
+!.env.example
