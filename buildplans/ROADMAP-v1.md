@@ -105,6 +105,25 @@ Widens the goal above: a stranger's first thirty seconds must not look broken, a
 mechanics they meet first must read correctly. Gameplay and UX rather than safety, kept in
 this release rather than opening a fourth gate.
 
+- [ ] **The expedition summary never names what was found.** It shows `total_loot` as
+      currency only (`ExpeditionSummaryView.vue:173`); magic items appear nowhere, so a
+      party can come back with a +2 sword and the screen that reports the delve stays silent
+      about it. Pure surfacing, no new systems: `MagicItem` already records
+      `found_expedition_id` and `found_day` (`app/models.py:251-252`), so the summary endpoint
+      can return the items for that expedition — name, type, bonus, and who is carrying it —
+      for the view to render beside the loot line
+- [ ] **The Village shows one effect out of twelve, and never says how many slots are left.**
+      `assignBonus()` (`frontend/src/views/VillageView.vue:103`) string-scrapes
+      `current_stats` for entries containing `"per"` and truncates at `" per "`, then shows the
+      result only in the assign popover header — which is why the recruitment bonus is the one
+      thing visible. Meanwhile `_get_building_bonuses` (`app/routes/expeditions.py:43`)
+      computes twelve: to-hit, damage, morale, magic-item discovery, healing-potion chance,
+      resurrect-on-return, scroll craft, artifact crafting and its cost, smithy craft chance
+      and slots, masterwork chance. `slotViews()` already draws slots individually but nothing
+      states "2 of 3 free". Needed: remaining-slot count per building, and the actual effect of
+      assigning someone, stated on the building rather than hidden behind a popover.
+      **Land this with the buildings-XP item below** — that replaces the recruitment bonus with
+      +10% class XP, so the one effect currently visible is the one about to change
 - [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
       (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
       localStorage, never its validity. A stale token therefore renders the dashboard, every
@@ -117,7 +136,9 @@ this release rather than opening a fourth gate.
       gain for the building's relevant class**. Recruitment is already free and automatic, so
       the current bonus buys nothing a player can feel. Needs a new bonus key threaded through
       `_get_building_bonuses` (`app/routes/expeditions.py:43`) into `app/progression.py`.
-      The +10% is provisional, like the 10% building costs
+      The +10% is provisional, like the 10% building costs. **Pairs with the Village legibility
+      item above:** removing the recruitment bonus removes the only effect the Village
+      currently displays, so shipping one without the other leaves that panel showing nothing
 - [ ] **Auto-delve is one checkbox.** `auto_delve_healed` and `auto_delve_full`
       (`app/models.py:177-178`) **stay separate in the backend** — the one checkbox sets both,
       so they can be split again later without a migration. Tooltip: *"Party will
