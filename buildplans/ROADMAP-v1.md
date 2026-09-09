@@ -348,6 +348,16 @@ shows it matters.
   tree renders it inside that round's block alongside the attacks. Note this makes the
   presentation match the fiction already committed — the Cleric revival is an abstraction for
   reaching an ally *before* they die, so it should read in the round they fell, not afterwards.
+- **A routed party should not collect the treasure.** `determine_room_contents()`
+  (`app/expedition.py:629`) returns `[MONSTER, TREASURE]` for two-thirds of monster rooms, and
+  the encounter loop iterates that list **without reading the combat outcome at all** — so a
+  party that breaks and runs still takes the hoard from the room it just fled. It also still
+  banks `treasure["xp_value"]`, which leaks around the deliberate 0-XP-on-flee rule.
+  **Interaction to weigh:** at the old morale of 11 this fired in ~5.5% of lethal combats and
+  barely mattered. At 7 it is ~66%, so fleeing now keeps the loot, the treasure XP, and (as of
+  2026-09-09) the healing. Nothing here is player-exploitable — morale is rolled, not chosen —
+  but it makes a rout much cheaper than intended. Worth asking whether this belongs in v1
+  alongside the morale change rather than waiting.
 - **A flee raises an event.** Every time a party breaks off combat the player should see it.
   Today the outcome `"Party Fled"` is set and **nothing anywhere reads it** — no event, no
   notification, no branch. With morale at 7 this will now happen often, so it needs to be
