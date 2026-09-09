@@ -339,6 +339,18 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **Adventurer names in the expedition summary should open their sheet.** v0.9 shipped this
+  for notifications and popups, but `linkAdventurerNames` (`frontend/src/utils/adventurer.ts`)
+  is used in exactly one place — `SidePanel.vue`. `ExpeditionSummaryView.vue`,
+  `ExpeditionLogTree.vue` and `ExpeditionEventModal.vue` link nothing. Two distinct cases:
+  the **member rows** (`ExpeditionSummaryView.vue:246`) already hold member objects with ids,
+  so they link directly; the **log-tree prose** ("X healed for 2 HP by Y", "Z is revived by Y")
+  is built from `healed_adventurers` / `revivals` entries that carry `name` but **no id**, so
+  those need either name-to-id resolution against the party roster the view already has, or
+  ids added to those payloads — the same discipline the notification path uses, where only
+  backend-attached names are matched so a party named after an adventurer is never mistaken
+  for one. Being the fourth surface to need this, it is worth extracting the shared
+  `AdventurerLink` component the v0.9 work stopped short of
 - **The live expedition summary should show healing per member.** Today a member row can read
   a loss next to full health — "-4" beside "6/6 HP" — which looks like a bug because nothing
   reconciles the two numbers. It is not a bug: `_replay_member_hp`
