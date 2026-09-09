@@ -118,12 +118,22 @@ this release rather than opening a fourth gate.
       the current bonus buys nothing a player can feel. Needs a new bonus key threaded through
       `_get_building_bonuses` (`app/routes/expeditions.py:43`) into `app/progression.py`.
       The +10% is provisional, like the 10% building costs
-- [ ] **Auto-delve is one checkbox.** Collapse `auto_delve_healed` and `auto_delve_full`
-      (`app/models.py:177-178`) into a single flag, with the tooltip *"Party will
+- [ ] **Auto-delve is one checkbox.** `auto_delve_healed` and `auto_delve_full`
+      (`app/models.py:177-178`) **stay separate in the backend** — the one checkbox sets both,
+      so they can be split again later without a migration. Tooltip: *"Party will
       automatically start an expedition when it has 6 fully-healed members."* Move
       `auto_delve_level` off the party settings and onto the **Delve** screen as
-      **"Auto-delve to this level"**, offered after a party is formed. Schema change — needs
-      an Alembic migration
+      **"Auto-delve to this level"**, offered after a party is formed. No schema change
+- [ ] **Tavern roster empty while adventurers exist.** Reported 2026-09-09: the Roster tab
+      shows "No adventurers match your filters" with an Available level-1 Elf (#925, party
+      "The Tryers") whose character sheet opens fine. **Not keep scoping** — `list_adventurers`
+      and `get_adventurer` (`app/routes/adventurers.py:100`, `:156`) filter on the same
+      `keep.id`, so the sheet would 404 too. Two leads: the STATUS control displays four
+      statuses ("Available, Recovering, On Expedition, **Assigned**") while `DEFAULT_STATUSES`
+      (`frontend/src/views/AdventurersView.vue:38`) holds only three, so the filter shown and
+      the filter applied disagree; and `displayStatus` (`frontend/src/utils/adventurer.ts:17`)
+      can return `Assigned` or `Unavailable`, neither in that default set. Confirm against the
+      running app
 
 ### See when it breaks
 - [ ] Server-side exception logging (none exists today): a FastAPI exception handler to a
