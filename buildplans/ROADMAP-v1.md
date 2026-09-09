@@ -144,8 +144,10 @@ this release rather than opening a fourth gate.
       and slots, masterwork chance. `slotViews()` already draws slots individually but nothing
       states "2 of 3 free". Needed: remaining-slot count per building, and the actual effect of
       assigning someone, stated on the building rather than hidden behind a popover.
-      **Land this with the buildings-XP item below** — that replaces the recruitment bonus with
-      +10% class XP, so the one effect currently visible is the one about to change
+      **This is a bug in its own right and does not depend on anything else** — the panel
+      under-reports whatever the bonuses happen to be. Preferably shipped alongside the
+      buildings-XP item below, since that changes the one effect currently visible, but either
+      can land alone
 - [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
       (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
       localStorage, never its validity. A stale token therefore renders the dashboard, every
@@ -158,9 +160,9 @@ this release rather than opening a fourth gate.
       gain for the building's relevant class**. Recruitment is already free and automatic, so
       the current bonus buys nothing a player can feel. Needs a new bonus key threaded through
       `_get_building_bonuses` (`app/routes/expeditions.py:43`) into `app/progression.py`.
-      The +10% is provisional, like the 10% building costs. **Pairs with the Village legibility
-      item above:** removing the recruitment bonus removes the only effect the Village
-      currently displays, so shipping one without the other leaves that panel showing nothing
+      The +10% is provisional, like the 10% building costs. Related to the Village legibility
+      item above — this changes the one effect that panel happens to show — but the two are
+      independent: the Village under-reports either way, so neither blocks the other
 - [ ] **Auto-delve is one checkbox.** `auto_delve_healed` and `auto_delve_full`
       (`app/models.py:177-178`) **stay separate in the backend** — the one checkbox sets both,
       so they can be split again later without a migration. Tooltip: *"Party will
