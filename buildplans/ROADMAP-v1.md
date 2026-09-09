@@ -124,16 +124,18 @@ this release rather than opening a fourth gate.
       automatically start an expedition when it has 6 fully-healed members."* Move
       `auto_delve_level` off the party settings and onto the **Delve** screen as
       **"Auto-delve to this level"**, offered after a party is formed. No schema change
-- [ ] **Tavern roster empty while adventurers exist.** Reported 2026-09-09: the Roster tab
-      shows "No adventurers match your filters" with an Available level-1 Elf (#925, party
-      "The Tryers") whose character sheet opens fine. **Not keep scoping** — `list_adventurers`
-      and `get_adventurer` (`app/routes/adventurers.py:100`, `:156`) filter on the same
-      `keep.id`, so the sheet would 404 too. Two leads: the STATUS control displays four
-      statuses ("Available, Recovering, On Expedition, **Assigned**") while `DEFAULT_STATUSES`
-      (`frontend/src/views/AdventurersView.vue:38`) holds only three, so the filter shown and
-      the filter applied disagree; and `displayStatus` (`frontend/src/utils/adventurer.ts:17`)
-      can return `Assigned` or `Unavailable`, neither in that default set. Confirm against the
-      running app
+- [ ] **Tavern roster empty while adventurers exist.** Reported 2026-09-09. **Root cause:**
+      the Tavern calls `adventurersApi.list(true)` (`AdventurersView.vue:106`) — i.e.
+      `include_all=true` — so `list_adventurers` (`app/routes/adventurers.py:100`) skips its
+      dead/bankrupt SQL filter and returns the first 100 rows of *everyone*, unordered, which
+      is the 100 **oldest** adventurers. In a keep whose IDs have reached #925 those are
+      almost all dead or bankrupt, and the client-side status filter then drops every one,
+      leaving an empty roster. Party Formation and Parties call `list()` without the flag, so
+      the backend filters in SQL and their lists look right — which is why the same
+      adventurers show up there. **Fix:** the Roster tab has its own Graveyard and Debtor's
+      Prison tabs backed by separate endpoints, so it never needs the dead — drop the `true`.
+      The 100-row cap stays latent for any keep with 100+ *living* adventurers; paginate or
+      filter server-side if that becomes real
 
 ### See when it breaks
 - [ ] Server-side exception logging (none exists today): a FastAPI exception handler to a
