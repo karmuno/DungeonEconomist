@@ -284,11 +284,17 @@ shows it matters.
 ### Cut from the old v0.9.1 / v0.9.2 / v0.9.3
 - Attachment events beyond death and level-up (high-level death, party wipe, continued after
   a meaningful death) as instrumented events
-- Failed-API-call and critical-UI-failure visibility. **Partly reversed 2026-09-09:**
-  uncaught frontend errors now reach Sentry. Still cut: deliberate reporting of failed API
-  calls that the UI swallows, and frontend error boundaries. Reversed because every bug found
-  in the 2026-09-09 pass — the auth flash, the empty Tavern — was frontend, and a backend-only
-  Sentry would have seen none of them
+- Critical-UI-failure visibility — **error boundaries only.** Still cut: a component that
+  throws mid-render is reported to Sentry but leaves the player on a blank or half-drawn
+  screen with no way forward. `onErrorCaptured` plus a fallback view is real UI work, and a
+  cohort of ten can reload.
+  **Failed-API-call reporting is done (2026-09-09), not cut.** `request()` in
+  `frontend/src/api/client.ts` reports 5xx responses and network failures to Sentry before
+  throwing, which covers all 36 bare `catch {}` blocks at once without touching them — they
+  keep showing their friendly notifications. 4xx is deliberately not reported: it would bury
+  the signal under expected validation errors and 401s the refresh flow already handles.
+  Reversed because every bug found in the 2026-09-09 pass — the auth flash, the empty Tavern
+  — was frontend, and a backend-only Sentry would have seen none of them
 - New Postgres integration tests (beyond running the existing suite)
 - Authentication-flow review, input-validation review
 - Load and concurrency testing; VPS capacity estimate; slow-query work

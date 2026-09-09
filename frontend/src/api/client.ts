@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/vue'
+
 const BASE_URL = ''
 
 export class ApiError extends Error {
@@ -76,7 +78,19 @@ async function request<T>(method: string, url: string, body?: unknown, isRetry =
     options.body = JSON.stringify(body)
   }
 
-  const response = await fetch(`${BASE_URL}${url}`, options)
+  // Callers almost always swallow these in a bare `catch {}` and show a friendly
+  // notification, so report here or Sentry never hears about them.
+  let response: Response
+  try {
+    response = await fetch(`${BASE_URL}${url}`, options)
+  } catch (err) {
+    // No response at all: offline, DNS, CORS, server down.
+    Sentry.captureException(err, {
+      tags: { api_status: 'network' },
+      extra: { method, url },
+    })
+    throw err
+  }
 
   if (response.status === 401 && !isRetry && !url.startsWith('/auth/')) {
     const refreshed = await tryRefreshToken()
@@ -97,11 +111,20 @@ async function request<T>(method: string, url: string, body?: unknown, isRetry =
     } catch {
       data = null
     }
-    throw new ApiError(
+    const error = new ApiError(
       `Request failed: ${method} ${url} (${response.status})`,
       response.status,
       data,
     )
+    // 5xx only. Reporting 4xx would bury the signal under expected validation
+    // failures and 401s, which the refresh flow above already handles.
+    if (response.status >= 500) {
+      Sentry.captureException(error, {
+        tags: { api_status: String(response.status) },
+        extra: { method, url, body: data },
+      })
+    }
+    throw error
   }
 
   return response.json() as Promise<T>
