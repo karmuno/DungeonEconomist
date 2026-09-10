@@ -23,6 +23,10 @@ from app.expedition import PARTY_MORALE  # noqa: E402
 
 # Measured 2026-09-09 on Cody's development keep: 969 adventurers, 468 expeditions,
 # party morale 11. Kept so a later run shows movement rather than a bare number.
+#
+# Caveat: this baseline predates the fix for dead adventurers rejoining expeditions, so it
+# includes delves staffed partly by ghosts, whose attacks and hit points skewed the odds in
+# an unknown direction. Re-baseline once that lands.
 BASELINE = {
     "date": "2026-09-09",
     "morale": 11,
