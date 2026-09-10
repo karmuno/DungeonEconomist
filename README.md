@@ -65,8 +65,8 @@ For local development with Postgres:
 ```bash
 # Start only Postgres (run app natively with hot-reload)
 docker compose up db
-cp .env.example .env          # DATABASE_URL points to local Postgres
-source .env && alembic upgrade head
+cp .env.example .env          # DATABASE_URL points to local Postgres; loaded automatically
+alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 
 # Or start everything in Docker (no hot-reload)

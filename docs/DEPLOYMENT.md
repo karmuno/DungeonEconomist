@@ -149,25 +149,8 @@ git clone https://github.com/karmuno/DungeonEconomist.git venturekeep
 cd venturekeep
 ```
 
-### Frontend error tracking (before you build)
-
-The frontend's Sentry DSN is compiled **into** the JavaScript bundle, so it must exist before
-the image is built. Vite reads it at build time; `--env-file` at run time is far too late.
-
-```bash
-nano ~/venturekeep/frontend/.env
-```
-
-One line, and the `VITE_` prefix is mandatory — without it Vite will not expose the value and
-error tracking silently reports nothing:
-
-```
-VITE_SENTRY_DSN=https://your-public-key@o00000.ingest.us.sentry.io/00000
-```
-
-Use the **frontend** Sentry project's DSN, not the backend one. The file is untracked, so
-`git pull` will not remove it, but it also will not exist on a fresh clone — recreate it
-before the first build on a new server.
+> **Using Sentry?** Create `~/venturekeep/frontend/.env` *before* building — the frontend DSN
+> is compiled into the bundle at build time. See [SENTRY.md](SENTRY.md).
 
 Build the Docker image:
 
@@ -200,21 +183,18 @@ DATABASE_URL=postgresql://venturekeep:CHANGE_THIS_TO_A_REAL_PASSWORD@venturekeep
 VENTUREKEEP_SECRET_KEY=PASTE_YOUR_GENERATED_KEY_HERE
 CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 PORT=8000
-SENTRY_DSN=https://your-backend-dsn@o00000.ingest.us.sentry.io/00000
-APP_ENV=production
 ```
 
 Key points:
 - The `DATABASE_URL` host is `venturekeep-db` — the container name on the shared Docker network. Not `localhost`, not `172.17.0.1`.
 - Update `CORS_ORIGINS` with your actual domain (e.g. `https://yourdomain.com` or `https://game.yourdomain.com` for a subdomain). For initial testing without a domain, set it to `*`.
 - The DB password here must match what you used in Step 3.
-- **Do not quote any value.** Docker's `--env-file` does not strip quotes the way a shell or
-  python-dotenv does, so `SENTRY_DSN="https://..."` arrives with literal quote characters and
-  Sentry rejects it silently. Verify with `docker exec venturekeep-app printenv SENTRY_DSN`.
-- `APP_ENV` is what tags errors as production in Sentry. Omit it and server errors report as
-  `development`. It is backend-only — it does nothing in `frontend/.env`.
-- This file is read by Docker at `docker run`, not by the app. The app also loads a `.env` for
-  local development, but that file never enters the image.
+- **Do not quote any value.** `--env-file` keeps quote characters as part of the value.
+
+### Optional: error tracking
+
+Sentry reports backend exceptions and frontend errors. It adds two variables to the file
+above and one to `~/venturekeep/frontend/.env`. Setup is in [SENTRY.md](SENTRY.md).
 
 ---
 
