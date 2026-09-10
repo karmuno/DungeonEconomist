@@ -339,6 +339,18 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **The upkeep total collected should sit with the treasury, not under the ledger.** The
+  Upkeep Day modal shows `Treasury [before] -> [after]` on one line
+  (`UpkeepDayModal.vue:44-54`), while the amount actually taken in appears as a "Collected"
+  cell at the bottom of the per-adventurer grid (`:88-91`). The headline number is the one
+  buried. Show it as **`+X` directly beneath the original treasury value**, as first-class
+  information.
+  No backend work: the payload already carries `collected_cp`, and it equals
+  `treasury_after_cp - treasury_before_cp`, so the figure needs no computing.
+  Two things to settle while doing it: `.outcome-row` is a single horizontal line of spans, so
+  a value *below* the before-figure means stacking that cell rather than adding another span;
+  and the grid's totals row also carries collected XP and any unpaid amount, so decide whether
+  the money cell moves out of it (leaving XP and unpaid behind) or is shown in both places.
 - **Monsters need a plural form and an article.** Singular combat reads "Your party fought
   Goblin."; it should read "a Goblin" / "an Ogre". Plurals are already handled, badly, by a
   heuristic in `app/expedition_events.py:169-175` — `f`/`fe` becomes `ves`, everything else
