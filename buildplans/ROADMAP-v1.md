@@ -339,6 +339,18 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **Village belongs beside the roster, not below the fold.** On the Dashboard,
+  `.parties-unassigned-grid` (`DashboardView.vue:537`) is a two-column `1fr 1fr` grid holding
+  Parties and Unassigned Adventurers; the Village card (`:450`, with the empty-state variant at
+  `:500`) sits full-width **underneath it**. Since Village is a drop target for building
+  assignment, assigning an unassigned adventurer means dragging while scrolling, which HTML5
+  drag handles poorly. Move Village to half width directly under Unassigned Adventurers — it
+  removes the scroll and fills the blank right-hand space.
+  Implementation note: making Village a fourth child of the existing grid does not achieve
+  this — grid rows align across columns, so a tall Parties card would leave a gap above
+  Village. Restructure as two independent column stacks instead: left holds Parties, right
+  holds Unassigned Adventurers then Village. Both Village blocks move, the populated one and
+  the empty state.
 - **"Skip to Event" should stop only at something actionable.** An auto-launching expedition
   currently halts the skip. Immediate cause: the auto-launch event is emitted with
   `type="expedition_complete"` (`app/routes/game.py:356`) — a launch announced as a completion
