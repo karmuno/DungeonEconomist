@@ -339,6 +339,17 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **"Skip to Event" should stop only at something actionable.** An auto-launching expedition
+  currently halts the skip. Immediate cause: the auto-launch event is emitted with
+  `type="expedition_complete"` (`app/routes/game.py:356`) — a launch announced as a completion
+  — and `expedition_complete` is in `NOTABLE_EVENT_TYPES` (`app/routes/game.py:508`), which is
+  the set `skip_to_event` breaks on. Give the launch its own type and the immediate bug goes.
+  The broader fix is that `NOTABLE_EVENT_TYPES` conflates two different questions — *does this
+  belong in the log* and *should time stop for this*. Splitting them lets recruitment, loot and
+  an auto-launch be recorded without interrupting a skip, while a pending decision, the upkeep
+  ledger and a death still stop the clock. **Stairs must keep stopping it regardless**: they
+  always prompt the player, by standing rule. Worth checking the mislabelled type does not also
+  make the frontend treat a launch as a return.
 - **Adventurer rows should line up in columns.** Quality of life. The Dashboard's unassigned
   list (`DashboardView.vue:335-352`) is a flex row of inline `<span>`s, so no statistic sits at
   the same horizontal position from one adventurer to the next. The item tags are rendered
