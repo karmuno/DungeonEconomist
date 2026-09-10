@@ -422,15 +422,23 @@ shows it matters.
   and revival totals, and render them on the member row
   (`ExpeditionSummaryView.vue:246`, `ExpeditionEventModal.vue`) so the arithmetic reads: took
   4, healed 4, ended 6/6. Pairs naturally with the in-round healing display above
-- **Healing and revivals belong in the round they happened, not after it.** Today
-  `resolve_combat_rounds` builds `revivals` and `healed_adventurers` *after* the round loop
-  closes, so they carry no round number, and `ExpeditionLogTree.vue:214-227` renders them as a
-  flat list hanging off the end of the combat — "healed for 2 HP", "drinks a Cure Light Wounds
-  potion and gets back up", "is revived by ..." all appear at the edge of the turn with no
-  sense of when. Needs both ends: the sim tags each heal and revival with a round, and the log
-  tree renders it inside that round's block alongside the attacks. Note this makes the
-  presentation match the fiction already committed — the Cleric revival is an abstraction for
-  reaching an ally *before* they die, so it should read in the round they fell, not afterwards.
+- **The round log should replay one ordered event list.** The sim records a round as separate
+  buckets — `attacks`, `spell_casts`, `cleric_turns` — and builds `revivals` and
+  `healed_adventurers` *after* the round loop with no round number at all. The renderer
+  (`ExpeditionLogTree.vue:185-208`) emits those buckets in a fixed order, so the log's
+  chronology is a reconstruction, and it is wrong in three known ways:
+  · on a **monsters-first** round the spell renders *before* the monster attacks that actually
+  preceded it (observed 2026-09-09: "Round 1 (monsters first)" listing Sleep above sixteen Ogre
+  attacks) · **Cleric turn undead** renders after the spell, but resolves before everything,
+  since it happens regardless of initiative · **heals and revivals** hang off the end of the
+  combat rather than appearing where they occurred.
+  **The simulation is correct in every one of these — only the log misrepresents it.**
+  Fix: have `resolve_combat_rounds` append to a single ordered `events` list per round and have
+  the renderer play it back, with post-combat recovery tagged to the round it belongs to. That
+  closes all three at once and stops the next addition from creating a fourth. It also removes
+  the renderer's need to infer which side an attack came from by looking the attacker's name up
+  in `pcNames` (`ExpeditionLogTree.vue:57`).
+
 - **A routed party should not collect the treasure.** `determine_room_contents()`
   (`app/expedition.py:629`) returns `[MONSTER, TREASURE]` for two-thirds of monster rooms, and
   the encounter loop iterates that list **without reading the combat outcome at all** — so a
