@@ -99,6 +99,15 @@ the game or their progress, and I can see what they did.*
 Merges the old v0.9.1 Observable, v0.9.2 Survivable and v0.9.3 Public Keep down to their
 minimums. Not an analytics project, not a security review, not a load test.
 
+**Scheduled across two weekends** (Cody, 2026-09-09) rather than cut, since the release grew
+a v1.0 blocker. **2026-09-12/13 — make it true:** the ghost-adventurer fix first, because it
+corrupts every other measurement; then `player_events` with TPK capture, the admin query, and
+the auth-flash guard. **2026-09-19/20 — make it safe and ship:** Postgres suite run, restore
+drill, the `[project]`/`uv.lock` migration and audits, rate limiting and CORS confirmed, the
+two links, then deploy, full playthrough and tag. Legibility items (buildings XP, Village,
+item descriptions, found items, auto-delve) fill whatever remains and otherwise fall to v1.1;
+none of them block inviting anyone.
+
 ### Before strangers see it
 
 Widens the goal above: a stranger's first thirty seconds must not look broken, and the
