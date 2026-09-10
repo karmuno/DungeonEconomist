@@ -159,6 +159,22 @@ this release rather than opening a fourth gate.
       revival is an abstraction for the Cleric reaching an ally *before* they die, not for
       raising a corpse afterwards, so running away does not undo it. All three post-combat
       recovery steps now behave the same way
+- [ ] **Dead adventurers can be sent on further expeditions.** Confirmed 2026-09-09 in Cody's
+      save: Faust Anvilstrike, Tinariel Overhill and Audild Phoenixash all died on **day 2**
+      (expedition 891, a Sprite rout) and all three appear in **expedition 892 on day 35** —
+      casting spells, being targeted, and Faust being slain a second time.
+      **Cause:** `is_dead` is written to the database only in `_finalize_expedition`
+      (`app/routes/expeditions.py:255`), which runs when the player *witnesses* the
+      resolution. Expedition 891 was not resolved until roughly day 36 — which is when its
+      death popup finally fired. For 33 days those three were dead in the simulation and alive
+      in the database, so the launch guard at `:667` (and the auto-launch filter at `:541`)
+      read `is_dead == False` and let them out again.
+      The witnessed rule correctly delays *display*; it must not delay *state*. Options: apply
+      deaths to the roster when the expedition resolves in the sim while still holding the
+      event back for the player to see, or make launch consult the pending simulation rather
+      than only `is_dead`. **In v0.9.1 rather than v1.1: this corrupts the save, wastes a
+      player's roster, and makes the death moment — the attachment moment the cohort exists to
+      test — arrive 33 days late attached to the wrong fight.**
 - [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
       (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
       localStorage, never its validity. A stale token therefore renders the dashboard, every
