@@ -339,6 +339,18 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **Monsters need a plural form and an article.** Singular combat reads "Your party fought
+  Goblin."; it should read "a Goblin" / "an Ogre". Plurals are already handled, badly, by a
+  heuristic in `app/expedition_events.py:169-175` — `f`/`fe` becomes `ves`, everything else
+  gets `s` — which is right for Dwarf, Wolf, Elf and Werewolf but produces **"Robber Flys",
+  "Harpys", "Ochre Jellys" and "Mummys"**. Note the same block appears twice in that file
+  (`:58` builds a label too).
+  Put both in the data rather than deriving them: `plural` and `article` fields per monster in
+  `app/data/monsters.json` (100 entries). Deriving the plural is already wrong for 4 of 100.
+  Deriving the article from a leading vowel happens to work for today's eight — Acolyte, Orc,
+  Oil Beetle, Elf, Ochre Jelly, Ogre, Owl Bear, Amber Golem — but breaks the moment a Unicorn
+  or an Umber Hulk is added, both of which take "a" despite the vowel. Data costs one field
+  and is correct by construction.
 - **Village belongs beside the roster, not below the fold.** On the Dashboard,
   `.parties-unassigned-grid` (`DashboardView.vue:537`) is a two-column `1fr 1fr` grid holding
   Parties and Unassigned Adventurers; the Village card (`:450`, with the empty-state variant at
