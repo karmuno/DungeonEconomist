@@ -339,6 +339,19 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
+- **Adventurer rows should line up in columns.** Quality of life. The Dashboard's unassigned
+  list (`DashboardView.vue:335-352`) is a flex row of inline `<span>`s, so no statistic sits at
+  the same horizontal position from one adventurer to the next. The item tags are rendered
+  **before** class, level, HP, XP and wealth, so a variable number of items shifts every
+  statistic after them — which is why rows look aligned until someone picks something up.
+  Four or more items is rare enough to accept as the degrading case, so a fixed-width item
+  cell that overflows there is fine.
+  Same pattern in `PartiesView.vue`, `ExpeditionLaunchView.vue` and `PartyFormationView.vue`;
+  `AdventurerList.vue`, `ExpeditionList.vue`, `RecentExpeditions.vue` and `MetricsPanel.vue`
+  already use real tables. Implementation note: the Dashboard rows are `draggable` with
+  dragstart handlers, and dragging `<tr>` elements is awkward — CSS Grid with fixed
+  `grid-template-columns` keeps the existing `<div>` structure and the drag behaviour while
+  giving the same alignment. (`fix/table-alignment` holds nothing unique against `main`.)
 - **Adventurer names in the expedition summary should open their sheet.** v0.9 shipped this
   for notifications and popups, but `linkAdventurerNames` (`frontend/src/utils/adventurer.ts`)
   is used in exactly one place — `SidePanel.vue`. `ExpeditionSummaryView.vue`,
