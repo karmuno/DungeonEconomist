@@ -1105,3 +1105,72 @@ def test_feedback_rejects_unknown_category_blank_text_and_severity_out_of_range(
     assert client.post("/feedback/", json={**good, "severity": 5}).status_code == 422
     assert client.post("/feedback/", json={**good, "severity": 0}).status_code == 422
     assert _feedback_rows(db_session) == []
+
+
+# --- buildings grant XP to their classes; the Village states totals and free slots ---
+
+def _building(db: Session, keep_id: int, building_type: str):
+    from app.models import Building
+    b = Building(keep_id=keep_id, building_type=building_type, level=1)
+    db.add(b)
+    db.commit()
+    db.refresh(b)
+    return b
+
+
+def test_buildings_grant_stacking_xp_to_their_classes(client: TestClient, db_session: Session):
+    """+10% per standing building whose classes include the adventurer's; an Elf with a
+    Training Grounds and a Library gets both."""
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    _building(db_session, keep.id, "training_grounds")
+    _building(db_session, keep.id, "library")
+
+    party = Party(name="Scholars", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    fighter = create_adventurer_db(db_session, keep.id, name="Fighter", xp=0, gold=0)
+    elf = create_adventurer_db(db_session, keep.id, name="Elf", xp=0, gold=0)
+    cleric = create_adventurer_db(db_session, keep.id, name="Cleric", xp=0, gold=0)
+    elf.adventurer_class = AdventurerClass.ELF
+    cleric.adventurer_class = AdventurerClass.CLERIC
+    party.members.extend([fighter, elf, cleric])
+    db_session.commit()
+
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+    sim = {
+        "dead_members": [], "log": [], "starting_hp": {},
+        "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 100, "xp_earned": 300, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+
+    assert (fighter.xp, elf.xp, cleric.xp) == (110, 120, 100)
+
+
+def test_building_response_states_totals_and_free_slots(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    grounds = _building(db_session, keep.id, "training_grounds")
+    vet = create_adventurer_db(db_session, keep.id, name="Vet", xp=0, gold=0)
+    vet.level = 2
+    vet.is_assigned = True
+    grounds.assigned_adventurers.append(vet)
+    db_session.commit()
+
+    rows = client.get("/buildings/", headers=auth_headers(token, keep.id)).json()
+    built = next(r for r in rows if r["building_type"] == "training_grounds")
+    assert (built["slots_total"], built["slots_free"]) == (3, 2)
+    lines = {ln["label"]: ln for ln in built["current_stats"]}
+    assert lines["To-hit"] == {"label": "To-hit", "value": "+1 each", "total": "+1"}
+    assert lines["Slots"]["total"] == "2 free"
+    assert lines["XP"] == {"label": "XP", "value": "+10%", "total": "+10%"}
+    assert built["effects"] == ["+1 to-hit", "+10% XP"]
+
+    unbuilt = next(r for r in rows if r["building_type"] == "temple")
+    assert unbuilt["current_stats"] == []
+    assert all(ln["total"] is None for ln in unbuilt["next_stats"])
+    assert any(ln["label"] == "XP" and ln["value"] == "+10%" for ln in unbuilt["next_stats"])

@@ -101,8 +101,8 @@ function eligibleFor(b: BuildingData, minLevel: number): AdventurerOut[] {
 
 // The per-assignment bonus shown in the popover header
 function assignBonus(b: BuildingData): string {
-  const perUnit = b.current_stats.filter(l => l.value.includes('per'))
-  return perUnit.map(l => l.value.replace(/ per .*$/, '')).join(' · ')
+  const perUnit = b.current_stats.filter(l => l.value.endsWith(' each'))
+  return perUnit.map(l => l.value.replace(/ each$/, '')).join(' · ')
 }
 
 async function buyBuilding(b: BuildingData) {
@@ -171,12 +171,13 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
           <span class="bcard-class">{{ (b.allowed_classes ?? [b.adventurer_class]).join(' / ') }}</span>
         </div>
 
-        <!-- Current effects -->
+        <!-- Every effect: what it delivers now, and the rate it is built from -->
         <div class="stats-block">
-          <div v-for="label in statLabels(b)" :key="label" class="stat-row">
-            <span class="stat-label">{{ label }}</span>
-            <span class="stat-value" :class="{ muted: statValue(b.current_stats, label) === '—' }">
-              {{ statValue(b.current_stats, label) }}
+          <div v-for="line in b.current_stats" :key="line.label" class="stat-row">
+            <span class="stat-label">{{ line.label }}</span>
+            <span class="stat-cell">
+              <span class="stat-value" :class="{ muted: !line.total }">{{ line.total ?? '—' }}</span>
+              <span v-if="line.total !== line.value" class="stat-rate">{{ line.value }}</span>
             </span>
           </div>
         </div>
@@ -324,9 +325,20 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
   color: #6b7280;
 }
 
+.stat-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .stat-value {
   font-size: 12px;
   color: #e5e7eb;
+}
+
+.stat-rate {
+  font-size: 10px;
+  color: #6b7280;
 }
 
 .stat-value.muted {

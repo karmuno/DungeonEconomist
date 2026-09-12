@@ -10,6 +10,8 @@ export interface BuildingAssignedAdventurer {
 export interface BuildingStatLine {
   label: string
   value: string
+  /** What the building delivers now given who is assigned; null when nobody qualifies. */
+  total?: string | null
 }
 
 export interface BuildingTierSlot {
@@ -36,6 +38,8 @@ export interface BuildingData {
   buy_cost?: number
   upgrade_cost: number | null
   next_name: string | null
+  slots_total?: number
+  slots_free?: number
   current_stats: BuildingStatLine[]
   next_stats: BuildingStatLine[] | null
 }

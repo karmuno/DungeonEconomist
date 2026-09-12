@@ -232,11 +232,19 @@ def _finalize_expedition(
 
         xp_per_member = int(effective_result.get("xp_per_party_member", 0))
 
+        # Buildings grant XP to their classes just by standing, stacking across
+        # buildings (an Elf with a Training Grounds and a Library gets both).
+        from app.buildings import xp_bonus_by_class
+        from app.models import Building
+        built = [b.building_type for b in db.query(Building).filter(Building.keep_id == keep.id).all()]
+        xp_bonus = xp_bonus_by_class(built)
+
         # Iterate a snapshot: dead members are detached from the party inside
         # the loop, and mutating party.members while iterating skips entries
         went_out = list(party.members)
         for member in went_out:
             is_dead = member.name in dead_names
+            member_xp = int(xp_per_member * (1 + xp_bonus.get(member.adventurer_class.value, 0.0)))
             replayed_hp = sim_hp.get(member.name, member.hp_current)
             # Clamp to real hp_max (armor buffer may have inflated starting_hp)
             final_hp = max(1, min(replayed_hp, member.hp_max)) if not is_dead else 0
@@ -244,13 +252,13 @@ def _finalize_expedition(
             log = ExpeditionLog(
                 expedition_id=expedition.id,
                 adventurer_id=member.id,
-                xp_share=xp_per_member,
+                xp_share=member_xp,
                 hp_change=final_hp - member.hp_current if not is_dead else -member.hp_current,
                 status="dead" if is_dead else "alive"
             )
             db.add(log)
 
-            member.xp += xp_per_member
+            member.xp += member_xp
 
             if is_dead:
                 member.hp_current = 0

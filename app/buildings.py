@@ -100,10 +100,26 @@ def get_all_building_bonuses(building_type: str, building_level: int) -> dict:
     return merged
 
 
-def has_recruitment_bonus(building_type: str) -> bool:
-    """Whether this building doubles recruitment chance for its class."""
+def get_xp_bonus(building_type: str) -> float:
+    """The XP bonus this building grants its classes just by standing, as a fraction (0.1 = +10%)."""
     config = BUILDING_CONFIG.get(building_type, {})
-    return config.get("recruitment_bonus", False)
+    return float(config.get("xp_bonus", 0.0))
+
+
+def xp_bonus_by_class(building_types: list[str]) -> dict[str, float]:
+    """Total XP bonus per class from the buildings that exist.
+
+    Bonuses stack across buildings: an Elf with a Training Grounds and a Library gets both
+    (provisional, per Cody 2026-09-12; tune after the cohort).
+    """
+    totals: dict[str, float] = {}
+    for btype in building_types:
+        bonus = get_xp_bonus(btype)
+        if not bonus:
+            continue
+        for cls in get_allowed_classes(btype):
+            totals[cls] = totals.get(cls, 0.0) + bonus
+    return totals
 
 
 def can_assign_class(building_type: str, adventurer_class: str) -> bool:
