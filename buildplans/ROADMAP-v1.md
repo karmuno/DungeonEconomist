@@ -155,20 +155,12 @@ this release rather than opening a fourth gate.
       `found_expedition_id` and `found_day` (`app/models.py:251-252`), so the summary endpoint
       can return the items for that expedition — name, type, bonus, and who is carrying it —
       for the view to render beside the loot line
-- [ ] **The Village shows one effect out of twelve, and never says how many slots are left.**
-      `assignBonus()` (`frontend/src/views/VillageView.vue:103`) string-scrapes
-      `current_stats` for entries containing `"per"` and truncates at `" per "`, then shows the
-      result only in the assign popover header — which is why the recruitment bonus is the one
-      thing visible. Meanwhile `_get_building_bonuses` (`app/routes/expeditions.py:43`)
-      computes twelve: to-hit, damage, morale, magic-item discovery, healing-potion chance,
-      resurrect-on-return, scroll craft, artifact crafting and its cost, smithy craft chance
-      and slots, masterwork chance. `slotViews()` already draws slots individually but nothing
-      states "2 of 3 free". Needed: remaining-slot count per building, and the actual effect of
-      assigning someone, stated on the building rather than hidden behind a popover.
-      **This is a bug in its own right and does not depend on anything else** — the panel
-      under-reports whatever the bonuses happen to be. Preferably shipped alongside the
-      buildings-XP item below, since that changes the one effect currently visible, but either
-      can land alone
+- [x] **The Village shows every effect and how many slots are left** (2026-09-12). Each
+      building row now states what the building delivers right now beside the per-unit rate
+      it is built from — "+2" next to "+1 each" — plus a Slots row ("2 free") and the standing
+      XP bonus. The API computes totals per tier from who is actually assigned
+      (`_stat_lines` in `app/routes/buildings.py`, shared by the Dashboard's effect tag via
+      `building_effects`); the view no longer string-scrapes for "per". Tier II+ stays hidden
 - [x] **Parties retreat instead of dying** (2026-09-09, Cody). Party morale was hardcoded to
       **11**, so a 2d6 check failed only on a 12: 2.8% per check, ~5.5% per lethal combat,
       against a bestiary whose own morale runs 7-9. Parties fought to the death. Now
@@ -219,14 +211,14 @@ this release rather than opening a fourth gate.
       refresh are exempt now. Verified in the browser: no token, a garbage token, a valid
       pair, and a stale access token with a valid refresh token all land where they should
       with the dashboard never loaded
-- [ ] **Buildings grant XP, not recruitment.** Replace the `recruitment_bonus` flag
-      (`app/buildings.py:103`; four buildings in `app/data/buildings.json`) with **+10% XP
-      gain for the building's relevant class**. Recruitment is already free and automatic, so
-      the current bonus buys nothing a player can feel. Needs a new bonus key threaded through
-      `_get_building_bonuses` (`app/routes/expeditions.py:43`) into `app/progression.py`.
-      The +10% is provisional, like the 10% building costs. Related to the Village legibility
-      item above — this changes the one effect that panel happens to show — but the two are
-      independent: the Village under-reports either way, so neither blocks the other
+- [x] **Buildings grant XP, not recruitment** (2026-09-12, Cody). Each standing building
+      grants **+10% expedition XP** to every class it serves (`xp_bonus` in
+      `app/data/buildings.json`, replacing `recruitment_bonus`), applied when XP is credited
+      in `_finalize_expedition`. Bonuses **stack across buildings**: an Elf with a Training
+      Grounds and a Library gets +20%, a Dwarf with a Training Grounds and a Smithy likewise.
+      Provisional, like the 10% building costs; tune after the cohort. Recruitment rolls at
+      the flat rate for every class now. **Balance data before this change is not comparable
+      with data after it**
 - [ ] **Auto-delve is one checkbox.** `auto_delve_healed` and `auto_delve_full`
       (`app/models.py:177-178`) **stay separate in the backend** — the one checkbox sets both,
       so they can be split again later without a migration. Tooltip: *"Party will

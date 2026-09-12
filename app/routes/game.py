@@ -56,9 +56,6 @@ def create_random_adventurer(adventurer_class: AdventurerClass, keep: Keep, db: 
 
 def run_daily_recruitment(keep: Keep, db: Session) -> list:
     """Run daily recruitment rolls. Returns list of new adventurers created."""
-    from app.buildings import BUILDING_CONFIG, has_recruitment_bonus
-    from app.models import Building
-
     # Tavern count: available + on_expedition only (not dead, bankrupt, or assigned)
     active_count = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
@@ -67,24 +64,12 @@ def run_daily_recruitment(keep: Keep, db: Session) -> list:
         Adventurer.is_assigned == False,
     ).count()
 
-    # Build a set of classes that get doubled recruitment from buildings
-    boosted_classes = set()
-    buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
-    for b in buildings:
-        if has_recruitment_bonus(b.building_type):
-            class_name = BUILDING_CONFIG.get(b.building_type, {}).get("class", "")
-            boosted_classes.add(class_name)
-
     new_adventurers = []
     for adv_class in AdventurerClass:
         if active_count >= MAX_TAVERN_SIZE:
             break
-        # Double chance if building exists for this class
-        chance = RECRUITMENT_CHANCE
-        if adv_class.value in boosted_classes:
-            chance = chance * 2
         # Geometric re-rolls: keep rolling while successful
-        while random.random() < chance:
+        while random.random() < RECRUITMENT_CHANCE:
             if active_count >= MAX_TAVERN_SIZE:
                 break
             adv = create_random_adventurer(adv_class, keep, db)
@@ -682,13 +667,9 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     ).order_by(Expedition.finished_at.desc()).limit(5).all()
 
     # Buildings summary
-    from app.buildings import (
-        BUILDING_CONFIG,
-        get_building_class,
-        get_building_name,
-        has_recruitment_bonus,
-    )
+    from app.buildings import get_building_class, get_building_name
     from app.models import Building
+    from app.routes.buildings import building_effects
     buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
     buildings_summary = []
     for b in buildings:
@@ -696,19 +677,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             continue
         assigned_count = len(b.assigned_adventurers)
         cls = get_building_class(b.building_type)
-        # Compute current effects
-        effects = []
-        if has_recruitment_bonus(b.building_type):
-            effects.append(f"2x {cls} recruitment")
-        config = BUILDING_CONFIG.get(b.building_type, {})
-        if assigned_count > 0:
-            bonuses = config.get("level_bonuses", {}).get(str(b.level), {})
-            if "healing_per_assigned" in bonuses:
-                effects.append(f"+{assigned_count * bonuses['healing_per_assigned']} HP/day healing")
-            if "combat_bonus_per_assigned" in bonuses:
-                effects.append(f"+{assigned_count * bonuses['combat_bonus_per_assigned']} combat strength")
-            if "magic_item_chance_per_assigned" in bonuses:
-                effects.append(f"+{assigned_count * bonuses['magic_item_chance_per_assigned']}% magic item chance")
         buildings_summary.append({
             "id": b.id,
             "building_type": b.building_type,
@@ -716,7 +684,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "level": b.level,
             "adventurer_class": cls,
             "assigned_count": assigned_count,
-            "effects": effects,
+            "effects": building_effects(b),
             "assigned_adventurers": [_adv_summary_local(a) for a in b.assigned_adventurers],
         })
 
