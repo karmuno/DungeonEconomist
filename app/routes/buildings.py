@@ -47,64 +47,6 @@ def _pct(v: float) -> str:
     return f"{v * 100:.0f}%"
 
 
-# Stat renderers: (bonus key, row label, rate formatter, total formatter).
-# The rate is the per-unit number from config; the total is what the building
-# delivers right now given who is assigned (None when nobody qualifies).
-_STAT_RENDERERS = [
-    ("healing_per_assigned", "Healing",
-     lambda v: f"+{v} HP/day each", lambda v, n: f"+{v * n} HP/day"),
-    ("to_hit_per_assigned", "To-hit",
-     lambda v: f"+{v} each", lambda v, n: f"+{v * n}"),
-    ("damage_per_assigned", "Damage",
-     lambda v: f"+{v} each", lambda v, n: f"+{v * n}"),
-    ("monster_morale_penalty", "Monster morale",
-     lambda v: f"−{abs(v)}", lambda v, n: f"−{abs(v)}"),
-    ("healing_potion_chance_per_cleric", "Potion craft",
-     lambda v: f"{_pct(v)} each", lambda v, n: _pct(v * n)),
-    ("resurrect_highest_dead", "Resurrection",
-     lambda v: "On return", lambda v, n: "On return"),
-    ("magic_item_discovery_per_assigned", "Item find",
-     lambda v: f"+{_pct(v)} each", lambda v, n: f"+{_pct(v * n)}"),
-    ("scroll_craft_chance_per_mu", "Scroll craft",
-     lambda v: f"{_pct(v)} each", lambda v, n: _pct(v * n)),
-    ("craft_artifact_cost", "Artifacts",
-     lambda v: f"{v}gp", lambda v, n: f"{v}gp"),
-    ("craft_weapon_slot", "Crafting",
-     lambda v: "Weapon/Armor each", lambda v, n: f"{n} slot{'' if n == 1 else 's'}"),
-    ("masterwork_chance", "Masterwork",
-     lambda v: _pct(v), lambda v, n: _pct(v)),
-]
-
-
-def _stat_lines(btype: str, level: int, building: Building | None = None) -> list[dict]:
-    """Every effect the building has, one row each: the rate from config and, for a
-    standing building, the total it delivers now. Slots and XP come last."""
-    if level <= 0:
-        return []
-    bonuses = get_all_building_bonuses(btype, level)
-    lines = []
-    for key, label, rate_fmt, total_fmt in _STAT_RENDERERS:
-        if key not in bonuses:
-            continue
-        v = bonuses[key]
-        n = _staff_for(building, btype, key)
-        total = total_fmt(v, n) if (building is not None and n > 0) else None
-        lines.append({"label": label, "value": rate_fmt(v), "total": total})
-    tier_slots = get_tier_slots(btype, level)
-    if tier_slots:
-        slot_str = ", ".join(f"{s} · Lv {ml}+" for _, s, ml in tier_slots)
-        free = None
-        if building is not None:
-            free = get_max_assigned(btype, level) - len(building.assigned_adventurers)
-            free = f"{free} free"
-        lines.append({"label": "Slots", "value": slot_str, "total": free})
-    xp = get_xp_bonus(btype)
-    if xp:
-        rate = f"+{_pct(xp)}"
-        lines.append({"label": "XP", "value": rate, "total": rate if building is not None else None})
-    return lines
-
-
 _CLASS_PLURALS = {
     "Fighter": "Fighters",
     "Cleric": "Clerics",
@@ -115,35 +57,61 @@ _CLASS_PLURALS = {
 }
 
 
+def building_lines(btype: str, level: int, building: Building | None = None) -> list[dict]:
+    """Every effect of a building in the dashboard's language (Cody, 2026-09-12).
+
+    Each line is {value, phrase, rate, active}: `value` is the total the building delivers
+    now from who is assigned (None for a building that is not built), `phrase` the words
+    after it, `rate` what one more assigned adventurer adds (None for the standing XP line),
+    `active` whether anyone currently counts toward it.
+    """
+    if level <= 0:
+        return []
+    bonuses = get_all_building_bonuses(btype, level)
+    lines: list[dict] = []
+
+    def add(key: str, phrase: str, per_unit: float, fmt) -> None:
+        n = _staff_for(building, btype, key)
+        lines.append({
+            "value": fmt(per_unit * n) if building is not None else None,
+            "phrase": phrase,
+            "rate": fmt(per_unit),
+            "active": n > 0,
+        })
+
+    if "healing_per_assigned" in bonuses:
+        add("healing_per_assigned", "HP/day while healing", bonuses["healing_per_assigned"], lambda x: f"+{x}")
+    if "magic_item_discovery_per_assigned" in bonuses:
+        add("magic_item_discovery_per_assigned", "chance to find magic items",
+            bonuses["magic_item_discovery_per_assigned"], lambda x: f"+{_pct(x)}")
+    if "to_hit_per_assigned" in bonuses:
+        add("to_hit_per_assigned", "to-hit in combat", bonuses["to_hit_per_assigned"], lambda x: f"+{x}")
+    if "craft_weapon_slot" in bonuses:
+        add("craft_weapon_slot", "chance to forge magic armaments", bonuses.get("craft_chance", 0.10),
+            lambda x: f"+{_pct(x)}")
+    xp = get_xp_bonus(btype)
+    if xp:
+        classes = "/".join(_CLASS_PLURALS.get(c, c) for c in get_allowed_classes(btype))
+        lines.append({"value": f"+{_pct(xp)}", "phrase": f"XP {classes}", "rate": None, "active": True})
+    return lines
+
+
 def staffed_effects(building: Building) -> list[str]:
-    """Dashboard copy for what the assigned staff deliver now (Cody, 2026-09-12). Empty until
-    someone is assigned."""
-    btype = building.building_type
-    lines = _stat_lines(btype, min(building.level, 1), building)
-    totals = {line["label"]: line["total"] for line in lines}
-    effects = []
-    if totals.get("Healing"):
-        effects.append(f"{totals['Healing']} while healing")
-    if totals.get("Item find"):
-        effects.append(f"{totals['Item find']} chance to find magic items")
-    if totals.get("To-hit"):
-        effects.append(f"{totals['To-hit']} to-hit in combat")
-    bonuses = get_all_building_bonuses(btype, building.level)
-    smiths = _staff_for(building, btype, "craft_weapon_slot") if "craft_weapon_slot" in bonuses else 0
-    if smiths:
-        chance = bonuses.get("craft_chance", 0.10)
-        effects.append(f"+{_pct(chance * smiths)} chance to forge magic armaments")
-    return effects
+    """What the assigned staff deliver now. Empty until someone is assigned."""
+    return [
+        f"{line['value']} {line['phrase']}"
+        for line in building_lines(building.building_type, min(building.level, 1), building)
+        if line["rate"] is not None and line["active"]
+    ]
 
 
 def standing_effects(building: Building) -> list[str]:
     """What the building grants just by standing: its XP line."""
-    btype = building.building_type
-    xp = get_xp_bonus(btype)
-    if not xp:
-        return []
-    classes = "/".join(_CLASS_PLURALS.get(c, c) for c in get_allowed_classes(btype))
-    return [f"+{_pct(xp)} XP {classes}"]
+    return [
+        f"{line['value']} {line['phrase']}"
+        for line in building_lines(building.building_type, min(building.level, 1), building)
+        if line["rate"] is None
+    ]
 
 
 def building_effects(building: Building) -> list[str]:
@@ -194,7 +162,7 @@ def _building_response(building: Building) -> dict:
         "next_name": None,
         "slots_total": get_max_assigned(btype, shown_level),
         "slots_free": get_max_assigned(btype, shown_level) - assigned_count,
-        "current_stats": _stat_lines(btype, shown_level, building),
+        "current_stats": building_lines(btype, shown_level, building),
         "next_stats": None,
     }
 
@@ -233,7 +201,7 @@ def list_buildings(keep: Keep = Depends(get_current_keep), db: Session = Depends
                 "allowed_classes": get_allowed_classes(btype),
                 "tier_slots": [],
                 "current_stats": [],
-                "next_stats": _stat_lines(btype, 1),
+                "next_stats": building_lines(btype, 1),
             })
 
     return result

@@ -1164,13 +1164,15 @@ def test_building_response_states_totals_and_free_slots(client: TestClient, db_s
     rows = client.get("/buildings/", headers=auth_headers(token, keep.id)).json()
     built = next(r for r in rows if r["building_type"] == "training_grounds")
     assert (built["slots_total"], built["slots_free"]) == (3, 2)
-    lines = {ln["label"]: ln for ln in built["current_stats"]}
-    assert lines["To-hit"] == {"label": "To-hit", "value": "+1 each", "total": "+1"}
-    assert lines["Slots"]["total"] == "2 free"
-    assert lines["XP"] == {"label": "XP", "value": "+10%", "total": "+10%"}
+    assert built["current_stats"] == [
+        {"value": "+1", "phrase": "to-hit in combat", "rate": "+1", "active": True},
+        {"value": "+10%", "phrase": "XP Fighters/Elves/Halflings/Dwarves", "rate": None, "active": True},
+    ]
     assert built["effects"] == ["+1 to-hit in combat", "+10% XP Fighters/Elves/Halflings/Dwarves"]
 
     unbuilt = next(r for r in rows if r["building_type"] == "temple")
     assert unbuilt["current_stats"] == []
-    assert all(ln["total"] is None for ln in unbuilt["next_stats"])
-    assert any(ln["label"] == "XP" and ln["value"] == "+10%" for ln in unbuilt["next_stats"])
+    assert unbuilt["next_stats"] == [
+        {"value": None, "phrase": "HP/day while healing", "rate": "+1", "active": False},
+        {"value": "+10%", "phrase": "XP Clerics", "rate": None, "active": True},
+    ]

@@ -45,23 +45,6 @@ function fmtGp(costGp: number): string {
   return `${costGp.toLocaleString('en-US')}gp`
 }
 
-// Union of stat labels across current and next tier, in first-seen order
-function statLabels(b: BuildingData): string[] {
-  const labels: string[] = []
-  for (const line of [...b.current_stats, ...(b.next_stats ?? [])]) {
-    if (!labels.includes(line.label)) labels.push(line.label)
-  }
-  return labels
-}
-
-function statValue(lines: { label: string; value: string }[] | null | undefined, label: string): string {
-  return lines?.find(l => l.label === label)?.value ?? '—'
-}
-
-function nextChanged(b: BuildingData, label: string): boolean {
-  return statValue(b.current_stats, label) !== statValue(b.next_stats, label)
-}
-
 interface SlotView {
   index: number
   minLevel: number
@@ -99,10 +82,9 @@ function eligibleFor(b: BuildingData, minLevel: number): AdventurerOut[] {
   )
 }
 
-// The per-assignment bonus shown in the popover header
+// What one more assigned adventurer adds, for the popover header
 function assignBonus(b: BuildingData): string {
-  const perUnit = b.current_stats.filter(l => l.value.endsWith(' each'))
-  return perUnit.map(l => l.value.replace(/ each$/, '')).join(' · ')
+  return b.current_stats.filter(l => l.rate).map(l => `${l.rate} ${l.phrase}`).join(' · ')
 }
 
 async function buyBuilding(b: BuildingData) {
@@ -171,20 +153,17 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
           <span class="bcard-class">{{ (b.allowed_classes ?? [b.adventurer_class]).join(' / ') }}</span>
         </div>
 
-        <!-- Every effect: what it delivers now, and the rate it is built from -->
+        <!-- Every effect, in the dashboard's words: what it delivers now, and what each assignment adds -->
         <div class="stats-block">
-          <div v-for="line in b.current_stats" :key="line.label" class="stat-row">
-            <span class="stat-label">{{ line.label }}</span>
-            <span class="stat-cell">
-              <span class="stat-value" :class="{ muted: !line.total }">{{ line.total ?? '—' }}</span>
-              <span v-if="line.total !== line.value" class="stat-rate">{{ line.value }}</span>
-            </span>
+          <div v-for="line in b.current_stats" :key="line.phrase" class="stat-row">
+            <span class="stat-value" :class="{ muted: !line.active }">{{ line.value }} {{ line.phrase }}</span>
+            <span v-if="line.rate" class="stat-rate">{{ line.rate }} each</span>
           </div>
         </div>
 
         <!-- Assigned -->
         <div v-if="b.level > 0" class="assigned-block">
-          <span class="stat-label">Assigned</span>
+          <span class="stat-label">Assigned<template v-if="b.slots_free"> · {{ b.slots_free }} free</template></span>
           <div class="assigned-row">
             <template v-for="slot in slotViews(b)" :key="slot.index">
               <span v-if="slot.adventurer" class="adv-chip">
@@ -218,14 +197,9 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
           <span class="stat-label next-label">
             {{ b.level > 0 ? `Upgrade to ${b.next_name}` : 'When built' }}
           </span>
-          <div v-for="label in statLabels(b)" :key="label" class="stat-row">
-            <span class="stat-label">{{ label }}</span>
-            <span
-              class="stat-value"
-              :class="nextChanged(b, label) ? 'changed' : 'unchanged'"
-            >
-              {{ statValue(b.next_stats, label) }}
-            </span>
+          <div v-for="line in b.next_stats" :key="line.phrase" class="stat-row">
+            <span class="stat-value changed">{{ line.rate ?? line.value }} {{ line.phrase }}</span>
+            <span v-if="line.rate" class="stat-rate">each</span>
           </div>
         </div>
 
@@ -325,12 +299,6 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
   color: #6b7280;
 }
 
-.stat-cell {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
 .stat-value {
   font-size: 12px;
   color: #e5e7eb;
@@ -347,10 +315,6 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
 
 .stat-value.changed {
   color: #4ade80;
-}
-
-.stat-value.unchanged {
-  color: #6b7280;
 }
 
 /* Assigned */
