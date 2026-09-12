@@ -103,8 +103,10 @@ minimums. Not an analytics project, not a security review, not a load test.
 a v1.0 blocker.
 
 **2026-09-12/13 — make it true.** The ghost-adventurer fix first, because it corrupts every
-other measurement; then `player_events` with TPK capture, the auth-flash guard, and the two
-links. Re-run `scripts/balance_stats.py` afterwards for a clean baseline.
+other measurement; then `player_events` with TPK capture, the auth-flash guard, the feedback
+form and the Buy Me a Coffee link. Then generate fresh expeditions on a new keep and run
+`scripts/balance_stats.py` over them for a clean baseline — the script only reads rows that
+already exist, so re-running it over the old save re-measures contaminated data.
 
 **2026-09-19/20 — make it safe and ship.** The admin query, Postgres suite run, restore drill,
 the `[project]`/`uv.lock` migration and audits, rate limiting and CORS confirmed, then deploy,
@@ -178,29 +180,30 @@ this release rather than opening a fourth gate.
       revival is an abstraction for the Cleric reaching an ally *before* they die, not for
       raising a corpse afterwards, so running away does not undo it. All three post-combat
       recovery steps now behave the same way
-- [ ] **Dead adventurers can be sent on further expeditions.** Confirmed 2026-09-09 in Cody's
-      save: Faust Anvilstrike, Tinariel Overhill and Audild Phoenixash all died on **day 2**
-      (expedition 891, a Sprite rout) and all three appear in **expedition 892 on day 35** —
-      casting spells, being targeted, and Faust being slain a second time.
-      **Cause:** `is_dead` is written to the database only in `_finalize_expedition`
-      (`app/routes/expeditions.py:255`), which runs when the player *witnesses* the
-      resolution. Expedition 891 was not resolved until roughly day 36 — which is when its
-      death popup finally fired. For 33 days those three were dead in the simulation and alive
-      in the database, so the launch guard at `:667` (and the auto-launch filter at `:541`)
-      read `is_dead == False` and let them out again.
-      **Fix, ruled 2026-09-09: apply deaths to the roster when the expedition resolves in the
-      simulation, and hold only the *event* back for the player to witness.** The witnessed
-      rule exists to delay display; it must never delay state. The narrower alternative —
-      having launch consult the pending simulation instead of `is_dead` — was considered and
-      rejected: it patches one caller and leaves the divergence for whatever reads `is_dead`
-      next.
-      **v1.0 blocker, scheduled for the 2026-09-12/13 weekend.** A ghost party member is not
-      merely a cosmetic error: they soak attacks, deal damage, cast spells and count toward
-      party size, so every fight they appear in has the wrong odds in an unknown direction.
-      It also corrupts the save, wastes a player's roster, and delivers the death moment — the
-      attachment moment the cohort exists to test — 33 days late attached to the wrong fight.
-      **Balance data gathered before this is fixed is contaminated** and should be re-measured
-      afterwards with `scripts/balance_stats.py`.
+- [ ] **Dead adventurers fight in later expeditions.** Confirmed 2026-09-09 in Cody's save:
+      Faust Anvilstrike, Tinariel Overhill and Audild Phoenixash died on **day 2** (expedition
+      891, a Sprite rout) and all three fight in **expedition 892 on day 35** — casting spells,
+      being targeted, Faust slain a second time.
+      **Cause:** the roster is right and the simulation input is wrong. In the save all three
+      are `is_dead` with `death_day = 2`, and expedition 892's `expedition_logs` name six
+      living members, none of them the dead; only 892's stored `simulation_data` contains
+      them. `launch_expedition` (`app/routes/expeditions.py:707`) searches the process-global
+      `simulator.parties` for a cached party whose **first member's id** matches and reuses
+      it, so the simulation runs against the roster as it stood at that party's first launch:
+      the dead, at their original HP, level and items. `starting_hp` and
+      `_finalize_expedition` both read the live `party.members`, which is why the sim's names
+      and the logs disagree. `_auto_launch_expedition` (`:578`) registers a fresh party every
+      launch and is unaffected. The lookup has been there since the 2026-03-12 refactor.
+      **Fix:** register a fresh simulator party on every manual launch, as the auto path
+      already does, and delete the lookup. API-level regression test: launch, retreat with
+      deaths, relaunch with the same first member, assert the simulated roster equals
+      `party.members`.
+      **v1.0 blocker, scheduled for 2026-09-12/13.** A ghost soaks attacks, deals damage,
+      casts spells and counts toward party size, so every fight they appear in has the wrong
+      odds in an unknown direction, and the death moment lands on the wrong fight.
+      **Balance data is contaminated beyond deaths:** every manual relaunch with an unchanged
+      first member also ran at stale HP, level and items. Auto-delve launches were clean.
+      Measure again only on expeditions generated after the fix.
 - [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
       (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
       localStorage, never its validity. A stale token therefore renders the dashboard, every
@@ -261,9 +264,8 @@ this release rather than opening a fourth gate.
       `death_party_name`, the party they died with; Debtor's Prison adds **Bankrupted**
       (`bankruptcy_day`) and HP, and drops Party entirely. Null numerics sort to the bottom
       descending, so "newest first" puts unknown dates last
-- [ ] One `player_events` table and inserts for: account created · adventurer recruited ·
-      party formed · expedition started · expedition completed · adventurer died · adventurer
-      levelled · building bought/upgraded · return session
+- [ ] One `player_events` table and inserts per `buildplans/player-events-spec.md`: 16 event
+      types from account creation through party wipe, one helper, no separate commit
 - [ ] **A party wipe records how it happened** (Cody, 2026-09-09): the monster type and the
       number of them that did it, plus the party's **average level at the time of the wipe**.
       A TPK is the sharpest attachment signal the cohort can produce, and "they died" without
@@ -289,8 +291,11 @@ this release rather than opening a fourth gate.
 - [ ] 30-minute smoke in Chrome, Firefox, Safari
 
 ### The two links that are the point
-- [ ] "Feedback?" link (mailto or form). Someone telling you they loved it is the #1 outcome
-- [ ] Buy Me a Coffee link, branded Cody Jane Games. No payment integration
+- [ ] In-game feedback form per `buildplans/feedback-form-spec.md`: reachable from every
+      screen, five fields, its own `feedback` table. Someone telling you they loved it is the
+      #1 outcome
+- [ ] Buy Me a Coffee link to https://buymeacoffee.com/codyjanegames, branded Cody Jane
+      Games. No payment integration
 
 **Not in this release, on purpose:** domain migration. A studio-branded tip link on
 `venturekeep.stahlsystems.com` is fine for 10 invited people. Decide the name in an hour on a
