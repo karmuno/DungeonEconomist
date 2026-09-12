@@ -8,10 +8,14 @@ export interface BuildingAssignedAdventurer {
 }
 
 export interface BuildingStatLine {
-  label: string
-  value: string
-  /** What the building delivers now given who is assigned; null when nobody qualifies. */
-  total?: string | null
+  /** What the building delivers now, e.g. "+2"; null when it is not built. */
+  value: string | null
+  /** The words after the value, e.g. "to-hit in combat". */
+  phrase: string
+  /** What one more assigned adventurer adds, e.g. "+1"; null for the standing XP line. */
+  rate: string | null
+  /** Whether anyone currently counts toward it. */
+  active: boolean
 }
 
 export interface BuildingTierSlot {
