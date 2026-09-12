@@ -701,16 +701,11 @@ def launch_expedition(
             member_dict["spell_multiplier"] = multiplier
         party_members.append(member_dict)
 
-    # Add party to simulator
-    simulator_party_idx = None
-    if party_members:
-        for idx, sim_party in enumerate(simulator.parties):
-            if len(sim_party) > 0 and sim_party[0].get("id") == party_members[0].get("id"):
-                simulator_party_idx = idx
-                break
-
-    if simulator_party_idx is None:
-        simulator_party_idx = simulator.add_party(party_members)
+    # Always register the roster as it stands now. Reusing a party cached in the
+    # process-global simulator (matched on its first member) simulated every later
+    # launch against the roster from the first one: the dead, at their original
+    # HP, level and items. The auto-launch path has always registered fresh.
+    simulator_party_idx = simulator.add_party(party_members)
 
     expedition_id_sim = simulator.start_expedition(
         simulator_party_idx,

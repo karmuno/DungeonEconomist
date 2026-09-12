@@ -180,7 +180,7 @@ this release rather than opening a fourth gate.
       revival is an abstraction for the Cleric reaching an ally *before* they die, not for
       raising a corpse afterwards, so running away does not undo it. All three post-combat
       recovery steps now behave the same way
-- [ ] **Dead adventurers fight in later expeditions.** Confirmed 2026-09-09 in Cody's save:
+- [x] **Dead adventurers fight in later expeditions.** Confirmed 2026-09-09 in Cody's save:
       Faust Anvilstrike, Tinariel Overhill and Audild Phoenixash died on **day 2** (expedition
       891, a Sprite rout) and all three fight in **expedition 892 on day 35** — casting spells,
       being targeted, Faust slain a second time.
@@ -198,7 +198,11 @@ this release rather than opening a fourth gate.
       already does, and delete the lookup. API-level regression test: launch, retreat with
       deaths, relaunch with the same first member, assert the simulated roster equals
       `party.members`.
-      **v1.0 blocker, scheduled for 2026-09-12/13.** A ghost soaks attacks, deals damage,
+      **Fixed 2026-09-12:** `launch_expedition` registers a fresh simulator party every
+      launch; the lookup is gone. Regression test `test_relaunch_simulates_the_current_roster`
+      in `tests/test_main_utils.py` fails against the old code (2 members simulated, 3 in the
+      party) and passes now.
+      **v1.0 blocker.** A ghost soaks attacks, deals damage,
       casts spells and counts toward party size, so every fight they appear in has the wrong
       odds in an unknown direction, and the death moment lands on the wrong fight.
       **Balance data is contaminated beyond deaths:** every manual relaunch with an unchanged
