@@ -132,7 +132,7 @@ def staffed_effects(building: Building) -> list[str]:
     smiths = _staff_for(building, btype, "craft_weapon_slot") if "craft_weapon_slot" in bonuses else 0
     if smiths:
         chance = bonuses.get("craft_chance", 0.10)
-        effects.append(f"{smiths} × {_pct(chance)} chance to forge a +1 weapon or armor on return")
+        effects.append(f"+{_pct(chance * smiths)} chance to forge magic armaments")
     return effects
 
 
