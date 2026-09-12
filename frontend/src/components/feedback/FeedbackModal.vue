@@ -182,12 +182,7 @@ function another() {
                 <span>Name</span>
                 <span class="optional">Optional</span>
               </div>
-              <input
-                v-model="name"
-                class="form-input field-control"
-                type="text"
-                placeholder="So we can follow up — or leave it blank."
-              />
+              <input v-model="name" class="form-input field-control" type="text" />
             </div>
 
             <div v-if="error" class="error-line">{{ error }}</div>
