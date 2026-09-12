@@ -597,6 +597,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .building-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; }
 .building-row-name { font-weight: 600; font-size: 13px; flex: 1; }
 .building-effect-tag { font-size: 10px; font-family: var(--font-mono); color: var(--accent-green); }
+.building-effect-tag + .building-effect-tag::before { content: '\B7'; margin-right: 8px; color: var(--text-muted); }
 .building-expanded { padding: 4px 0 8px 22px; }
 .building-effects-full { display: flex; gap: 6px; flex-wrap: wrap; }
 .effect-tag {
