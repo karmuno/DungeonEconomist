@@ -115,11 +115,9 @@ _CLASS_PLURALS = {
 }
 
 
-def building_effects(building: Building) -> list[str]:
-    """Dashboard copy for what the building is doing now (Cody, 2026-09-12), then its XP line.
-
-    Staffed effects appear only once someone is assigned; the XP line always does.
-    """
+def staffed_effects(building: Building) -> list[str]:
+    """Dashboard copy for what the assigned staff deliver now (Cody, 2026-09-12). Empty until
+    someone is assigned."""
     btype = building.building_type
     lines = _stat_lines(btype, min(building.level, 1), building)
     totals = {line["label"]: line["total"] for line in lines}
@@ -135,11 +133,22 @@ def building_effects(building: Building) -> list[str]:
     if smiths:
         chance = bonuses.get("craft_chance", 0.10)
         effects.append(f"{smiths} × {_pct(chance)} chance to forge a +1 weapon or armor on return")
-    xp = get_xp_bonus(btype)
-    if xp:
-        classes = "/".join(_CLASS_PLURALS.get(c, c) for c in get_allowed_classes(btype))
-        effects.append(f"+{_pct(xp)} XP {classes}")
     return effects
+
+
+def standing_effects(building: Building) -> list[str]:
+    """What the building grants just by standing: its XP line."""
+    btype = building.building_type
+    xp = get_xp_bonus(btype)
+    if not xp:
+        return []
+    classes = "/".join(_CLASS_PLURALS.get(c, c) for c in get_allowed_classes(btype))
+    return [f"+{_pct(xp)} XP {classes}"]
+
+
+def building_effects(building: Building) -> list[str]:
+    """Everything the building is doing now: staffed effects first, standing last."""
+    return staffed_effects(building) + standing_effects(building)
 
 
 def _building_response(building: Building) -> dict:

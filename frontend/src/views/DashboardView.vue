@@ -463,7 +463,12 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
               <span class="party-expand">{{ expandedBuilding === b.building_type ? '&#9660;' : '&#9654;' }}</span>
               <span class="building-row-name">{{ b.name }}</span>
               <span class="party-size">{{ b.assigned_count }} assigned</span>
-              <span v-for="(fx, i) in b.effects" :key="i" class="building-effect-tag">{{ fx }}</span>
+              <span class="building-cell">
+                <span v-for="(fx, i) in b.staffed_effects" :key="i" class="building-effect-tag">{{ fx }}</span>
+              </span>
+              <span class="building-cell">
+                <span v-for="(fx, i) in b.standing_effects" :key="i" class="building-effect-tag">{{ fx }}</span>
+              </span>
             </div>
             <div v-if="expandedBuilding === b.building_type" class="building-expanded">
               <div v-if="b.effects.length > 0" class="building-effects-full mb-1">
@@ -594,8 +599,18 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .buildings-list { display: flex; flex-direction: column; gap: 2px; }
 .building-block { border-bottom: 1px solid var(--border-color); transition: background 0.15s; }
 .building-block.drop-hover { background: rgba(74, 222, 128, 0.08); border-color: var(--accent-green); }
-.building-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; }
-.building-row-name { font-weight: 600; font-size: 13px; flex: 1; }
+/* One grid per row with fixed tracks, so every row's cells line up as a table:
+   caret | name | assigned | what the staff deliver | what the building grants */
+.building-row {
+  display: grid;
+  grid-template-columns: 14px minmax(120px, 1fr) 84px minmax(0, 2fr) minmax(0, 2fr);
+  align-items: center;
+  column-gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.building-row-name { font-weight: 600; font-size: 13px; }
+.building-cell { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .building-effect-tag { font-size: 10px; font-family: var(--font-mono); color: var(--accent-green); }
 .building-effect-tag + .building-effect-tag::before { content: '\B7'; margin-right: 8px; color: var(--text-muted); }
 .building-expanded { padding: 4px 0 8px 22px; }
