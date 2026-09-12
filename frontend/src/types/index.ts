@@ -114,6 +114,7 @@ export interface AdventurerLevelUpInfo {
 
 export interface PartyCreate {
   name: string
+  adventurer_ids: number[]
 }
 
 export interface PartyOut {

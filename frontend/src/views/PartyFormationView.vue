@@ -73,11 +73,11 @@ async function formParty() {
   if (!canSubmit.value) return
   submitting.value = true
   try {
-    const party = await partiesApi.create({ name: partyName.value.trim() })
-    for (const member of selectedMembers.value) {
-      await partiesApi.addMember({ party_id: party.id, adventurer_id: member.id })
-    }
-    notifications.add(`Party "${party.name}" formed with ${selectedMembers.value.length} members`, 'success')
+    const party = await partiesApi.create({
+      name: partyName.value.trim(),
+      adventurer_ids: selectedMembers.value.map((m) => m.id),
+    })
+    notifications.add(`Party "${party.name}" formed with ${party.members.length} members`, 'success')
     router.push(`/launch-expedition/${party.id}`)
   } catch {
     notifications.add('Failed to form party', 'error')
