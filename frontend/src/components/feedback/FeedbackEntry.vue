@@ -7,18 +7,16 @@ const button = ref<HTMLButtonElement | null>(null)
 
 const statusLine = computed(() => {
   const n = fb.sentThisSession
-  if (n === 0) return 'Found something odd? Tell us.'
-  return `${n} report${n === 1 ? '' : 's'} sent this session`
+  return n === 0 ? '' : `${n} report${n === 1 ? '' : 's'} sent this session`
 })
 </script>
 
 <template>
   <div class="feedback-entry">
-    <div class="eyebrow">Playtest</div>
     <button ref="button" type="button" class="btn btn-secondary btn-sm entry-btn" @click="fb.open(button)">
       ⚑ Submit Feedback
     </button>
-    <div class="status">{{ statusLine }}</div>
+    <div v-if="statusLine" class="status">{{ statusLine }}</div>
   </div>
 </template>
 
@@ -29,13 +27,6 @@ const statusLine = computed(() => {
   gap: 8px;
   padding-top: 16px;
   border-top: 1px solid #374151;
-}
-
-.eyebrow {
-  font-size: 10px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
 }
 
 .entry-btn {
