@@ -125,7 +125,7 @@ def staffed_effects(building: Building) -> list[str]:
     if totals.get("Healing"):
         effects.append(f"{totals['Healing']} while healing")
     if totals.get("Item find"):
-        effects.append(f"{totals['Item find']} chance to find items")
+        effects.append(f"{totals['Item find']} chance to find magic items")
     if totals.get("To-hit"):
         effects.append(f"{totals['To-hit']} to-hit in combat")
     bonuses = get_all_building_bonuses(btype, building.level)
