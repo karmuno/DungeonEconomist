@@ -507,6 +507,20 @@ shows it matters.
 - **Armor should reduce damage or raise Armor Class**, not add temporary hit points. Balance
   change, deferred so the cohort's death data lands first. See the armor item in v0.9.1.
 
+- **The in-process simulator never forgets a launch.** `app/routes/expeditions.py:40` holds one
+  `DungeonSimulator` for the life of the process, and every launch appends a party list and an
+  expedition record to it that nothing removes. The database is unaffected; this is Python
+  memory, growing by one small dict-tree per launch. Harmless for a cohort of ten, real for a
+  long-running process. A per-launch simulator removes it, but `get_expedition_results` and
+  `advance_turn` (`:913`, `:1342`) still read the global by *database* expedition id, which
+  the simulator does not key on, so those two legacy endpoints need retiring or rewiring first.
+- **Auto-decided stairs never change the party's level.** The day-advance loop
+  (`app/routes/game.py:389`, `:433`) tests for a `press_on_next` choice, but `auto_decide`
+  (`app/expedition_events.py:32`) only ever returns `press_on` or `retreat`, so the
+  `dungeon_level` update behind that test is dead. Stairs always prompt the player by standing
+  rule, so today nothing reaches it; it matters the moment an auto-decide party is allowed to
+  take stairs on its own.
+
 ### Deferred 2026-09-09
 - Pagination on the Tavern's three tabs. `list_adventurers` still caps at 100 rows, so a keep
   with 100+ *living* adventurers silently truncates — now ordered newest-first, so it degrades
