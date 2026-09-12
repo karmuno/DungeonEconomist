@@ -541,8 +541,15 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+/* Every section keeps its height except the notification feed, which takes
+   whatever is left and scrolls inside itself, so the footer never leaves the screen. */
 .side-panel > * {
   flex-shrink: 0;
+}
+
+.side-panel > .notification-feed {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .panel-footer {
@@ -673,7 +680,6 @@ onUnmounted(() => {
 
 .notification-feed {
   margin-top: 4px;
-  max-height: calc(100vh - 310px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
