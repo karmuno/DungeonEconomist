@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_keep
-from app.buildings import BUILDING_TYPES, get_upgrade_cost
+from app.buildings import BUILDING_TYPES
 from app.database import get_db
 from app.dungeons import DUNGEON_LEVELS
 from app.models import (
@@ -658,7 +658,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
     ).count()
-    party_count = db.query(Party).filter(Party.keep_id == keep.id, Party.disbanded == False).count()
     expedition_count = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(Party.keep_id == keep.id).count()
 
     graveyard_count = db.query(Adventurer).filter(
@@ -685,11 +684,9 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     from app.models import Building
     buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
     buildings_summary = []
-    built_types = set()
     for b in buildings:
         if b.building_type not in BUILDING_TYPES:
             continue
-        built_types.add(b.building_type)
         assigned_count = len(b.assigned_adventurers)
         cls = get_building_class(b.building_type)
         # Compute current effects
@@ -795,15 +792,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "rows": forecast_rows,
     }
 
-    # Hint for new players
-    hint = None
-    if party_count > 0 and len(active_expeditions) == 0:
-        hint = "launch_expedition"
-    elif not built_types:
-        cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
-        if keep.treasury_total_copper() >= cheapest_cost_copper:
-            hint = "Visit the Village to build your first structure."
-
     return {
         "adventurer_count": adventurer_count,
         "graveyard_count": graveyard_count,
@@ -821,7 +809,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "parties": parties_summary,
         "unassigned_adventurers": unassigned_summary,
         "upkeep_forecast": upkeep_forecast,
-        "hint": hint,
         "active_expeditions": [
             {
                 "id": e.id,

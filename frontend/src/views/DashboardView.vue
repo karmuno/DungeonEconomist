@@ -284,9 +284,6 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
       </div>
       <h1 v-else>Dashboard</h1>
 
-      <!-- Hint -->
-      <div v-if="stats.hint && stats.hint !== 'launch_expedition'" class="hint-bar mb-2">{{ stats.hint }}</div>
-
 
       <!-- Active Expeditions -->
       <div v-if="stats.active_expeditions.length > 0" class="card dash-card mb-2">
@@ -524,12 +521,6 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .dungeon-name { font-size: 1.3rem; }
 .dungeon-depth { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
 
-.hint-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; background: rgba(96, 165, 250, 0.08);
-  border: 1px solid rgba(96, 165, 250, 0.2); border-radius: var(--border-radius);
-  color: var(--accent-blue, #60a5fa); font-size: 13px;
-}
 .text-green { color: var(--accent-green); }
 .text-dead { color: var(--accent-red, #e74c3c); }
 
