@@ -9,6 +9,7 @@
     "min_adventurer_level": [2, 6, 9],
     "retire_level": 9,
     "xp_bonus": 0.1,
+    "effect_copy": {"healing_per_assigned": "HP/day while healing", "xp_bonus": "XP"},
     "assigned_bonus_desc": "Tier I: Each Cleric grants +1 HP/day healing. Tier II: Craft Healing Potions. Tier III: Resurrect highest-level fallen on return.",
     "retire_bonus_desc": "One resurrection per expedition — a fallen adventurer may be saved.",
     "level_bonuses": {
@@ -27,6 +28,7 @@
     "min_adventurer_level": [2, 6, 9],
     "retire_level": 9,
     "xp_bonus": 0.1,
+    "effect_copy": {"to_hit_per_assigned": "to-hit in combat", "xp_bonus": "XP"},
     "assigned_bonus_desc": "Tier I: +1 to-hit per Fighter. Tier II: +1 damage per Fighter. Tier III: Monsters check morale at -2.",
     "retire_bonus_desc": "All parties gain +3 attack strength permanently.",
     "level_bonuses": {
@@ -45,6 +47,7 @@
     "min_adventurer_level": [2, 6, 9],
     "retire_level": 9,
     "xp_bonus": 0.1,
+    "effect_copy": {"magic_item_discovery_per_assigned": "chance to find magic items", "xp_bonus": "XP"},
     "assigned_bonus_desc": "Tier I: 3% chance per M-U to find magic items. Tier II: Craft Scrolls. Tier III: Craft Artifacts (1000gp, doubles spell uses).",
     "retire_bonus_desc": "Parties can cast Identify freely — doubles magic item discovery chance.",
     "level_bonuses": {
@@ -63,6 +66,7 @@
     "min_adventurer_level": [2, 6],
     "retire_level": 9,
     "xp_bonus": 0.1,
+    "effect_copy": {"craft_chance": "chance to forge magic armaments", "xp_bonus": "XP"},
     "assigned_bonus_desc": "Tier I: Craft Magic Weapon / Craft Magic Armor (one per slot). Tier II: Masterwork chance for +2 or +3 items.",
     "retire_bonus_desc": "Masterwork weapons and armor flow from the forge.",
     "level_bonuses": {

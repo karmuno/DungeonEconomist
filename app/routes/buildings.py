@@ -11,6 +11,7 @@ from app.buildings import (
     get_allowed_classes,
     get_building_class,
     get_building_name,
+    get_effect_copy,
     get_max_assigned,
     get_max_building_level,
     get_min_level_for_assignment,
@@ -18,6 +19,7 @@ from app.buildings import (
     get_upgrade_cost,
     get_xp_bonus,
 )
+from app.class_config import get_class_plural
 from app.database import get_db
 from app.models import Adventurer, Building, Keep
 from app.player_events import EventType, log_player_event
@@ -47,52 +49,41 @@ def _pct(v: float) -> str:
     return f"{v * 100:.0f}%"
 
 
-_CLASS_PLURALS = {
-    "Fighter": "Fighters",
-    "Cleric": "Clerics",
-    "Magic-User": "Magic-Users",
-    "Elf": "Elves",
-    "Dwarf": "Dwarves",
-    "Halfling": "Halflings",
-}
+def _fmt(v: float | int) -> str:
+    """A bonus value as it reads on screen: fractions are percentages, counts are counts."""
+    return f"+{_pct(v)}" if isinstance(v, float) else f"+{v}"
 
 
 def building_lines(btype: str, level: int, building: Building | None = None) -> list[dict]:
-    """Every effect of a building in the dashboard's language (Cody, 2026-09-12).
+    """Every effect of a building, in the words the building data carries (`effect_copy`).
 
     Each line is {value, phrase, rate, active}: `value` is the total the building delivers
     now from who is assigned (None for a building that is not built), `phrase` the words
     after it, `rate` what one more assigned adventurer adds (None for the standing XP line),
-    `active` whether anyone currently counts toward it.
+    `active` whether anyone currently counts toward it. Used by the Village cards and the
+    Dashboard tags alike, so the two cannot drift.
     """
     if level <= 0:
         return []
     bonuses = get_all_building_bonuses(btype, level)
     lines: list[dict] = []
-
-    def add(key: str, phrase: str, per_unit: float, fmt) -> None:
+    for key, phrase in get_effect_copy(btype).items():
+        if key == "xp_bonus":
+            xp = get_xp_bonus(btype)
+            if xp:
+                classes = "/".join(get_class_plural(c) for c in get_allowed_classes(btype))
+                lines.append({"value": _fmt(xp), "phrase": f"{phrase} {classes}", "rate": None, "active": True})
+            continue
+        if key not in bonuses:
+            continue
+        per_unit = bonuses[key]
         n = _staff_for(building, btype, key)
         lines.append({
-            "value": fmt(per_unit * n) if building is not None else None,
+            "value": _fmt(per_unit * n) if building is not None else None,
             "phrase": phrase,
-            "rate": fmt(per_unit),
+            "rate": _fmt(per_unit),
             "active": n > 0,
         })
-
-    if "healing_per_assigned" in bonuses:
-        add("healing_per_assigned", "HP/day while healing", bonuses["healing_per_assigned"], lambda x: f"+{x}")
-    if "magic_item_discovery_per_assigned" in bonuses:
-        add("magic_item_discovery_per_assigned", "chance to find magic items",
-            bonuses["magic_item_discovery_per_assigned"], lambda x: f"+{_pct(x)}")
-    if "to_hit_per_assigned" in bonuses:
-        add("to_hit_per_assigned", "to-hit in combat", bonuses["to_hit_per_assigned"], lambda x: f"+{x}")
-    if "craft_weapon_slot" in bonuses:
-        add("craft_weapon_slot", "chance to forge magic armaments", bonuses.get("craft_chance", 0.10),
-            lambda x: f"+{_pct(x)}")
-    xp = get_xp_bonus(btype)
-    if xp:
-        classes = "/".join(_CLASS_PLURALS.get(c, c) for c in get_allowed_classes(btype))
-        lines.append({"value": f"+{_pct(xp)}", "phrase": f"XP {classes}", "rate": None, "active": True})
     return lines
 
 

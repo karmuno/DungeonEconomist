@@ -20,6 +20,11 @@ _CLASSES: dict = _CONFIG["classes"]
 COMBAT_DEFAULTS: dict = _CONFIG["combat_defaults"]
 
 
+def get_class_plural(class_name: str) -> str:
+    """The class name as it reads in a list of adventurers: "Elves", "Dwarves"."""
+    return get_class_config(class_name).get("plural", class_name)
+
+
 def get_class_config(class_name: str) -> dict:
     """Return the full config dict for a class."""
     if class_name not in _CLASSES:

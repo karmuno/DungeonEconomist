@@ -106,6 +106,15 @@ def get_xp_bonus(building_type: str) -> float:
     return float(config.get("xp_bonus", 0.0))
 
 
+def get_effect_copy(building_type: str) -> dict[str, str]:
+    """Bonus key -> the words that follow its number on screen, in display order.
+
+    `xp_bonus` names the standing XP line; every other key must be a level_bonuses key.
+    """
+    config = BUILDING_CONFIG.get(building_type, {})
+    return dict(config.get("effect_copy", {}))
+
+
 def xp_bonus_by_class(building_types: list[str]) -> dict[str, float]:
     """Total XP bonus per class from the buildings that exist.
 
