@@ -463,7 +463,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
               <span class="party-expand">{{ expandedBuilding === b.building_type ? '&#9660;' : '&#9654;' }}</span>
               <span class="building-row-name">{{ b.name }}</span>
               <span class="party-size">{{ b.assigned_count }} assigned</span>
-              <span v-if="b.effects.length > 0" class="building-effect-tag">{{ b.effects[0] }}</span>
+              <span v-for="(fx, i) in b.effects" :key="i" class="building-effect-tag">{{ fx }}</span>
             </div>
             <div v-if="expandedBuilding === b.building_type" class="building-expanded">
               <div v-if="b.effects.length > 0" class="building-effects-full mb-1">

@@ -105,17 +105,39 @@ def _stat_lines(btype: str, level: int, building: Building | None = None) -> lis
     return lines
 
 
+_CLASS_PLURALS = {
+    "Fighter": "Fighters",
+    "Cleric": "Clerics",
+    "Magic-User": "Magic-Users",
+    "Elf": "Elves",
+    "Dwarf": "Dwarves",
+    "Halfling": "Halflings",
+}
+
+
 def building_effects(building: Building) -> list[str]:
-    """What the building is doing right now, one short phrase each. Staffed effects first,
-    the standing XP bonus last, so the first entry is the one worth a glance."""
+    """Dashboard copy for what the building is doing now (Cody, 2026-09-12), then its XP line.
+
+    Staffed effects appear only once someone is assigned; the XP line always does.
+    """
+    btype = building.building_type
+    lines = _stat_lines(btype, min(building.level, 1), building)
+    totals = {line["label"]: line["total"] for line in lines}
     effects = []
-    for line in _stat_lines(building.building_type, min(building.level, 1), building):
-        if line["total"] is None or line["label"] in ("Slots", "XP"):
-            continue
-        effects.append(f"{line['total']} {line['label'].lower()}")
-    xp = get_xp_bonus(building.building_type)
+    if totals.get("Healing"):
+        effects.append(f"{totals['Healing']} while healing")
+    if totals.get("Item find"):
+        effects.append(f"{totals['Item find']} chance to find items")
+    if totals.get("To-hit"):
+        effects.append(f"{totals['To-hit']} to-hit in combat")
+    smiths = _staff_for(building, btype, "craft_weapon_slot")
+    if smiths:
+        chance = get_all_building_bonuses(btype, building.level).get("craft_chance", 0.10)
+        effects.append(f"{smiths} × {_pct(chance)} chance to forge a +1 weapon or armor on return")
+    xp = get_xp_bonus(btype)
     if xp:
-        effects.append(f"+{_pct(xp)} XP")
+        classes = "/".join(_CLASS_PLURALS.get(c, c) for c in get_allowed_classes(btype))
+        effects.append(f"+{_pct(xp)} XP {classes}")
     return effects
 
 
