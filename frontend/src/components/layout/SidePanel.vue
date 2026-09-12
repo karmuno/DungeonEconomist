@@ -548,6 +548,8 @@ onUnmounted(() => {
 .panel-footer {
   margin-top: auto;
   padding-top: 16px;
+  /* The version badge is fixed to the bottom-left corner, inside this panel's footprint */
+  padding-bottom: 22px;
 }
 
 .panel-section {
