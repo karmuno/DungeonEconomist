@@ -154,7 +154,7 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
         </div>
 
         <!-- Every effect, in the dashboard's words: what it delivers now, and what each assignment adds -->
-        <div class="stats-block">
+        <div v-if="b.level > 0" class="stats-block">
           <div v-for="line in b.current_stats" :key="line.phrase" class="stat-row">
             <span class="stat-value" :class="{ muted: !line.active }">{{ line.value }} {{ line.phrase }}</span>
             <span v-if="line.rate" class="stat-rate">{{ line.rate }} per assigned adventurer</span>
@@ -280,10 +280,6 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
 }
 
 /* Stats */
-.stats-block {
-  min-height: 96px;
-}
-
 .stat-row {
   display: flex;
   align-items: baseline;
