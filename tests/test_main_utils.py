@@ -1057,3 +1057,51 @@ def test_level_up_logs_adventurer_levelled(client: TestClient, db_session: Sessi
     levelled = _events(db_session, "adventurer_levelled")
     assert len(levelled) == 1
     assert levelled[0].payload == {"adventurer_name": "Climber", "class": "Fighter", "new_level": 2, "first_time": True}
+
+
+# --- feedback form (buildplans/feedback-form-spec.md) ---
+
+def _feedback_rows(db: Session) -> list:
+    from app.models import Feedback
+    return db.query(Feedback).order_by(Feedback.id).all()
+
+
+def test_feedback_from_a_signed_in_player_is_tied_to_account_and_keep(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    resp = client.post("/feedback/", json={
+        "category": "Something is broken",
+        "doing": "  Sending my party into the dungeon ",
+        "feedback": "The launch button did nothing.",
+        "severity": 3,
+        "name": "ignored when signed in",
+        "page_url": "http://localhost:5173/launch-expedition/1",
+    }, headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200
+    row = _feedback_rows(db_session)[0]
+    assert resp.json() == {"id": row.id}
+    assert (row.user_id, row.keep_id, row.severity) == (account.id, keep.id, 3)
+    assert row.doing == "Sending my party into the dungeon"
+    assert row.name is None
+
+
+def test_feedback_from_a_visitor_keeps_the_name(client: TestClient, db_session: Session):
+    resp = client.post("/feedback/", json={
+        "category": "I like something",
+        "doing": "Just logged in.",
+        "feedback": "The login screen is lovely.",
+        "severity": None,
+        "name": "  Pat  ",
+        "page_url": "http://localhost:5173/login",
+    })
+    assert resp.status_code == 200
+    row = _feedback_rows(db_session)[0]
+    assert (row.user_id, row.keep_id, row.severity, row.name) == (None, None, None, "Pat")
+
+
+def test_feedback_rejects_unknown_category_blank_text_and_severity_out_of_range(client: TestClient, db_session: Session):
+    good = {"category": "I have an idea", "doing": "x", "feedback": "y", "severity": None, "name": None, "page_url": "/"}
+    assert client.post("/feedback/", json={**good, "category": "Other"}).status_code == 422
+    assert client.post("/feedback/", json={**good, "feedback": "   "}).status_code == 422
+    assert client.post("/feedback/", json={**good, "severity": 5}).status_code == 422
+    assert client.post("/feedback/", json={**good, "severity": 0}).status_code == 422
+    assert _feedback_rows(db_session) == []

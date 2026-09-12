@@ -12,6 +12,8 @@ import MetricsPanel from './components/layout/MetricsPanel.vue'
 import ModalDialog from './components/shared/ModalDialog.vue'
 import AdventurerDetail from './components/adventurers/AdventurerDetail.vue'
 import VersionBadge from './components/shared/VersionBadge.vue'
+import FeedbackEntry from './components/feedback/FeedbackEntry.vue'
+import FeedbackModal from './components/feedback/FeedbackModal.vue'
 
 const { showSheet, sheetAdventurer, sheetLoading, closeSheet, levelUp } = useAdventurerSheet()
 
@@ -47,6 +49,10 @@ onMounted(async () => {
   <template v-if="isAuthPage">
     <div class="main-content" style="margin-left: 0">
       <router-view />
+      <!-- No sidebar on the auth pages, so the feedback control has its own home here -->
+      <div class="auth-feedback">
+        <FeedbackEntry />
+      </div>
     </div>
   </template>
   <template v-else>
@@ -77,5 +83,14 @@ onMounted(async () => {
       />
     </ModalDialog>
   </template>
+  <!-- Mounted once so feedback can be submitted from every screen, signed in or not -->
+  <FeedbackModal />
   <VersionBadge />
 </template>
+
+<style scoped>
+.auth-feedback {
+  width: 260px;
+  margin: 24px auto 0;
+}
+</style>

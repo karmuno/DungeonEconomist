@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class AdventurerClass(str, Enum):
@@ -222,3 +222,34 @@ class TurnResult(BaseModel):
     events: list[dict[str, Any]] = []
     party_status: PartyStatus
     expedition_ended: bool
+
+
+# ---- Feedback (buildplans/feedback-form-spec.md) ----
+
+FeedbackCategory = Literal[
+    "Something is broken",
+    "I'm confused or stuck",
+    "Something feels wrong",
+    "I have an idea",
+    "I like something",
+]
+
+
+class FeedbackCreate(BaseModel):
+    category: FeedbackCategory
+    doing: str = Field(max_length=500)
+    feedback: str = Field(max_length=10000)
+    severity: int | None = Field(default=None, ge=1, le=4)
+    name: str | None = Field(default=None, max_length=100)
+    page_url: str = Field(max_length=2048)
+
+    @field_validator("doing", "feedback")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must not be blank")
+        return v
+
+
+class FeedbackOut(BaseModel):
+    id: int

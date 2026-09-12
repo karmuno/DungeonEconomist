@@ -300,9 +300,13 @@ this release rather than opening a fourth gate.
 - [ ] 30-minute smoke in Chrome, Firefox, Safari
 
 ### The two links that are the point
-- [ ] In-game feedback form per `buildplans/feedback-form-spec.md`: reachable from every
-      screen, five fields, its own `feedback` table. Someone telling you they loved it is the
-      #1 outcome
+- [x] In-game feedback form per `buildplans/feedback-form-spec.md` and the
+      `design_handoff_feedback_form/` handoff (2026-09-12): a modal reachable from every
+      screen — sidebar footer, and under the form on the auth pages — with the 4-point
+      importance scale, its own `feedback` table (migration `e6f2a3b4c5d7`), a receipt line
+      and a per-session counter. Someone telling you they loved it is the #1 outcome.
+      Verified in the browser from the login screen as a visitor; the signed-in path
+      (account and keep attached, no name field) is covered by API tests
 - [ ] Buy Me a Coffee link to https://buymeacoffee.com/codyjanegames, branded Cody Jane
       Games. No payment integration
 
