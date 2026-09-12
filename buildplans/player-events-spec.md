@@ -81,7 +81,7 @@ out.
 
 | event_type_id          | payload                                                              | Insert point                                    |
 |------------------------|----------------------------------------------------------------------|-------------------------------------------------|
-| `party_formed`         | `{party_name}`                                                       | `routes/parties.py` `create_party` (parties are created empty; members join afterwards, so there is no count to record) |
+| `party_formed`         | `{party_name, member_count}`                                         | `routes/parties.py` `create_party`, which takes the member ids: Form Party is one request, so the party is whole or not at all and the count is real |
 | `expedition_started`   | `{party_name, dungeon_level, is_auto_delve}`                         | `routes/expeditions.py` `launch_expedition` and `_auto_launch_expedition` |
 | `expedition_decision`  | `{choice, was_auto, trigger_type, dungeon_level, party_name}`        | `routes/expeditions.py` `make_expedition_choice` — every choice the player submits, including "let the party decide" (`was_auto`, with `choice` the outcome). Day-advance auto-decide does not log |
 | `expedition_completed` | `{party_name, dungeon_level, retreated, loot_gp, xp_gained, deaths}` | `_finalize_expedition` — the one function every completion path reaches |

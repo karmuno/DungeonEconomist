@@ -384,6 +384,38 @@ def test_create_party_successful_response(client: TestClient, db_session: Sessio
     assert data["id"] > 0
 
 
+def test_form_party_with_members_is_one_request(client: TestClient, db_session: Session):
+    """Form Party sends the name and the members together; party_formed records the count."""
+    from app.models import PlayerEvent
+    account, keep, token = create_account_and_keep(db_session)
+    advs = [create_adventurer_db(db_session, keep.id, name=f"Member{i}", xp=0, gold=0) for i in range(3)]
+
+    response = client.post(
+        "/parties/",
+        json={"name": "Formed Whole", "adventurer_ids": [a.id for a in advs]},
+        headers=auth_headers(token, keep.id),
+    )
+    assert response.status_code == 200
+    assert sorted(m["id"] for m in response.json()["members"]) == sorted(a.id for a in advs)
+
+    formed = db_session.query(PlayerEvent).filter(PlayerEvent.event_type_id == "party_formed").all()
+    assert len(formed) == 1
+    assert formed[0].payload == {"party_name": "Formed Whole", "member_count": 3}
+
+
+def test_form_party_with_an_unavailable_member_creates_nothing(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    ok = create_adventurer_db(db_session, keep.id, name="Ready", xp=0, gold=0)
+    response = client.post(
+        "/parties/",
+        json={"name": "Half Formed", "adventurer_ids": [ok.id, 999999]},
+        headers=auth_headers(token, keep.id),
+    )
+    assert response.status_code == 404
+    db_session.expire_all()
+    assert db_session.query(Party).filter(Party.name == "Half Formed").count() == 0
+
+
 def test_admin_console_rejects_non_admin(client: TestClient, db_session: Session):
     account, keep, token = create_account_and_keep(db_session)
 

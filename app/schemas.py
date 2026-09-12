@@ -101,7 +101,7 @@ class PartyBase(BaseModel):
     name: str
 
 class PartyCreate(PartyBase):
-    pass
+    adventurer_ids: list[int] = []
 
 class PartyOut(PartyBase):
     id: int
