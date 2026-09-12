@@ -12,6 +12,7 @@ import UpkeepDayModal from '../upkeep/UpkeepDayModal.vue'
 import UpkeepForecastModal from '../upkeep/UpkeepForecastModal.vue'
 import AdventurerSheetModal from '../adventurers/AdventurerSheetModal.vue'
 import FeedbackEntry from '../feedback/FeedbackEntry.vue'
+import BuyMeACoffee from '../feedback/BuyMeACoffee.vue'
 import { formatCp } from '../../utils/currency'
 import type { UpkeepDayData } from '../../types/upkeep'
 import type { AdventurerRef } from '../../types'
@@ -448,6 +449,7 @@ onUnmounted(() => {
 
     <div class="panel-footer">
       <FeedbackEntry />
+      <BuyMeACoffee />
     </div>
   </aside>
 
@@ -553,6 +555,9 @@ onUnmounted(() => {
 }
 
 .panel-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: auto;
   padding-top: 8px;
   /* The version badge is fixed to the bottom-left corner, inside this panel's footprint */
