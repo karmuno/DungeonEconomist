@@ -54,12 +54,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('refreshToken', res.refresh_token)
   }
 
-  async function logout() {
-    try {
-      await authApi.logout()
-    } catch {
-      // Best-effort server-side revocation
-    }
+  // Forget the session locally. The server is not told; logout() does that.
+  function clearSession() {
     token.value = null
     account.value = null
     currentKeep.value = null
@@ -68,13 +64,38 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('keepId')
   }
 
-  // Try to restore session on store init
+  async function logout() {
+    try {
+      await authApi.logout()
+    } catch {
+      // Best-effort server-side revocation
+    }
+    clearSession()
+  }
+
+  // One restore per page load, shared by the router guard and App.vue: the
+  // first caller does the work, later callers await the same promise.
+  let _restore: Promise<boolean> | null = null
+
+  function ensureSession(): Promise<boolean> {
+    if (!token.value) return Promise.resolve(false)
+    if (account.value) return Promise.resolve(true)
+    if (!_restore) {
+      _restore = tryRestore().finally(() => {
+        _restore = null
+      })
+    }
+    return _restore
+  }
+
+  // Validate the stored token against the server and load the account and
+  // keep. False means the session is gone and storage has been cleared.
   async function tryRestore() {
     if (!token.value) return false
     try {
-      await fetchAccount()
+      account.value = await authApi.getMe()
     } catch {
-      logout()
+      clearSession()
       return false
     }
     // Restore keep separately — don't logout if this fails
@@ -107,7 +128,9 @@ export const useAuthStore = defineStore('auth', () => {
     selectKeep,
     clearKeep,
     changePassword,
+    clearSession,
     logout,
+    ensureSession,
     tryRestore,
   }
 })
