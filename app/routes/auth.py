@@ -17,6 +17,7 @@ from app.auth import (
 )
 from app.database import get_db
 from app.models import Account
+from app.player_events import EventType, log_player_event, log_return_session
 from app.rate_limit import auth_rate_limiter
 from app.routes.admin import admin_console_open
 
@@ -85,6 +86,8 @@ def register(data: RegisterRequest, request: Request, db: Session = Depends(get_
     db.add(account)
     db.commit()
     db.refresh(account)
+    log_player_event(db, EventType.ACCOUNT_CREATED, account.id)
+    db.commit()
 
     return TokenResponse(
         access_token=create_access_token(account.id, account.token_version),
@@ -99,6 +102,9 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     account = db.query(Account).filter(Account.username == data.username.strip()).first()
     if not account or not verify_password(data.password, account.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    log_return_session(db, account)
+    db.commit()
 
     return TokenResponse(
         access_token=create_access_token(account.id, account.token_version),
@@ -127,6 +133,9 @@ def refresh(data: RefreshRequest, request: Request, db: Session = Depends(get_db
     token_version = payload.get("tv", 0)
     if token_version != account.token_version:
         raise HTTPException(status_code=401, detail="Token invalidated by password change")
+
+    log_return_session(db, account)
+    db.commit()
 
     # Revoke the old refresh token (one-time use)
     revoke_token(data.refresh_token)

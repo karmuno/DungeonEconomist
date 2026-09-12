@@ -19,6 +19,7 @@ from app.models import (
     Keep,
     Party,
 )
+from app.player_events import EventType, log_first_auto_delve, log_player_event, wipe_details
 from app.progression import apply_level_ups, check_for_level_up
 from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator
@@ -233,7 +234,8 @@ def _finalize_expedition(
 
         # Iterate a snapshot: dead members are detached from the party inside
         # the loop, and mutating party.members while iterating skips entries
-        for member in list(party.members):
+        went_out = list(party.members)
+        for member in went_out:
             is_dead = member.name in dead_names
             replayed_hp = sim_hp.get(member.name, member.hp_current)
             # Clamp to real hp_max (armor buffer may have inflated starting_hp)
@@ -260,6 +262,13 @@ def _finalize_expedition(
                 # The dead leave their party so its slots free up; an empty
                 # party stands until end of day, then disbands.
                 member.parties = []
+                log_player_event(db, EventType.ADVENTURER_DIED, keep.account_id, keep.id, {
+                    "adventurer_name": member.name,
+                    "class": member.adventurer_class.value,
+                    "level": member.level,
+                    "dungeon_level": expedition.dungeon_level,
+                    "party_name": party.name,
+                })
                 events.append({
                     "type": "death",
                     "message": f"{member.name} died during the expedition",
@@ -270,6 +279,18 @@ def _finalize_expedition(
                 member.on_expedition = False
                 member.is_available = True
                 living_members.append(member)
+
+        # A wipe is recorded with what did it and how outmatched the party was,
+        # here rather than reconstructed later: levels and membership change
+        # once the dust settles.
+        if went_out and not living_members:
+            log_player_event(db, EventType.TPK, keep.account_id, keep.id, {
+                "party_name": party.name,
+                "dungeon_level": expedition.dungeon_level,
+                "adventurers_lost": len(went_out),
+                "party_avg_level": round(sum(m.level for m in went_out) / len(went_out), 1),
+                **wipe_details(replay_log),
+            })
 
         # Level up now, not at end of day: the XP for this expedition is in
         # hand, so anyone who crossed a threshold advances before the player
@@ -516,6 +537,7 @@ def _finalize_expedition(
         new_name = stairs["new_level_name"]
         if new_level > (keep.max_dungeon_level or 0):
             keep.max_dungeon_level = new_level
+            log_player_event(db, EventType.STAIRS_DISCOVERED, keep.account_id, keep.id, {"new_max_level": new_level})
             party_name = party.name if party else "Your party"
             events.append({
                 "type": "stairs_discovered",
@@ -525,6 +547,15 @@ def _finalize_expedition(
     if retreat:
         retreat_label = party.name if party else "The party"
         events.insert(0, {"type": "expedition_complete", "message": f"{retreat_label} retreated from the dungeon"})
+
+    log_player_event(db, EventType.EXPEDITION_COMPLETED, keep.account_id, keep.id, {
+        "party_name": party.name if party else None,
+        "dungeon_level": expedition.dungeon_level,
+        "retreated": retreat,
+        "loot_gp": effective_result.get("treasure_total", 0),
+        "xp_gained": effective_result.get("xp_earned", 0),
+        "deaths": len(dead_names),
+    })
 
     return {"events": events, "simulation_data": effective_result}
 
@@ -618,6 +649,10 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
     for member in party.members:
         member.on_expedition = True
         member.is_available = False
+    log_player_event(db, EventType.EXPEDITION_STARTED, keep.account_id, keep.id, {
+        "party_name": party.name, "dungeon_level": dungeon_level, "is_auto_delve": True,
+    })
+    log_first_auto_delve(db, keep, party.name, dungeon_level)
     db.commit()
 
     return {
@@ -761,6 +796,9 @@ def launch_expedition(
         member.on_expedition = True
         member.is_available = False
 
+    log_player_event(db, EventType.EXPEDITION_STARTED, keep.account_id, keep.id, {
+        "party_name": party.name, "dungeon_level": requested_level, "is_auto_delve": False,
+    })
     db.commit()
 
     return {
@@ -811,6 +849,13 @@ def make_expedition_choice(
     resolved = expedition.resolved_phases or 0
 
     was_auto = data.choice == "auto"
+    log_player_event(db, EventType.EXPEDITION_DECISION, keep.account_id, keep.id, {
+        "choice": choice,
+        "was_auto": was_auto,
+        "trigger_type": (expedition.pending_event or {}).get("type", ""),
+        "dungeon_level": expedition.dungeon_level,
+        "party_name": expedition.party.name if expedition.party else None,
+    })
 
     if choice == "retreat":
         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)

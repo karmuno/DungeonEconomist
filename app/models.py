@@ -252,3 +252,23 @@ class MagicItem(Base):
     found_expedition_id = Column(Integer, nullable=True)
 
     adventurer = relationship('Adventurer', back_populates='magic_items')
+
+
+class PlayerEventType(Base):
+    """Lookup of player event ids. Seeded from app.player_events.EventType so the two cannot drift."""
+    __tablename__ = 'event_types'
+
+    id = Column(String, primary_key=True)
+    description = Column(String, nullable=False)
+
+
+class PlayerEvent(Base):
+    """One row per thing a player did or reached. See buildplans/player-events-spec.md."""
+    __tablename__ = 'player_events'
+
+    id = Column(Integer, primary_key=True)
+    event_type_id = Column(String, ForeignKey('event_types.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('accounts.id'), nullable=False, index=True)
+    keep_id = Column(Integer, ForeignKey('keeps.id', ondelete='SET NULL'), nullable=True, index=True)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)

@@ -10,6 +10,7 @@ from app.database import get_db
 from app.dungeons import DUNGEON_LEVELS, generate_dungeon_name, generate_level_names
 from app.models import Account, Adventurer, AdventurerClass, Keep
 from app.names import generate_adventurer_name
+from app.player_events import EventType, log_player_event
 
 router = APIRouter(prefix="/keeps", tags=["keeps"])
 
@@ -102,6 +103,7 @@ def create_keep(data: KeepCreate, account: Account = Depends(get_current_account
 
     # Seed 6 starting adventurers
     seed_starting_adventurers(keep, db)
+    log_player_event(db, EventType.KEEP_CREATED, account.id, keep.id, {"keep_name": keep.name})
     db.commit()
 
     return keep
@@ -144,6 +146,10 @@ def delete_keep(
     # Delete adventurers
     db.query(Adventurer).filter(Adventurer.keep_id == keep.id).delete(synchronize_session=False)
 
+    # keep_id stays null: the FK would null it anyway once the keep is gone
+    log_player_event(db, EventType.KEEP_DELETED, account.id, None, {
+        "keep_name": keep.name, "current_day": keep.current_day, "keep_id": keep.id,
+    })
     db.delete(keep)
     db.commit()
     return {"ok": True}
