@@ -25,8 +25,6 @@ const statusLine = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 16px;
-  border-top: 1px solid #374151;
 }
 
 .entry-btn {
