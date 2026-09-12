@@ -1168,7 +1168,7 @@ def test_building_response_states_totals_and_free_slots(client: TestClient, db_s
     assert lines["To-hit"] == {"label": "To-hit", "value": "+1 each", "total": "+1"}
     assert lines["Slots"]["total"] == "2 free"
     assert lines["XP"] == {"label": "XP", "value": "+10%", "total": "+10%"}
-    assert built["effects"] == ["+1 to-hit", "+10% XP"]
+    assert built["effects"] == ["+1 to-hit in combat", "+10% XP Fighters/Elves/Halflings/Dwarves"]
 
     unbuilt = next(r for r in rows if r["building_type"] == "temple")
     assert unbuilt["current_stats"] == []
