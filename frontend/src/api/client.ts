@@ -14,6 +14,25 @@ export class ApiError extends Error {
   }
 }
 
+// Called once the session is unrecoverable (no refresh token, or the refresh
+// itself was refused). main.ts installs a handler that clears the store and
+// routes to login, so an expired session never reaches a full page reload.
+let _sessionExpiredHandler: (() => void) | null = null
+
+export function setSessionExpiredHandler(handler: () => void): void {
+  _sessionExpiredHandler = handler
+}
+
+function clearStoredSession(): void {
+  localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('keepId')
+}
+
+// Requests that must never trigger a refresh: they are how a session begins,
+// so a 401 from them is an answer, not a stale token.
+const NO_REFRESH_URLS = ['/auth/login', '/auth/register', '/auth/refresh']
+
 let _isRefreshing = false
 let _refreshQueue: Array<{ resolve: () => void; reject: (err: unknown) => void }> = []
 
@@ -92,16 +111,19 @@ async function request<T>(method: string, url: string, body?: unknown, isRetry =
     throw err
   }
 
-  if (response.status === 401 && !isRetry && !url.startsWith('/auth/')) {
+  if (response.status === 401 && !isRetry && !NO_REFRESH_URLS.includes(url)) {
     const refreshed = await tryRefreshToken()
     if (refreshed) {
       return request<T>(method, url, body, true)
     }
-    // Refresh failed — clear auth state and redirect to login
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('keepId')
-    window.location.href = '/login'
+    // Refresh failed: the session is over. Clear it and let the app route to
+    // login; the ApiError below still reaches the caller.
+    clearStoredSession()
+    if (_sessionExpiredHandler) {
+      _sessionExpiredHandler()
+    } else {
+      window.location.href = '/login'
+    }
   }
 
   if (!response.ok) {

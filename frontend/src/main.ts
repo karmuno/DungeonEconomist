@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 import * as Sentry from '@sentry/vue'
 import App from './App.vue'
 import router from './router'
+import { setSessionExpiredHandler } from './api/client'
+import { useAuthStore } from './stores/auth'
 import './assets/main.css'
 
 const app = createApp(App)
@@ -26,4 +28,15 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 app.use(createPinia())
 app.use(router)
 
-app.mount('#app')
+// An unrecoverable 401 mid-session clears the store and routes to login in
+// place, instead of the full reload the client used to force.
+setSessionExpiredHandler(() => {
+  useAuthStore().clearSession()
+  router.push({ name: 'login' })
+})
+
+// Hold the first paint until the initial navigation has resolved, guard
+// included. Nothing renders before the session is known to be good or gone.
+router.isReady().then(() => {
+  app.mount('#app')
+})

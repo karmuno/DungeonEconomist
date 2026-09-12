@@ -25,7 +25,9 @@ const isAuthPage = computed(() =>
 )
 
 onMounted(async () => {
-  const restored = await auth.tryRestore()
+  // The router guard has already validated the session before mount; this
+  // shares its result rather than asking the server again.
+  const restored = await auth.ensureSession()
   if (restored && auth.currentKeep) {
     // Load from cached keep data immediately (no API call)
     player.loadFromKeep()

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -70,16 +71,17 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  const token = localStorage.getItem('token')
-  const keepId = localStorage.getItem('keepId')
-
   // Public pages (login, register) — always accessible
   if (to.meta?.public) {
     return true
   }
 
-  // No token → redirect to login
-  if (!token) {
+  // A token in storage proves nothing; the server does. The first navigation
+  // waits here for /auth/me, and main.ts mounts the app only once it resolves,
+  // so a stale session lands on login without the dashboard ever rendering.
+  const auth = useAuthStore()
+  const valid = await auth.ensureSession()
+  if (!valid) {
     return { name: 'login' }
   }
 
@@ -88,8 +90,8 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  // Has token but no keep selected → redirect to keep selection
-  if (!keepId) {
+  // Signed in but no keep selected → redirect to keep selection
+  if (!localStorage.getItem('keepId')) {
     return { name: 'keeps' }
   }
 

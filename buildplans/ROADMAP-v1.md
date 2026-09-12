@@ -208,13 +208,17 @@ this release rather than opening a fourth gate.
       **Balance data is contaminated beyond deaths:** every manual relaunch with an unchanged
       first member also ran at stale HP, level and items. Auto-delve launches were clean.
       Measure again only on expeditions generated after the fix.
-- [ ] **Auth flash and stale-session dashboard.** Two faces of one bug: `router.beforeEach`
-      (`frontend/src/router/index.ts:72`) authorises on the *presence* of a `token` in
-      localStorage, never its validity. A stale token therefore renders the dashboard, every
-      API call 401s, and only a refresh lands on the login screen; and a logged-out visitor
-      with leftover storage sees a flash of dashboard first. Fix: validate the session before
-      the first navigation resolves, hold the first render behind that check, clear the token
-      and redirect on 401
+- [x] **Auth flash and stale-session dashboard.** Fixed 2026-09-12. `router.beforeEach`
+      now asks the server (`/auth/me`, through the auth store's shared `ensureSession`)
+      before any non-public route resolves, and `main.ts` mounts the app only once the first
+      navigation has settled, so nothing paints until the session is known good or gone. An
+      unrecoverable 401 mid-session clears the store and routes to login in place instead of
+      forcing a full reload. Also fixed on the way: the API client refused to refresh on any
+      `/auth/` URL, which included `/auth/me`, so a reload more than 30 minutes after the last
+      request logged the player out even with a valid refresh token; only login, register and
+      refresh are exempt now. Verified in the browser: no token, a garbage token, a valid
+      pair, and a stale access token with a valid refresh token all land where they should
+      with the dashboard never loaded
 - [ ] **Buildings grant XP, not recruitment.** Replace the `recruitment_bonus` flag
       (`app/buildings.py:103`; four buildings in `app/data/buildings.json`) with **+10% XP
       gain for the building's relevant class**. Recruitment is already free and automatic, so
