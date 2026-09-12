@@ -669,7 +669,7 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     # Buildings summary
     from app.buildings import get_building_class, get_building_name
     from app.models import Building
-    from app.routes.buildings import building_effects
+    from app.routes.buildings import building_effects, staffed_effects, standing_effects
     buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
     buildings_summary = []
     for b in buildings:
@@ -685,6 +685,8 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "adventurer_class": cls,
             "assigned_count": assigned_count,
             "effects": building_effects(b),
+            "staffed_effects": staffed_effects(b),
+            "standing_effects": standing_effects(b),
             "assigned_adventurers": [_adv_summary_local(a) for a in b.assigned_adventurers],
         })
 

@@ -240,6 +240,8 @@ export interface DashboardStats {
     adventurer_class: string
     assigned_count: number
     effects: string[]
+    staffed_effects: string[]
+    standing_effects: string[]
     assigned_adventurers: Array<{
       id: number
       name: string
