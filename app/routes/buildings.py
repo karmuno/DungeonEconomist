@@ -130,9 +130,10 @@ def building_effects(building: Building) -> list[str]:
         effects.append(f"{totals['Item find']} chance to find items")
     if totals.get("To-hit"):
         effects.append(f"{totals['To-hit']} to-hit in combat")
-    smiths = _staff_for(building, btype, "craft_weapon_slot")
+    bonuses = get_all_building_bonuses(btype, building.level)
+    smiths = _staff_for(building, btype, "craft_weapon_slot") if "craft_weapon_slot" in bonuses else 0
     if smiths:
-        chance = get_all_building_bonuses(btype, building.level).get("craft_chance", 0.10)
+        chance = bonuses.get("craft_chance", 0.10)
         effects.append(f"{smiths} × {_pct(chance)} chance to forge a +1 weapon or armor on return")
     xp = get_xp_bonus(btype)
     if xp:
