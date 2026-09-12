@@ -157,7 +157,7 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
         <div class="stats-block">
           <div v-for="line in b.current_stats" :key="line.phrase" class="stat-row">
             <span class="stat-value" :class="{ muted: !line.active }">{{ line.value }} {{ line.phrase }}</span>
-            <span v-if="line.rate" class="stat-rate">{{ line.rate }} each</span>
+            <span v-if="line.rate" class="stat-rate">{{ line.rate }} per assigned adventurer</span>
           </div>
         </div>
 
@@ -199,7 +199,7 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
           </span>
           <div v-for="line in b.next_stats" :key="line.phrase" class="stat-row">
             <span class="stat-value changed">{{ line.rate ?? line.value }} {{ line.phrase }}</span>
-            <span v-if="line.rate" class="stat-rate">each</span>
+            <span v-if="line.rate" class="stat-rate">per assigned adventurer</span>
           </div>
         </div>
 

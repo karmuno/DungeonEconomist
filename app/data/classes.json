@@ -2,6 +2,7 @@
   "version": 1,
   "classes": {
     "Fighter": {
+      "plural": "Fighters",
       "group": "fighter",
       "hit_die": 8,
       "hd_per_level_num": 1,
@@ -19,6 +20,7 @@
       "hp_multiplier": 1.1
     },
     "Cleric": {
+      "plural": "Clerics",
       "group": "cleric",
       "hit_die": 6,
       "hd_per_level_num": 1,
@@ -66,6 +68,7 @@
       "hp_multiplier": 1.0
     },
     "Magic-User": {
+      "plural": "Magic-Users",
       "group": "magic_user",
       "hit_die": 4,
       "hd_per_level_num": 1,
@@ -91,6 +94,7 @@
       "hp_multiplier": 0.9
     },
     "Dwarf": {
+      "plural": "Dwarves",
       "group": "fighter",
       "hit_die": 8,
       "hd_per_level_num": 1,
@@ -115,6 +119,7 @@
       "hp_multiplier": 1.05
     },
     "Elf": {
+      "plural": "Elves",
       "group": "fighter",
       "hit_die": 6,
       "hd_per_level_num": 1,
@@ -142,6 +147,7 @@
       "hp_multiplier": 1.0
     },
     "Halfling": {
+      "plural": "Halflings",
       "group": "fighter",
       "hit_die": 6,
       "hd_per_level_num": 1,
