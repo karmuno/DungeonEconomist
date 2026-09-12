@@ -37,6 +37,7 @@ export default defineConfig({
       '/dungeon/': 'http://localhost:8000',
       '/buildings/': 'http://localhost:8000',
       '/admin/': 'http://localhost:8000',
+      '/feedback/': 'http://localhost:8000',
       '/metrics': 'http://localhost:8000',
     },
   },

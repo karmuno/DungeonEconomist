@@ -320,3 +320,28 @@ export interface DashboardStats {
     xp_earned: number
   }>
 }
+
+// ---- Feedback (buildplans/feedback-form-spec.md) ----
+
+export const FEEDBACK_CATEGORIES = [
+  'Something is broken',
+  "I'm confused or stuck",
+  'Something feels wrong',
+  'I have an idea',
+  'I like something',
+] as const
+
+export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number]
+
+export interface FeedbackCreate {
+  category: FeedbackCategory
+  doing: string
+  feedback: string
+  severity: number | null
+  name: string | null
+  page_url: string
+}
+
+export interface FeedbackOut {
+  id: number
+}

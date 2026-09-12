@@ -272,3 +272,19 @@ class PlayerEvent(Base):
     keep_id = Column(Integer, ForeignKey('keeps.id', ondelete='SET NULL'), nullable=True, index=True)
     payload = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+
+class Feedback(Base):
+    """One submission of the playtest feedback form. See buildplans/feedback-form-spec.md."""
+    __tablename__ = 'feedback'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('accounts.id'), nullable=True, index=True)
+    keep_id = Column(Integer, ForeignKey('keeps.id', ondelete='SET NULL'), nullable=True)
+    category = Column(String, nullable=False)
+    doing = Column(String, nullable=False)
+    feedback = Column(Text, nullable=False)
+    severity = Column(Integer, nullable=True)  # 1-4, null if skipped
+    name = Column(String, nullable=True)  # visitors only; players are identified by user_id
+    page_url = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)

@@ -1,0 +1,58 @@
+/* ==========================================================================
+   Colors — Venturekeep "retro terminal" palette: black ground, green phosphor.
+   Base values mirror the shipping app; semantic aliases sit on top.
+   ========================================================================== */
+:root {
+  /* ---- Surfaces (near-black, climbing in lightness) ---- */
+  --vk-black: #000000;          /* app ground — pure black */
+  --vk-surface-1: #111111;      /* hover wash on black */
+  --vk-surface-2: #1a1a1a;      /* raised card (legacy --bg-card) */
+  --vk-surface-3: #1f2937;      /* card / input field body */
+  --vk-surface-modal: #111827;  /* dialog body */
+
+  /* ---- Phosphor green (the accent that defines the brand) ---- */
+  --vk-green: #4ade80;          /* bright phosphor — primary accent, headings */
+  --vk-green-dark: #22c55e;     /* button fill */
+  --vk-green-dim: #166534;      /* dim border / success edge */
+
+  /* ---- Status accents ---- */
+  --vk-red: #ef4444;            /* danger / death */
+  --vk-red-dark: #dc2626;       /* danger hover */
+  --vk-blue: #60a5fa;           /* info / expeditions */
+  --vk-gold: #fbbf24;           /* gold, treasure, warning */
+  --vk-purple: #a78bfa;         /* parties / metrics */
+
+  /* ---- Text ---- */
+  --vk-text-1: #e5e7eb;         /* primary copy */
+  --vk-text-2: #d1d5db;         /* secondary copy */
+  --vk-text-muted: #6b7280;     /* labels, meta, placeholders */
+  --vk-on-green: #000000;       /* text on a green fill */
+
+  /* ---- Lines ---- */
+  --vk-border: #4b5563;         /* default 1px border */
+  --vk-border-soft: #374151;    /* table rules, faint dividers */
+
+  /* ---- Translucent washes (hover / selection / badge tints) ---- */
+  --vk-green-wash: rgba(74, 222, 128, 0.08);
+  --vk-green-wash-soft: rgba(74, 222, 128, 0.04);
+  --vk-green-tint: rgba(74, 222, 128, 0.15);
+  --vk-blue-tint: rgba(96, 165, 250, 0.15);
+  --vk-gold-tint: rgba(251, 191, 36, 0.15);
+  --vk-red-tint: rgba(239, 68, 68, 0.15);
+
+  /* ---- Semantic aliases — prefer these in components ---- */
+  --bg-app: var(--vk-black);
+  --bg-card: var(--vk-surface-3);
+  --bg-input: var(--vk-surface-3);
+  --bg-hover: var(--vk-surface-1);
+  --bg-modal: var(--vk-surface-modal);
+
+  --text-body: var(--vk-text-1);
+  --text-secondary: var(--vk-text-2);
+  --text-muted: var(--vk-text-muted);
+
+  --accent: var(--vk-green);
+  --accent-strong: var(--vk-green-dark);
+  --surface-card: var(--vk-surface-3);
+  --border-color: var(--vk-border);
+}

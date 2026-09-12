@@ -11,6 +11,7 @@ import ExpeditionEventModal from '../expeditions/ExpeditionEventModal.vue'
 import UpkeepDayModal from '../upkeep/UpkeepDayModal.vue'
 import UpkeepForecastModal from '../upkeep/UpkeepForecastModal.vue'
 import AdventurerSheetModal from '../adventurers/AdventurerSheetModal.vue'
+import FeedbackEntry from '../feedback/FeedbackEntry.vue'
 import { formatCp } from '../../utils/currency'
 import type { UpkeepDayData } from '../../types/upkeep'
 import type { AdventurerRef } from '../../types'
@@ -444,6 +445,10 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
+
+    <div class="panel-footer">
+      <FeedbackEntry />
+    </div>
   </aside>
 
   <!-- Expedition Event Modal -->
@@ -532,6 +537,17 @@ onUnmounted(() => {
   padding: 14px 16px;
   box-sizing: border-box;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.side-panel > * {
+  flex-shrink: 0;
+}
+
+.panel-footer {
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .panel-section {
