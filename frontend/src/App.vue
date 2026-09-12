@@ -13,6 +13,7 @@ import ModalDialog from './components/shared/ModalDialog.vue'
 import AdventurerDetail from './components/adventurers/AdventurerDetail.vue'
 import VersionBadge from './components/shared/VersionBadge.vue'
 import FeedbackEntry from './components/feedback/FeedbackEntry.vue'
+import BuyMeACoffee from './components/feedback/BuyMeACoffee.vue'
 import FeedbackModal from './components/feedback/FeedbackModal.vue'
 
 const { showSheet, sheetAdventurer, sheetLoading, closeSheet, levelUp } = useAdventurerSheet()
@@ -52,6 +53,7 @@ onMounted(async () => {
       <!-- No sidebar on the auth pages, so the feedback control has its own home here -->
       <div class="auth-feedback">
         <FeedbackEntry />
+        <BuyMeACoffee />
       </div>
     </div>
   </template>
@@ -90,6 +92,9 @@ onMounted(async () => {
 
 <style scoped>
 .auth-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   width: 260px;
   margin: 24px auto 0;
 }
