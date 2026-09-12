@@ -913,3 +913,115 @@ def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: S
     second_exp = db_session.get(Expedition, second.json()["expedition_id"])
     assert second_exp.simulation_data["party_status"]["members_total"] == 3
     assert set(second_exp.simulation_data["starting_hp"]) == {"Aldric", "Borin", "Yorick"}
+
+
+# --- player_events: one row per thing a player did (buildplans/player-events-spec.md) ---
+
+def _events(db: Session, event_type: str) -> list:
+    from app.models import PlayerEvent
+    return db.query(PlayerEvent).filter(PlayerEvent.event_type_id == event_type).order_by(PlayerEvent.id).all()
+
+
+def test_register_and_create_keep_log_events(client: TestClient, db_session: Session):
+    reg = client.post("/auth/register", json={"username": "newcomer", "password": "testpass1"})
+    assert reg.status_code == 200
+    created = _events(db_session, "account_created")
+    assert len(created) == 1 and created[0].keep_id is None
+
+    headers = {"Authorization": f"Bearer {reg.json()['access_token']}"}
+    keep = client.post("/keeps/", json={"name": "First Keep"}, headers=headers)
+    assert keep.status_code == 200
+    keeps = _events(db_session, "keep_created")
+    assert len(keeps) == 1
+    assert keeps[0].user_id == created[0].user_id
+    assert keeps[0].keep_id == keep.json()["id"]
+    assert keeps[0].payload == {"keep_name": "First Keep"}
+
+
+def test_launch_logs_expedition_started(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Loggers", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    party.members.append(create_adventurer_db(db_session, keep.id, name="Logger", xp=100, gold=100))
+    db_session.commit()
+
+    resp = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": 1}, headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200
+    started = _events(db_session, "expedition_started")
+    assert len(started) == 1
+    assert started[0].user_id == account.id and started[0].keep_id == keep.id
+    assert started[0].payload == {"party_name": "Loggers", "dungeon_level": 1, "is_auto_delve": False}
+
+
+def test_tpk_logs_the_wipe_with_what_did_it(client: TestClient, db_session: Session):
+    """A wipe records the killing monster, how many, and the party's average level on the event."""
+    from app.models import Expedition
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Doomed Three", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    members = [create_adventurer_db(db_session, keep.id, name=f"Doomed{i}", xp=0, gold=0) for i in range(3)]
+    members[0].level = 3  # average of 3, 1, 1 is 1.7
+    party.members.extend(members)
+    db_session.commit()
+
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=2, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+
+    sim = {
+        "dead_members": [m.name for m in members],
+        "log": [
+            {"turn": 1, "deaths": [members[0].name], "events": [{"combat": {"monster_type": "Goblin", "monster_count": 4}}]},
+            {"turn": 2, "deaths": [members[1].name, members[2].name], "events": [{"combat": {"monster_type": "Ogre", "monster_count": 2}}]},
+        ],
+        "starting_hp": {},
+        "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 0, "xp_earned": 0, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+
+    wipes = _events(db_session, "tpk")
+    assert len(wipes) == 1
+    assert wipes[0].payload == {
+        "party_name": "Doomed Three", "dungeon_level": 2, "adventurers_lost": 3,
+        "party_avg_level": 1.7, "monster_type": "Ogre", "monster_count": 2,
+    }
+    assert len(_events(db_session, "adventurer_died")) == 3
+    completed = _events(db_session, "expedition_completed")
+    assert len(completed) == 1 and completed[0].payload["deaths"] == 3
+
+
+def test_return_session_logged_only_after_an_hour_away(client: TestClient, db_session: Session):
+    from datetime import timedelta
+    account, keep, token = create_account_and_keep(db_session, username="returner")
+    account.created_at = datetime.now() - timedelta(hours=2)
+    db_session.commit()
+
+    first = client.post("/auth/login", json={"username": "returner", "password": "testpass1"})
+    assert first.status_code == 200
+    returns = _events(db_session, "return_session")
+    assert len(returns) == 1
+    assert returns[0].payload["hours_since_last"] == 2.0
+
+    again = client.post("/auth/login", json={"username": "returner", "password": "testpass1"})
+    assert again.status_code == 200
+    assert len(_events(db_session, "return_session")) == 1
+
+
+def test_level_up_logs_adventurer_levelled(client: TestClient, db_session: Session):
+    from app.progression import apply_level_ups
+    account, keep, token = create_account_and_keep(db_session)
+    adv = create_adventurer_db(db_session, keep.id, name="Climber", xp=2000, gold=0)
+
+    events = apply_level_ups(adv, keep)
+    db_session.commit()
+
+    assert events and adv.level == 2
+    levelled = _events(db_session, "adventurer_levelled")
+    assert len(levelled) == 1
+    assert levelled[0].payload == {"adventurer_name": "Climber", "class": "Fighter", "new_level": 2, "first_time": True}

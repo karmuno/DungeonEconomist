@@ -20,6 +20,7 @@ from app.buildings import (
 )
 from app.database import get_db
 from app.models import Adventurer, Building, Keep
+from app.player_events import EventType, log_player_event
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
@@ -207,6 +208,9 @@ def buy_building(
 
     building = Building(keep_id=keep.id, building_type=data.building_type, level=1)
     db.add(building)
+    log_player_event(db, EventType.BUILDING_PURCHASED, keep.account_id, keep.id, {
+        "building_type": data.building_type, "level": 1, "cost_gp": cost,
+    })
     db.commit()
     db.refresh(building)
 
@@ -242,6 +246,9 @@ def upgrade_building(
     keep.treasury_copper = total % 10
 
     building.level += 1
+    log_player_event(db, EventType.BUILDING_PURCHASED, keep.account_id, keep.id, {
+        "building_type": building.building_type, "level": building.level, "cost_gp": cost,
+    })
     db.commit()
     db.refresh(building)
 
@@ -298,6 +305,13 @@ def assign_adventurer(
     adv.is_available = False
     # Remove from any parties
     adv.parties = []
+    log_player_event(db, EventType.ADVENTURER_ASSIGNED_TO_BUILDING, keep.account_id, keep.id, {
+        "adventurer_name": adv.name,
+        "class": adv.adventurer_class.value,
+        "level": adv.level,
+        "building_type": building.building_type,
+        "building_level": building.level,
+    })
     db.commit()
 
     return _building_response(building)

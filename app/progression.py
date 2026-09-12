@@ -5,7 +5,11 @@ via the class_config module. XP thresholds are per-class per OSE tables.
 """
 
 
+from sqlalchemy.orm import object_session
+from sqlalchemy.orm.exc import UnmappedInstanceError
+
 from app.models import AdventurerClass
+from app.player_events import EventType, log_player_event
 
 # OSE XP tables per class. Index = level (1-based); table[level] = XP required.
 # Levels beyond the class max return None from calculate_xp_for_next_level.
@@ -98,6 +102,14 @@ def get_class_level_bonuses(adventurer_class: AdventurerClass | str, new_level: 
     return {}
 
 
+def _session_of(adv):
+    """The session an adventurer row belongs to, or None for a plain object (some tests pass one)."""
+    try:
+        return object_session(adv)
+    except UnmappedInstanceError:
+        return None
+
+
 def apply_level_ups(adv, keep) -> list[dict]:
     """Apply every level an adventurer has earned, newest XP included.
 
@@ -112,12 +124,21 @@ def apply_level_ups(adv, keep) -> list[dict]:
         hp_gain = calculate_hp_gain(adv.adventurer_class, old_level)
         adv.hp_max += hp_gain
         adv.hp_current += hp_gain
+        first_time = adv.level > (keep.highest_level_achieved or 1)
         events.append({
             "type": "level_up",
             "message": f"{adv.name} leveled up to {adv.level}! (+{hp_gain} HP)",
-            "first_time": adv.level > (keep.highest_level_achieved or 1),
+            "first_time": first_time,
             "adventurers": [{"id": adv.id, "name": adv.name}],
         })
-        if adv.level > (keep.highest_level_achieved or 1):
+        db = _session_of(adv)
+        if db is not None:
+            log_player_event(db, EventType.ADVENTURER_LEVELLED, keep.account_id, keep.id, {
+                "adventurer_name": adv.name,
+                "class": adv.adventurer_class.value,
+                "new_level": adv.level,
+                "first_time": first_time,
+            })
+        if first_time:
             keep.highest_level_achieved = adv.level
     return events

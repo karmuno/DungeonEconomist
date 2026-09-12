@@ -1,5 +1,8 @@
 # Player Events — v0.9.1 Spec
 
+**Status: implemented 2026-09-12** (`app/player_events.py`, migration `d5e1f2a3b4c6`, tests in
+`tests/test_main_utils.py`). The admin command that runs the gate queries is weekend two.
+
 Scope: see what the first cohort does, so the decision gate can be answered with evidence.
 One table (plus a lookup), one helper, insert calls at the right spots. Not an analytics
 pipeline. Records from the moment v0.9.1 deploys; the admin query (weekend two) reads it.
@@ -61,7 +64,7 @@ only hold a keep (expedition finalization, day advance, level-ups).
 |-------------------|-----------------------------|-------------------------------------------|
 | `account_created` | —                           | `routes/auth.py` `register`               |
 | `keep_created`    | `{keep_name}`               | `routes/keeps.py` `create_keep`           |
-| `keep_deleted`    | `{keep_name, current_day}`  | `routes/keeps.py` `delete_keep`           |
+| `keep_deleted`    | `{keep_name, current_day, keep_id}` | `routes/keeps.py` `delete_keep`; `keep_id` column left null, since the FK would null it once the keep is gone |
 | `return_session`  | `{hours_since_last}`        | `routes/auth.py` `login` **and** `refresh` |
 
 `return_session`: a gap of one hour or more since the user's last activity. "Last activity"
@@ -78,9 +81,9 @@ out.
 
 | event_type_id          | payload                                                              | Insert point                                    |
 |------------------------|----------------------------------------------------------------------|-------------------------------------------------|
-| `party_formed`         | `{party_name, member_count}`                                         | `routes/parties.py` `create_party`              |
+| `party_formed`         | `{party_name}`                                                       | `routes/parties.py` `create_party` (parties are created empty; members join afterwards, so there is no count to record) |
 | `expedition_started`   | `{party_name, dungeon_level, is_auto_delve}`                         | `routes/expeditions.py` `launch_expedition` and `_auto_launch_expedition` |
-| `expedition_decision`  | `{choice, trigger_type, dungeon_level, party_name}`                  | `routes/expeditions.py` the choose endpoint (player choices only; auto-decide does not log) |
+| `expedition_decision`  | `{choice, was_auto, trigger_type, dungeon_level, party_name}`        | `routes/expeditions.py` `make_expedition_choice` — every choice the player submits, including "let the party decide" (`was_auto`, with `choice` the outcome). Day-advance auto-decide does not log |
 | `expedition_completed` | `{party_name, dungeon_level, retreated, loot_gp, xp_gained, deaths}` | `_finalize_expedition` — the one function every completion path reaches |
 | `tpk`                  | `{party_name, dungeon_level, adventurers_lost, monster_type, monster_count, party_avg_level}` | `_finalize_expedition`, when every member who went out is in the effective result's `dead_members` |
 

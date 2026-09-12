@@ -268,9 +268,10 @@ this release rather than opening a fourth gate.
       `death_party_name`, the party they died with; Debtor's Prison adds **Bankrupted**
       (`bankruptcy_day`) and HP, and drops Party entirely. Null numerics sort to the bottom
       descending, so "newest first" puts unknown dates last
-- [ ] One `player_events` table and inserts per `buildplans/player-events-spec.md`: 16 event
+- [x] One `player_events` table and inserts per `buildplans/player-events-spec.md`: 16 event
       types from account creation through party wipe, one helper, no separate commit
-- [ ] **A party wipe records how it happened** (Cody, 2026-09-09): the monster type and the
+      (2026-09-12; migration `d5e1f2a3b4c6`, `app/player_events.py`)
+- [x] **A party wipe records how it happened** (Cody, 2026-09-09): the monster type and the
       number of them that did it, plus the party's **average level at the time of the wipe**.
       A TPK is the sharpest attachment signal the cohort can produce, and "they died" without
       what killed them or how outmatched they were answers none of the questions the decision

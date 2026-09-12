@@ -18,6 +18,7 @@ from app.models import (
     party_adventurer,
 )
 from app.names import generate_adventurer_name
+from app.player_events import EventType, log_player_event
 from app.routes.expeditions import _finalize_expedition, resolve_expedition
 from app.schemas import AdvanceDayResult, GameEvent, GameTimeInfo
 
@@ -228,6 +229,12 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
             row["outcome"] = "prison"
             prison_names.append(adv.name)
             unpaid_cp += cost_copper - row["purse_cp"]
+            log_player_event(db, EventType.ADVENTURER_BANKRUPT, keep.account_id, keep.id, {
+                "adventurer_name": adv.name,
+                "class": adv.adventurer_class.value,
+                "level": adv.level,
+                "debt_cp": cost_copper - row["purse_cp"],
+            })
 
             events.append(GameEvent(
                 type="upkeep",

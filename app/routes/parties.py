@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_keep
 from app.database import get_db
 from app.models import Adventurer, Keep, Party
+from app.player_events import EventType, log_player_event
 from app.schemas import PartyCreate, PartyMemberOperation, PartyOut
 
 router = APIRouter()
@@ -34,6 +35,7 @@ def create_party(
         keep_id=keep.id,
     )
     db.add(new_party)
+    log_player_event(db, EventType.PARTY_FORMED, keep.account_id, keep.id, {"party_name": new_party.name})
     db.commit()
     db.refresh(new_party)
     _ = new_party.members
