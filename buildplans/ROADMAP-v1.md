@@ -307,8 +307,9 @@ this release rather than opening a fourth gate.
       and a per-session counter. Someone telling you they loved it is the #1 outcome.
       Verified in the browser from the login screen as a visitor; the signed-in path
       (account and keep attached, no name field) is covered by API tests
-- [ ] Buy Me a Coffee link to https://buymeacoffee.com/codyjanegames, branded Cody Jane
-      Games. No payment integration
+- [x] Buy Me a Coffee link to https://buymeacoffee.com/codyjanegames (2026-09-12): the gold
+      chip from `design_handoff_bmc_chip/`, in the sidebar footer under Submit Feedback,
+      above the version line. No payment integration
 
 **Not in this release, on purpose:** domain migration. A studio-branded tip link on
 `venturekeep.stahlsystems.com` is fine for 10 invited people. Decide the name in an hour on a
