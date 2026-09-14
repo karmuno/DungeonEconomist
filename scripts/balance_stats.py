@@ -4,12 +4,17 @@ Answers the question the cohort cannot: are adventurers living long enough to be
 attached to? Reads whatever database `DATABASE_URL` points at, falling back to the local
 SQLite file exactly as the app does.
 
-    python scripts/balance_stats.py
+    python scripts/balance_stats.py                # every keep in the database
+    python scripts/balance_stats.py --keep 26      # one keep, by id
+    python scripts/balance_stats.py --keep "New Balance Test"
 
-A baseline taken on 2026-09-09, before party morale dropped from 11 to 7, is printed
-alongside the current figures so a balance change can be judged rather than guessed at.
+The baseline printed beside the current figures is the clean run of 2026-09-14: keep "New
+Balance Test", 1001 simulated days, after the ghost-adventurer fix and the buildings-grant-XP
+change, party morale 7. The earlier 2026-09-09 figures (969 adventurers, 81.8% dead, 3.9%
+reached level 2, morale 11) predate both and included delves staffed partly by ghosts.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -21,20 +26,29 @@ from sqlalchemy import text  # noqa: E402
 from app.database import SessionLocal  # noqa: E402  (importing app also loads .env)
 from app.expedition import PARTY_MORALE  # noqa: E402
 
-# Measured 2026-09-09 on Cody's development keep: 969 adventurers, 468 expeditions,
-# party morale 11. Kept so a later run shows movement rather than a bare number.
-#
-# Caveat: this baseline predates the fix for dead adventurers rejoining expeditions, so it
-# includes delves staffed partly by ghosts, whose attacks and hit points skewed the odds in
-# an unknown direction. Re-baseline once that lands.
+# Measured 2026-09-14 on keep "New Balance Test" (#26 in Cody's dev database): 138
+# adventurers, 106 expeditions over 1001 days, all at depth 1, every building standing.
+# Kept so a later run shows movement rather than a bare number.
 BASELINE = {
-    "date": "2026-09-09",
-    "morale": 11,
-    "total": 969,
-    "dead_pct": 81.8,
-    "deaths_at_level_1_pct": 97.5,
-    "reached_level_2_pct": 3.9,
+    "date": "2026-09-14",
+    "morale": 7,
+    "total": 138,
+    "dead_pct": 96.4,
+    "deaths_at_level_1_pct": 99.2,
+    "reached_level_2_pct": 0.7,
 }
+
+
+# Set by main() from --keep; None means the whole database.
+KEEP_ID: int | None = None
+
+
+def where(*conds: str, keep_col: str = "keep_id") -> str:
+    """A WHERE clause from the given conditions plus the keep scope, if one is set."""
+    parts = [c for c in conds if c]
+    if KEEP_ID is not None:
+        parts.append(f"{keep_col} = {KEEP_ID}")
+    return ("WHERE " + " AND ".join(parts)) if parts else ""
 
 
 def q(session, sql: str) -> list[tuple]:
@@ -62,10 +76,10 @@ def delta(current: float, baseline: float) -> str:
 
 def survival(session) -> None:
     """The headline: how many die, at what level, and how many ever advance."""
-    total = scalar(session, "SELECT COUNT(*) FROM adventurers")
-    dead = scalar(session, "SELECT COUNT(*) FROM adventurers WHERE is_dead = true")
-    living = scalar(session, "SELECT COUNT(*) FROM adventurers WHERE is_dead = false AND is_bankrupt = false")
-    reached2 = scalar(session, "SELECT COUNT(*) FROM adventurers WHERE level >= 2")
+    total = scalar(session, f"SELECT COUNT(*) FROM adventurers {where()}")
+    dead = scalar(session, f"SELECT COUNT(*) FROM adventurers {where('is_dead = true')}")
+    living = scalar(session, f"SELECT COUNT(*) FROM adventurers {where('is_dead = false', 'is_bankrupt = false')}")
+    reached2 = scalar(session, f"SELECT COUNT(*) FROM adventurers {where('level >= 2')}")
 
     print("== Survival ==")
     print(f"  {total} adventurers | {dead} dead | {living} living")
@@ -73,7 +87,8 @@ def survival(session) -> None:
     print(f"  reached level 2: {pct(reached2, total):5.1f}%  "
           f"{delta(pct(reached2, total), BASELINE['reached_level_2_pct'])}")
 
-    deaths = q(session, "SELECT level, COUNT(*) FROM adventurers WHERE is_dead = true GROUP BY level ORDER BY level")
+    deaths = q(session, f"SELECT level, COUNT(*) FROM adventurers {where('is_dead = true')} "
+                        "GROUP BY level ORDER BY level")
     at_one = next((int(n) for lvl, n in deaths if lvl == 1), 0)
     print(f"  deaths at Lv1:   {pct(at_one, dead):5.1f}%  {delta(pct(at_one, dead), BASELINE['deaths_at_level_1_pct'])}")
     print("\n  deaths by level:")
@@ -81,15 +96,15 @@ def survival(session) -> None:
         print(f"    Lv{str(lvl):<3} {int(n):5d}  {'#' * min(int(n) // 8, 50)}")
 
     print("\n  living by level:")
-    rows = q(session, "SELECT level, COUNT(*) FROM adventurers "
-                      "WHERE is_dead = false AND is_bankrupt = false GROUP BY level ORDER BY level")
+    rows = q(session, f"SELECT level, COUNT(*) FROM adventurers "
+                      f"{where('is_dead = false', 'is_bankrupt = false')} GROUP BY level ORDER BY level")
     for lvl, n in rows:
         print(f"    Lv{str(lvl):<3} {int(n):5d}")
 
 
 def progression(session) -> None:
     """How close the dead got to advancing, which sizes the XP gap."""
-    rows = q(session, "SELECT xp FROM adventurers WHERE is_dead = true AND level = 1")
+    rows = q(session, f"SELECT xp FROM adventurers {where('is_dead = true', 'level = 1')}")
     xps = sorted(int(r[0]) for r in rows if r[0] is not None)
     if not xps:
         return
@@ -104,11 +119,13 @@ def delving(session) -> None:
     """Where delves happen and how they end."""
     print("\n== Delving ==")
     print("  expeditions by depth:")
-    for depth, n in q(session, "SELECT dungeon_level, COUNT(*) FROM expeditions "
-                               "GROUP BY dungeon_level ORDER BY dungeon_level"):
+    for depth, n in q(session, "SELECT e.dungeon_level, COUNT(*) FROM expeditions e "
+                               "JOIN parties p ON p.id = e.party_id "
+                               f"{where(keep_col='p.keep_id')} GROUP BY e.dungeon_level ORDER BY e.dungeon_level"):
         print(f"    depth {str(depth):<5} {int(n)}")
     print("  results:")
-    for result, n in q(session, "SELECT result, COUNT(*) FROM expeditions GROUP BY result ORDER BY COUNT(*) DESC"):
+    for result, n in q(session, "SELECT e.result, COUNT(*) FROM expeditions e JOIN parties p ON p.id = e.party_id "
+                                f"{where(keep_col='p.keep_id')} GROUP BY e.result ORDER BY COUNT(*) DESC"):
         print(f"    {str(result):<16} {int(n)}")
 
 
@@ -117,13 +134,14 @@ def gear(session) -> None:
     print("\n== Gear ==")
     rows = q(session, "SELECT a.level, COUNT(DISTINCT a.id), COUNT(m.id) FROM adventurers a "
                       "LEFT JOIN magic_items m ON m.adventurer_id = a.id "
-                      "WHERE a.is_dead = true GROUP BY a.level ORDER BY a.level")
+                      f"{where('a.is_dead = true', keep_col='a.keep_id')} GROUP BY a.level ORDER BY a.level")
     for lvl, advs, items in rows:
         per = int(items) / max(int(advs), 1)
         print(f"    Lv{str(lvl):<3} {int(advs):5d} dead, {int(items):4d} items held ({per:.2f} each)")
     print("  items in the world:")
-    for item_type, n in q(session, "SELECT item_type, COUNT(*) FROM magic_items "
-                                   "GROUP BY item_type ORDER BY COUNT(*) DESC"):
+    for item_type, n in q(session, "SELECT m.item_type, COUNT(*) FROM magic_items m "
+                                   "JOIN adventurers a ON a.id = m.adventurer_id "
+                                   f"{where(keep_col='a.keep_id')} GROUP BY m.item_type ORDER BY COUNT(*) DESC"):
         print(f"    {str(item_type):<10} {int(n)}")
 
 
@@ -144,9 +162,29 @@ def morale() -> None:
         print(f"    morale {m:2d}: {fail(m):5.1f}% per check")
 
 
+def resolve_keep(session, keep: str) -> tuple[int, str, int]:
+    """(id, name, current_day) for a keep given by id or exact name."""
+    if keep.isdigit():
+        rows = session.execute(text("SELECT id, name, current_day FROM keeps WHERE id = :id"), {"id": int(keep)})
+    else:
+        rows = session.execute(text("SELECT id, name, current_day FROM keeps WHERE name = :name"), {"name": keep})
+    row = rows.fetchone()
+    if row is None:
+        sys.exit(f"No keep matches {keep!r}")
+    return int(row[0]), str(row[1]), int(row[2])
+
+
 def main() -> None:
+    global KEEP_ID
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--keep", help="scope to one keep, by id or exact name (default: every keep)")
+    args = parser.parse_args()
+
     session = SessionLocal()
     try:
+        if args.keep:
+            KEEP_ID, name, day = resolve_keep(session, args.keep)
+            print(f"keep: {name} (#{KEEP_ID}), day {day}\n")
         survival(session)
         progression(session)
         delving(session)
