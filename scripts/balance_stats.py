@@ -9,11 +9,13 @@ SQLite file exactly as the app does.
     python scripts/balance_stats.py --keep "New Balance Test"
     python scripts/balance_stats.py --keep 26 --keep 27   # pooled
 
-The baseline printed beside the current figures is the clean run of 2026-09-14: keeps "New
-Balance Test" (1001 days) and "New Balance Test Again" (400 days) pooled, after the
-ghost-adventurer fix and the buildings-grant-XP change, party morale 7. The earlier
-2026-09-09 figures (969 adventurers, 81.8% dead, 3.9% reached level 2, morale 11) predate
-both and included delves staffed partly by ghosts.
+The baseline printed beside the current figures is keep "XP Share Balance Test" (#28),
+1004 days, run 2026-09-14 under the XP split rule (combat XP to those standing after each
+fight, treasure XP to the run's survivors), party morale 7, all four buildings standing.
+Earlier runs, for the record: keeps #26 and #27 pooled under the even split (193
+adventurers, 96.9% dead, 99.5% of deaths at level 1, 0.5% reached level 2), and the
+2026-09-09 figures (969 adventurers, 81.8% dead, 3.9% reached level 2, morale 11), which
+predate the ghost-adventurer fix and included delves staffed partly by ghosts.
 """
 
 import argparse
@@ -28,16 +30,16 @@ from sqlalchemy import text  # noqa: E402
 from app.database import SessionLocal  # noqa: E402  (importing app also loads .env)
 from app.expedition import PARTY_MORALE  # noqa: E402
 
-# Measured 2026-09-14 on keeps #26 and #27 in Cody's dev database, pooled: 193 adventurers,
-# 149 expeditions over 1401 days, all at depth 1, every building standing. Kept so a later
-# run shows movement rather than a bare number.
+# Measured 2026-09-14 on keep #28 in Cody's dev database: 125 adventurers, 126 completed
+# expeditions over 1004 days, all at depth 1, every building standing, XP split rule in
+# force. Kept so a later run shows movement rather than a bare number.
 BASELINE = {
     "date": "2026-09-14",
     "morale": 7,
-    "total": 193,
-    "dead_pct": 96.9,
-    "deaths_at_level_1_pct": 99.5,
-    "reached_level_2_pct": 0.5,
+    "total": 125,
+    "dead_pct": 92.0,
+    "deaths_at_level_1_pct": 98.3,
+    "reached_level_2_pct": 1.6,
 }
 
 
