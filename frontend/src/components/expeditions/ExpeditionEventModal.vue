@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   choose: [choice: string]
   close: []
+  'open-sheet': [id: number]
 }>()
 
 const gameTime = useGameTimeStore()
@@ -280,7 +281,7 @@ function hpColor(member: ExpeditionMemberResult): string {
             <div class="grid-head num">HP</div>
             <template v-for="row in eventRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
-                <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
+                <span class="member-name adv-link" :class="{ 'adv-dead': !row.member.alive }" @click.stop="emit('open-sheet', row.member.id)">{{ row.member.name }}</span>
                 <span class="member-class">{{ row.member.adventurer_class }}</span>
               </div>
               <div class="cell num dmg-cell">
@@ -326,7 +327,7 @@ function hpColor(member: ExpeditionMemberResult): string {
             <div class="grid-head num">HP Healed</div>
             <template v-for="row in ledgerRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
-                <span class="member-name" :class="{ 'adv-dead': !row.member.alive }">{{ row.member.name }}</span>
+                <span class="member-name adv-link" :class="{ 'adv-dead': !row.member.alive }" @click.stop="emit('open-sheet', row.member.id)">{{ row.member.name }}</span>
                 <span class="member-class">{{ row.member.adventurer_class }}</span>
               </div>
               <div class="cell hp-cell">
@@ -356,9 +357,10 @@ function hpColor(member: ExpeditionMemberResult): string {
 
           <ExpeditionLogTree
             :turns="turns"
-            :member-names="memberNames"
+            :members="summary?.member_results ?? []"
             :mark-current="true"
             class="log-block"
+            @open-sheet="emit('open-sheet', $event)"
           />
         </div>
       </template>
@@ -568,6 +570,18 @@ function hpColor(member: ExpeditionMemberResult): string {
 
 .row-dead {
   opacity: 0.6;
+}
+
+.adv-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #374151;
+  text-underline-offset: 2px;
+}
+
+.adv-link:hover {
+  color: #4ade80;
+  text-decoration-color: #4ade80;
 }
 
 .adv-dead {

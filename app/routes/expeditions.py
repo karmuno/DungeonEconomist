@@ -1255,6 +1255,7 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
             is_dead = member.name in all_deaths
             current_hp = member_hp.get(member.name, member.hp_current)
             member_results.append({
+                "id": member.id,
                 "name": member.name,
                 "adventurer_class": member.adventurer_class.value,
                 "level": member.level,
@@ -1354,6 +1355,7 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
             heal_days = adv.hp_max - end_hp
             max_heal_days = max(max_heal_days, heal_days)
         member_results.append({
+            "id": adv.id,
             "name": adv.name,
             "adventurer_class": adv.adventurer_class.value,
             "level": adv.level,

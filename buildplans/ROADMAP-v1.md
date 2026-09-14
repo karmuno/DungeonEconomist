@@ -163,6 +163,13 @@ this release rather than opening a fourth gate.
       XP bonus. The API computes totals per tier from who is actually assigned
       (`_stat_lines` in `app/routes/buildings.py`, shared by the Dashboard's effect tag via
       `building_effects`); the view no longer string-scrapes for "per". Tier II+ stays hidden
+- [x] **Every adventurer named in an expedition view opens their sheet** (Cody, 2026-09-14):
+      the summary's member rows, the event popup's rows, the decision page (which now lists
+      the party with class, level and HP), and every name in the log tree's prose, through
+      one `LinkedText` component fed by the roster's ids, so a party named after an
+      adventurer is never mistaken for one
+- [x] **The sheet's XP bar reads total XP against the next threshold** while its fill shows
+      progress within the current level (Cody, 2026-09-14)
 - [x] **XP goes to those who earned it** (Cody, 2026-09-14). Each combat's XP is split
       among the members standing at the end of that fight, kept even if they die later in
       the run; treasure XP is split, like the treasure, among the run's survivors only. The
@@ -461,18 +468,6 @@ shows it matters.
   dragstart handlers, and dragging `<tr>` elements is awkward — CSS Grid with fixed
   `grid-template-columns` keeps the existing `<div>` structure and the drag behaviour while
   giving the same alignment. (`fix/table-alignment` holds nothing unique against `main`.)
-- **Adventurer names in the expedition summary should open their sheet.** v0.9 shipped this
-  for notifications and popups, but `linkAdventurerNames` (`frontend/src/utils/adventurer.ts`)
-  is used in exactly one place — `SidePanel.vue`. `ExpeditionSummaryView.vue`,
-  `ExpeditionLogTree.vue` and `ExpeditionEventModal.vue` link nothing. Two distinct cases:
-  the **member rows** (`ExpeditionSummaryView.vue:246`) already hold member objects with ids,
-  so they link directly; the **log-tree prose** ("X healed for 2 HP by Y", "Z is revived by Y")
-  is built from `healed_adventurers` / `revivals` entries that carry `name` but **no id**, so
-  those need either name-to-id resolution against the party roster the view already has, or
-  ids added to those payloads — the same discipline the notification path uses, where only
-  backend-attached names are matched so a party named after an adventurer is never mistaken
-  for one. Being the fourth surface to need this, it is worth extracting the shared
-  `AdventurerLink` component the v0.9 work stopped short of
 - **The live expedition summary should show healing per member.** Today a member row can read
   a loss next to full health — "-4" beside "6/6 HP" — which looks like a bug because nothing
   reconciles the two numbers. It is not a bug: `_replay_member_hp`

@@ -114,9 +114,11 @@ const hpBarColor = computed(() => {
       <div class="cs-bar-group">
         <span class="cs-bar-label">XP</span>
         <template v-if="adventurer.next_level_xp != null">
+          <!-- The number is total XP against the next threshold; the fill is progress within this level -->
           <ProgressBar
             :value="adventurer.xp - (adventurer.current_level_xp ?? 0)"
             :max="adventurer.next_level_xp - (adventurer.current_level_xp ?? 0)"
+            :label="`${adventurer.xp} / ${adventurer.next_level_xp}`"
             color="var(--accent-blue)"
           />
         </template>
