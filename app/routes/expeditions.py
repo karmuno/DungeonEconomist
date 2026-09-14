@@ -628,14 +628,15 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level + weapon_bonus,  # weapon bonus scales effective combat level
-            "base_level": member.level,  # actual level for XP etc.
+            "level": member.level,
+            "base_level": member.level,
+            "weapon_bonus": weapon_bonus,  # OSE: a magic weapon is to-hit and damage, nothing else
             "hit_points": member.hp_max,
             "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
             "armor_buffer": armor_bonus,  # track buffer separately
             "xp": member.xp,
-            "to_hit_bonus": building_bonuses["to_hit_bonus"],
-            "damage_bonus": building_bonuses["damage_bonus"],
+            "building_to_hit_bonus": building_bonuses["to_hit_bonus"],
+            "building_damage_bonus": building_bonuses["damage_bonus"],
             "morale_penalty": building_bonuses["morale_penalty"],
             "has_potion": has_potion(member),
         }
@@ -758,14 +759,15 @@ def launch_expedition(
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level + weapon_bonus,  # weapon bonus scales effective combat level
-            "base_level": member.level,  # actual level for XP etc.
+            "level": member.level,
+            "base_level": member.level,
+            "weapon_bonus": weapon_bonus,  # OSE: a magic weapon is to-hit and damage, nothing else
             "hit_points": member.hp_max,
             "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
             "armor_buffer": armor_bonus,  # track buffer separately
             "xp": member.xp,
-            "to_hit_bonus": building_bonuses["to_hit_bonus"],
-            "damage_bonus": building_bonuses["damage_bonus"],
+            "building_to_hit_bonus": building_bonuses["to_hit_bonus"],
+            "building_damage_bonus": building_bonuses["damage_bonus"],
             "morale_penalty": building_bonuses["morale_penalty"],
             "has_potion": has_potion(member),
         }
