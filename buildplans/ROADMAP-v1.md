@@ -104,9 +104,10 @@ a v1.0 blocker.
 
 **2026-09-12/13 — make it true.** The ghost-adventurer fix first, because it corrupts every
 other measurement; then `player_events` with TPK capture, the auth-flash guard, the feedback
-form and the Buy Me a Coffee link. Then generate fresh expeditions on a new keep and run
-`scripts/balance_stats.py` over them for a clean baseline — the script only reads rows that
-already exist, so re-running it over the old save re-measures contaminated data.
+form and the Buy Me a Coffee link. Clean baseline taken 2026-09-14 on keep "New Balance
+Test" (1001 days, 106 delves, all buildings standing): **96.4% dead, 0.7% ever reached
+level 2, median 38 XP per member per delve against 2000 needed**. Recorded as `BASELINE`
+in `scripts/balance_stats.py`, which now takes `--keep`.
 
 **2026-09-19/20 — make it safe and ship.** The admin query, Postgres suite run, restore drill,
 the `[project]`/`uv.lock` migration and audits, rate limiting and CORS confirmed, then deploy,
