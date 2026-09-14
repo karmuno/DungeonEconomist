@@ -588,7 +588,9 @@ def starting_resources(party: list[dict]) -> tuple[int, int]:
     heals = 0
     for member in party:
         cls = member.get("character_class", "")
-        level = member.get("level", 1)
+        # Charges come from the true level: a magic weapon raises the level the
+        # simulator fights at, not the number of cures or spells.
+        level = member.get("base_level", member.get("level", 1))
         if cls == "Cleric":
             heals += level // 2
         if cls in ("Magic-User", "Elf"):
@@ -607,12 +609,15 @@ class Expedition:
             member["ac"] = PC_AC
             member["thac0"] = get_thac0(cls, level)
             member["to_hit_bonus"] = get_to_hit_bonus(cls)
+            # Class charges come from the true level; `level` above carries the
+            # weapon bonus and is only for how hard the member fights.
+            charge_level = member.get("base_level", level)
             if cls == "Cleric":
-                member.setdefault("turn_attempts_remaining", level)
-                member.setdefault("revivals_remaining", level // 2)
-                member.setdefault("heals_remaining", level // 2)
+                member.setdefault("turn_attempts_remaining", charge_level)
+                member.setdefault("revivals_remaining", charge_level // 2)
+                member.setdefault("heals_remaining", charge_level // 2)
             if cls in ("Magic-User", "Elf"):
-                base_spells = level * member.get("spell_multiplier", 1)
+                base_spells = charge_level * member.get("spell_multiplier", 1)
                 scrolls = member.get("scroll_count", 0)
                 member["base_spells"] = base_spells
                 member.setdefault("spells_remaining", base_spells + scrolls)

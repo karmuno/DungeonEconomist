@@ -1283,3 +1283,19 @@ def test_revived_members_share_the_fight_xp():
 
     combat = sim.expedition_logs[exp_id][0]["events"][0]["combat"]
     assert combat["xp_shares"] == {"Standing": 100, "Revived": 100}
+
+
+def test_magic_weapons_do_not_add_cures_or_spells():
+    """The simulator fights at level + weapon bonus, but charges follow the true level."""
+    from app.expedition import Expedition, starting_resources
+    party = [
+        {"name": "Cleric", "character_class": "Cleric", "level": 2, "base_level": 1, "hit_points": 6},
+        {"name": "Mage", "character_class": "Magic-User", "level": 2, "base_level": 1, "hit_points": 4},
+    ]
+    assert starting_resources(party) == (1, 0)
+    exp = Expedition([dict(m) for m in party], dungeon_level=1)
+    by_name = {m["name"]: m for m in exp.party}
+    assert by_name["Cleric"]["heals_remaining"] == 0
+    assert by_name["Cleric"]["revivals_remaining"] == 0
+    assert by_name["Cleric"]["turn_attempts_remaining"] == 1
+    assert by_name["Mage"]["spells_remaining"] == 1
