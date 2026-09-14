@@ -188,7 +188,8 @@ this release rather than opening a fourth gate.
 - [x] **XP goes to those who come home** (Cody, 2026-09-14). Everything a run earned —
       fights won and treasure found in the turns actually played — is one pool, split evenly
       among the survivors at the end of the delve. The dead take nothing; a wipe earns
-      nothing; a fled fight is still worth nothing. Finalization sums the log it already
+      nothing; a fight the party runs from pays for the monsters killed before running and
+      nothing for the rest (2026-09-15). Finalization sums the log it already
       truncates on a retreat, so the even split by launch headcount, which paid the dead a
       full share of everything, is gone
 - [x] **Parties retreat instead of dying** (2026-09-09, Cody). Party morale was hardcoded to

@@ -144,6 +144,20 @@ def get_spell_name(level: int) -> str:  # noqa: ARG001 — one spell for the MVP
     return "Sleep"
 
 
+def combat_xp(monsters: list[dict], monsters_killed: int, monsters_fled: int, party_fled: bool) -> int:
+    """XP a fight pays: floor(HD) x 100 per monster.
+
+    A won fight pays for every monster killed or routed. A fight the party runs from pays
+    for the kills made before running, and nothing for the rest (Cody, 2026-09-15).
+    """
+    if not monsters:
+        return 0
+    per_monster = max(1, int(monsters[0]["hd"])) * 100
+    if party_fled:
+        return per_monster * monsters_killed
+    return per_monster * (monsters_killed + monsters_fled)
+
+
 # ─── Attack resolution ────────────────────────────────────────────────────────
 
 def _do_attack(attacker: dict, target: dict) -> dict:
@@ -541,12 +555,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
     else:
         outcome = "Victory"
 
-    # XP: floor(hd)*100 per monster killed or fled; 0 if party fled
-    if party_fled:
-        xp = 0
-    else:
-        per_monster_xp = max(1, int(monsters[0]["hd"])) * 100 if monsters else 0
-        xp = per_monster_xp * (monsters_killed + monsters_fled)
+    xp = combat_xp(monsters, monsters_killed, monsters_fled, party_fled)
 
     return {
         "outcome": outcome,

@@ -1292,3 +1292,13 @@ def test_magic_weapon_is_to_hit_and_damage_only():
     assert fighter["hd"] == get_combat_hd("Fighter", 1)
     assert fighter["to_hit_bonus"] == 1 + 1 + 2  # class, Training Grounds, weapon
     assert fighter["damage_bonus"] == 1 + 2  # Training Grounds, weapon
+
+
+def test_a_fled_fight_pays_for_kills_only():
+    """Cody, 2026-09-15: running away keeps the XP for monsters already killed, nothing more."""
+    from app.expedition import combat_xp
+    wolves = [{"hd": 2.0}] * 5
+    assert combat_xp(wolves, monsters_killed=2, monsters_fled=0, party_fled=True) == 400
+    assert combat_xp(wolves, monsters_killed=0, monsters_fled=0, party_fled=True) == 0
+    assert combat_xp(wolves, monsters_killed=3, monsters_fled=2, party_fled=False) == 1000
+    assert combat_xp([], 0, 0, False) == 0
