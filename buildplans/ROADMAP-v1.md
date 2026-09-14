@@ -163,6 +163,13 @@ this release rather than opening a fourth gate.
       XP bonus. The API computes totals per tier from who is actually assigned
       (`_stat_lines` in `app/routes/buildings.py`, shared by the Dashboard's effect tag via
       `building_effects`); the view no longer string-scrapes for "per". Tier II+ stays hidden
+- [x] **A magic weapon is to-hit and damage, per OSE** (Cody, 2026-09-14). The launch used to
+      hand the simulator level + weapon bonus as one number, so a +1 weapon also raised
+      hit dice, a Cleric's cures, revivals and turn attempts, and a caster's spells. The
+      weapon bonus now travels on its own and lands only on to-hit and damage. Found on the
+      way: the simulator's initialisation overwrote the to-hit bonus the launch had passed
+      from the Training Grounds with the class's own, so the building's to-hit had never
+      reached a fight; the three now sum
 - [x] **Every adventurer named in an expedition view opens their sheet** (Cody, 2026-09-14):
       the summary's member rows, the event popup's rows, the decision page (which now lists
       the party with class, level and HP), and every name in the log tree's prose, through

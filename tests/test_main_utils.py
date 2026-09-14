@@ -1285,12 +1285,16 @@ def test_revived_members_share_the_fight_xp():
     assert combat["xp_shares"] == {"Standing": 100, "Revived": 100}
 
 
-def test_magic_weapons_do_not_add_cures_or_spells():
-    """The simulator fights at level + weapon bonus, but charges follow the true level."""
+def test_magic_weapon_is_to_hit_and_damage_only():
+    """Per OSE (Cody, 2026-09-14): a +1 weapon adds +1 to-hit and +1 damage, and touches
+    neither level, hit dice, nor a class's charges. Building bonuses stack with it."""
+    from app.class_config import get_combat_hd, get_thac0
     from app.expedition import Expedition, starting_resources
     party = [
-        {"name": "Cleric", "character_class": "Cleric", "level": 2, "base_level": 1, "hit_points": 6},
-        {"name": "Mage", "character_class": "Magic-User", "level": 2, "base_level": 1, "hit_points": 4},
+        {"name": "Cleric", "character_class": "Cleric", "level": 1, "weapon_bonus": 1, "hit_points": 6},
+        {"name": "Mage", "character_class": "Magic-User", "level": 1, "weapon_bonus": 1, "hit_points": 4},
+        {"name": "Fighter", "character_class": "Fighter", "level": 1, "weapon_bonus": 2, "hit_points": 8,
+         "building_to_hit_bonus": 1, "building_damage_bonus": 1},
     ]
     assert starting_resources(party) == (1, 0)
     exp = Expedition([dict(m) for m in party], dungeon_level=1)
@@ -1299,3 +1303,8 @@ def test_magic_weapons_do_not_add_cures_or_spells():
     assert by_name["Cleric"]["revivals_remaining"] == 0
     assert by_name["Cleric"]["turn_attempts_remaining"] == 1
     assert by_name["Mage"]["spells_remaining"] == 1
+    fighter = by_name["Fighter"]
+    assert fighter["thac0"] == get_thac0("Fighter", 1)
+    assert fighter["hd"] == get_combat_hd("Fighter", 1)
+    assert fighter["to_hit_bonus"] == 1 + 1 + 2  # class, Training Grounds, weapon
+    assert fighter["damage_bonus"] == 1 + 2  # Training Grounds, weapon
