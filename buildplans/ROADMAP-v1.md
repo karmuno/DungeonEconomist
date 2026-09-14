@@ -163,6 +163,14 @@ this release rather than opening a fourth gate.
       XP bonus. The API computes totals per tier from who is actually assigned
       (`_stat_lines` in `app/routes/buildings.py`, shared by the Dashboard's effect tag via
       `building_effects`); the view no longer string-scrapes for "per". Tier II+ stays hidden
+- [x] **Number appearing trimmed at the lethal end** (Cody, 2026-09-15). Every depth-1
+      monster at or above 1.0 deaths per fight in the all-time ranking was re-rolled against a
+      fresh level-1 party with the real combat resolver (`scripts/number_appearing_sweep.py`,
+      500-1000 fights per candidate) and set to the dice that land in the Goblin/Orc/Skeleton
+      band of 0.7-0.85 deaths per fight: Wolf 2d6→1d3, Halfling 3d6→2d4, Kobold 4d4→2d4,
+      Troglodyte 1d8→1d3, Sprite 3d6→2d4, Giant Gecko 1d3→1, Fire Beetle 1d8→1d6, Killer Bee
+      1d10→1d8, Rock Baboon 2d6→1d3. OSE's dungeon numbers assume reaction rolls and evasion
+      the simulator does not model; these are provisional until it does
 - [x] **A magic weapon is to-hit and damage, per OSE** (Cody, 2026-09-14). The launch used to
       hand the simulator level + weapon bonus as one number, so a +1 weapon also raised
       hit dice, a Cleric's cures, revivals and turn attempts, and a caster's spells. The
