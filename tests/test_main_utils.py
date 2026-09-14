@@ -1253,3 +1253,33 @@ def test_finalize_keeps_even_split_for_logs_without_shares(client: TestClient, d
     _finalize_expedition(exp, sim, db_session, keep)
     db_session.commit()
     assert a.xp == 120
+
+
+def test_revived_members_share_the_fight_xp():
+    """Potion and Cleric revivals happen inside the fight's resolution, so a member brought
+    back before the fight ends is standing when the XP is split (Cody, 2026-09-14)."""
+    from app.expedition import EncounterType
+    from app.simulator import DungeonSimulator
+
+    sim = DungeonSimulator()
+    idx = sim.add_party([
+        {"id": 1, "name": "Standing", "character_class": "Fighter", "level": 1, "hit_points": 8, "current_hp": 8},
+        {"id": 2, "name": "Revived", "character_class": "Cleric", "level": 1, "hit_points": 8, "current_hp": 8},
+        {"id": 3, "name": "Fallen", "character_class": "Elf", "level": 1, "hit_points": 8, "current_hp": 8},
+    ])
+    exp_id = sim.start_expedition(idx, dungeon_level=1)
+    expedition = sim.active_expeditions[exp_id]["expedition"]
+
+    def scripted_fight(monster_type: str) -> dict:
+        by_name = {m["name"]: m for m in expedition.party}
+        by_name["Fallen"]["current_hp"] = 0
+        by_name["Revived"]["current_hp"] = 1  # went down, came back before the fight ended
+        return {"outcome": "Victory", "monster_type": "Goblin", "monster_count": 2, "xp_earned": 200,
+                "revived_adventurers": ["Revived"], "round_log": []}
+
+    expedition.determine_room_contents = lambda: [EncounterType.MONSTER]
+    expedition.resolve_combat = scripted_fight
+    sim.advance_turn(exp_id)
+
+    combat = sim.expedition_logs[exp_id][0]["events"][0]["combat"]
+    assert combat["xp_shares"] == {"Standing": 100, "Revived": 100}
