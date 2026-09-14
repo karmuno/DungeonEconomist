@@ -35,19 +35,6 @@ def calculate_loot_split(total_loot, party_size=1, player_split=0.3):
         "total_loot": total_loot
     }
 
-def share_combat_xp(party: list[dict[str, Any]], xp: int) -> dict[str, int]:
-    """Split one combat's XP among the members standing at its end (Cody, 2026-09-14).
-
-    Whoever survived the fight earned it, even if they die later in the run. Remainder
-    is dropped. Nobody standing, or nothing earned, means nobody is credited.
-    """
-    survivors = [m["name"] for m in party if m.get("current_hp", 0) > 0]
-    if not survivors or xp <= 0:
-        return {}
-    share = xp // len(survivors)
-    return {name: share for name in survivors} if share > 0 else {}
-
-
 class DungeonSimulator:
     """
     Main simulation engine that handles running expeditions, tracking party status,
@@ -118,7 +105,6 @@ class DungeonSimulator:
             if encounter_type == EncounterType.MONSTER:
                 monster_type = expedition._get_random_monster()
                 combat_result = expedition.resolve_combat(monster_type)
-                combat_result["xp_shares"] = share_combat_xp(expedition.party, combat_result["xp_earned"])
                 encounter_log["combat"] = combat_result
                 expedition.xp_earned += combat_result["xp_earned"]
                 turn_log["events"].append(encounter_log)

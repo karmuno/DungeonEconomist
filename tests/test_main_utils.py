@@ -1178,24 +1178,11 @@ def test_building_response_states_totals_and_free_slots(client: TestClient, db_s
     ]
 
 
-# --- XP split (Cody, 2026-09-14): combat XP to those standing after each fight,
-#     treasure XP to the run's survivors ---
+# --- XP split (Cody, 2026-09-14): everything the run earned, divided among those who come home ---
 
-def test_share_combat_xp_goes_to_those_standing():
-    from app.simulator import share_combat_xp
-    party = [
-        {"name": "A", "current_hp": 5},
-        {"name": "B", "current_hp": 1},
-        {"name": "C", "current_hp": 0},
-    ]
-    assert share_combat_xp(party, 300) == {"A": 150, "B": 150}
-    assert share_combat_xp(party, 0) == {}
-    assert share_combat_xp([{"name": "C", "current_hp": 0}], 300) == {}
-
-
-def test_finalize_credits_combat_to_fight_survivors_and_treasure_to_run_survivors(client: TestClient, db_session: Session):
-    """C survives the first fight, dies in the second, so C keeps the first fight's share
-    and nothing else; A and B split the second fight and the treasure XP."""
+def test_finalize_pools_all_xp_for_the_survivors(client: TestClient, db_session: Session):
+    """Two fights (300 and 200) and 90 treasure XP make one pool of 590; C died, so A and B
+    take 295 each and C takes nothing."""
     from app.routes.expeditions import _finalize_expedition
 
     account, keep, token = create_account_and_keep(db_session)
@@ -1214,11 +1201,9 @@ def test_finalize_credits_combat_to_fight_survivors_and_treasure_to_run_survivor
     sim = {
         "dead_members": ["C"],
         "log": [
-            {"turn": 1, "deaths": [], "events": [
-                {"combat": {"xp_earned": 300, "xp_shares": {"A": 100, "B": 100, "C": 100}}},
-            ]},
+            {"turn": 1, "deaths": [], "events": [{"combat": {"xp_earned": 300}}]},
             {"turn": 2, "deaths": ["C"], "events": [
-                {"combat": {"xp_earned": 200, "xp_shares": {"A": 100, "B": 100}}},
+                {"combat": {"xp_earned": 200}},
                 {"treasure": {"gold": 0, "silver": 0, "copper": 0, "xp_value": 90, "special_item": None}},
             ]},
         ],
@@ -1228,11 +1213,40 @@ def test_finalize_credits_combat_to_fight_survivors_and_treasure_to_run_survivor
     _finalize_expedition(exp, sim, db_session, keep)
     db_session.commit()
 
-    assert (a.xp, b.xp, c.xp) == (245, 245, 100)
+    assert (a.xp, b.xp, c.xp) == (295, 295, 0)
     assert c.is_dead
 
 
-def test_finalize_keeps_even_split_for_logs_without_shares(client: TestClient, db_session: Session):
+def test_finalize_pools_only_the_turns_played_on_a_retreat(client: TestClient, db_session: Session):
+    """A retreat truncates the log; XP beyond the cutoff was never earned."""
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Runners", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    a = create_adventurer_db(db_session, keep.id, name="Runner", xp=0, gold=0)
+    party.members.append(a)
+    db_session.commit()
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+    sim = {
+        "dead_members": [],
+        "log": [
+            {"turn": 1, "deaths": [], "events": [{"combat": {"xp_earned": 100}}]},
+            {"turn": 2, "deaths": [], "events": [{"combat": {"xp_earned": 400}}]},
+        ],
+        "retreat_cutoff_turn": 1,
+        "starting_hp": {}, "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 500, "xp_earned": 500, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+    assert a.xp == 100
+
+
+def test_finalize_pools_xp_for_a_lone_survivor(client: TestClient, db_session: Session):
     from app.routes.expeditions import _finalize_expedition
 
     account, keep, token = create_account_and_keep(db_session)
@@ -1253,36 +1267,6 @@ def test_finalize_keeps_even_split_for_logs_without_shares(client: TestClient, d
     _finalize_expedition(exp, sim, db_session, keep)
     db_session.commit()
     assert a.xp == 120
-
-
-def test_revived_members_share_the_fight_xp():
-    """Potion and Cleric revivals happen inside the fight's resolution, so a member brought
-    back before the fight ends is standing when the XP is split (Cody, 2026-09-14)."""
-    from app.expedition import EncounterType
-    from app.simulator import DungeonSimulator
-
-    sim = DungeonSimulator()
-    idx = sim.add_party([
-        {"id": 1, "name": "Standing", "character_class": "Fighter", "level": 1, "hit_points": 8, "current_hp": 8},
-        {"id": 2, "name": "Revived", "character_class": "Cleric", "level": 1, "hit_points": 8, "current_hp": 8},
-        {"id": 3, "name": "Fallen", "character_class": "Elf", "level": 1, "hit_points": 8, "current_hp": 8},
-    ])
-    exp_id = sim.start_expedition(idx, dungeon_level=1)
-    expedition = sim.active_expeditions[exp_id]["expedition"]
-
-    def scripted_fight(monster_type: str) -> dict:
-        by_name = {m["name"]: m for m in expedition.party}
-        by_name["Fallen"]["current_hp"] = 0
-        by_name["Revived"]["current_hp"] = 1  # went down, came back before the fight ended
-        return {"outcome": "Victory", "monster_type": "Goblin", "monster_count": 2, "xp_earned": 200,
-                "revived_adventurers": ["Revived"], "round_log": []}
-
-    expedition.determine_room_contents = lambda: [EncounterType.MONSTER]
-    expedition.resolve_combat = scripted_fight
-    sim.advance_turn(exp_id)
-
-    combat = sim.expedition_logs[exp_id][0]["events"][0]["combat"]
-    assert combat["xp_shares"] == {"Standing": 100, "Revived": 100}
 
 
 def test_magic_weapon_is_to_hit_and_damage_only():

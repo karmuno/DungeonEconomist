@@ -177,13 +177,12 @@ this release rather than opening a fourth gate.
       adventurer is never mistaken for one
 - [x] **The sheet's XP bar reads total XP against the next threshold** while its fill shows
       progress within the current level (Cody, 2026-09-14)
-- [x] **XP goes to those who earned it** (Cody, 2026-09-14). Each combat's XP is split
-      among the members standing at the end of that fight, kept even if they die later in
-      the run; treasure XP is split, like the treasure, among the run's survivors only. The
-      simulator records per-fight shares on each combat (`xp_shares`), and finalization
-      credits from the log rather than an even split by launch headcount, which had been
-      paying the dead a full share. Saves from before this carry no shares and keep the
-      even split they were run with. A flee still earns nothing
+- [x] **XP goes to those who come home** (Cody, 2026-09-14). Everything a run earned —
+      fights won and treasure found in the turns actually played — is one pool, split evenly
+      among the survivors at the end of the delve. The dead take nothing; a wipe earns
+      nothing; a fled fight is still worth nothing. Finalization sums the log it already
+      truncates on a retreat, so the even split by launch headcount, which paid the dead a
+      full share of everything, is gone
 - [x] **Parties retreat instead of dying** (2026-09-09, Cody). Party morale was hardcoded to
       **11**, so a 2d6 check failed only on a 12: 2.8% per check, ~5.5% per lethal combat,
       against a bestiary whose own morale runs 7-9. Parties fought to the death. Now
