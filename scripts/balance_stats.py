@@ -9,13 +9,14 @@ SQLite file exactly as the app does.
     python scripts/balance_stats.py --keep "New Balance Test"
     python scripts/balance_stats.py --keep 26 --keep 27   # pooled
 
-The baseline printed beside the current figures is keep "XP Share Balance Test" (#28),
-1004 days, run 2026-09-14 under the XP split rule (combat XP to those standing after each
-fight, treasure XP to the run's survivors), party morale 7, all four buildings standing.
-Earlier runs, for the record: keeps #26 and #27 pooled under the even split (193
-adventurers, 96.9% dead, 99.5% of deaths at level 1, 0.5% reached level 2), and the
-2026-09-09 figures (969 adventurers, 81.8% dead, 3.9% reached level 2, morale 11), which
-predate the ghost-adventurer fix and included delves staffed partly by ghosts.
+The baseline printed beside the current figures is keep "Monster Balance Test" (#30), 420
+days, run 2026-09-15 under every current rule: XP pooled for the run's survivors, kills paid
+on a flee, number appearing trimmed at the lethal end, magic weapons to-hit and damage only,
+party morale 7, all four buildings standing.
+Earlier runs, for the record: #28 under per-fight XP shares (125 adventurers, 92.0% dead,
+1.6% reached level 2); #26 and #27 pooled under the even split (193 adventurers, 96.9% dead,
+0.5% reached level 2); and the 2026-09-09 figures (969 adventurers, 81.8% dead, 3.9%
+reached level 2, morale 11), which predate the ghost-adventurer fix.
 """
 
 import argparse
@@ -30,16 +31,16 @@ from sqlalchemy import text  # noqa: E402
 from app.database import SessionLocal  # noqa: E402  (importing app also loads .env)
 from app.expedition import PARTY_MORALE  # noqa: E402
 
-# Measured 2026-09-14 on keep #28 in Cody's dev database: 125 adventurers, 126 completed
-# expeditions over 1004 days, all at depth 1, every building standing, XP split rule in
+# Measured 2026-09-15 on keep #30 in Cody's dev database: 65 adventurers, 66 completed
+# expeditions over 420 days, all at depth 1, every building standing, every current rule in
 # force. Kept so a later run shows movement rather than a bare number.
 BASELINE = {
-    "date": "2026-09-14",
+    "date": "2026-09-15",
     "morale": 7,
-    "total": 125,
-    "dead_pct": 92.0,
-    "deaths_at_level_1_pct": 98.3,
-    "reached_level_2_pct": 1.6,
+    "total": 65,
+    "dead_pct": 81.5,
+    "deaths_at_level_1_pct": 100.0,
+    "reached_level_2_pct": 3.1,
 }
 
 
