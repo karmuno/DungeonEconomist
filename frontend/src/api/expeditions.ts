@@ -15,6 +15,7 @@ export function launch(data: ExpeditionCreate): Promise<ExpeditionSummary> {
 }
 
 export interface ExpeditionMemberResult {
+  id: number
   name: string
   adventurer_class: string
   level: number

@@ -6,6 +6,8 @@ const props = withDefaults(
     value: number
     max: number
     color?: string
+    /** Replaces the "value / max" text; the fill still tracks value against max. */
+    label?: string
   }>(),
   {
     color: 'var(--accent-green)',
@@ -24,6 +26,6 @@ const percentage = computed(() => {
       class="progress-fill"
       :style="{ width: percentage + '%', backgroundColor: color }"
     />
-    <span class="progress-label">{{ value }} / {{ max }}</span>
+    <span class="progress-label">{{ label ?? `${value} / ${max}` }}</span>
   </div>
 </template>

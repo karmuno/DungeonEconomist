@@ -11,10 +11,12 @@ import { formatGameDayShort } from '../utils/calendar'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import ExpeditionLogTree from '../components/expeditions/ExpeditionLogTree.vue'
+import AdventurerSheetModal from '../components/adventurers/AdventurerSheetModal.vue'
 import type { TurnLog } from '../types/expeditionLog'
 import eventBus from '../eventBus'
 
 const router = useRouter()
+const sheetAdvId = ref<number | null>(null)
 const route = useRoute()
 const notifications = useNotificationsStore()
 const gameTime = useGameTimeStore()
@@ -235,7 +237,7 @@ const actualDurationDays = computed(() => {
               :key="member.name"
               :class="{ 'text-danger': !member.alive }"
             >
-              <td><span :class="{ 'adv-dead': !member.alive }">{{ member.name }}</span></td>
+              <td><span class="adv-link" :class="{ 'adv-dead': !member.alive }" @click="sheetAdvId = member.id">{{ member.name }}</span></td>
               <td>{{ member.adventurer_class }}</td>
               <td>{{ member.level }}</td>
               <td>
@@ -258,7 +260,8 @@ const actualDurationDays = computed(() => {
         <h3 class="mb-2">Expedition Log</h3>
         <ExpeditionLogTree
           :turns="turnsWithActivity"
-          :member-names="summary.member_results.map(m => m.name)"
+          :members="summary.member_results"
+          @open-sheet="sheetAdvId = $event"
         />
       </div>
 
@@ -270,9 +273,22 @@ const actualDurationDays = computed(() => {
       </div>
     </template>
   </div>
+  <AdventurerSheetModal :adventurer-id="sheetAdvId" @close="sheetAdvId = null" />
 </template>
 
 <style scoped>
+.adv-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #374151;
+  text-underline-offset: 2px;
+}
+
+.adv-link:hover {
+  color: #4ade80;
+  text-decoration-color: #4ade80;
+}
+
 .adv-dead {
   text-decoration: line-through;
   opacity: 0.6;

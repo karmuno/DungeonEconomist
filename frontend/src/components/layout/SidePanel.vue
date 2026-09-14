@@ -462,6 +462,7 @@ onUnmounted(() => {
     :choosing="choosingInPopup"
     @choose="popupChoice"
     @close="viewExpedition"
+    @open-sheet="sheetAdvId = $event"
   />
 
   <UpkeepDayModal

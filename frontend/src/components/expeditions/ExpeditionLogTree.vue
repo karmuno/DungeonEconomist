@@ -3,16 +3,26 @@ import { computed, ref } from 'vue'
 import { formatCurrency } from '../../utils/currency'
 import { pluralMonster } from '../../types/expeditionLog'
 import type { AttackEntry, RoundEntry, TurnLog } from '../../types/expeditionLog'
+import type { AdventurerRef } from '../../types'
+import LinkedText from '../adventurers/LinkedText.vue'
 
 const props = defineProps<{
   turns: TurnLog[]
-  memberNames: string[]
+  members: AdventurerRef[]
   // When true, the last event of the last turn is badged as the event that
   // opened the current modal, with its damage meta highlighted.
   markCurrent?: boolean
 }>()
 
-const pcNames = computed(() => new Set(props.memberNames))
+const emit = defineEmits<{
+  'open-sheet': [id: number]
+}>()
+
+const pcNames = computed(() => new Set(props.members.map(m => m.name)))
+
+function openSheet(id: number) {
+  emit('open-sheet', id)
+}
 
 // Turns are expanded by default; combats and rounds are collapsed.
 const collapsedTurns = ref<Set<number>>(new Set())
@@ -170,7 +180,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                 <template v-for="(r, ri) in event.combat.round_log" :key="ri">
                   <div class="log-row round-row expandable" @click="toggleRound(turn.turn, idx, ri, $event)">
                     <span class="caret">{{ isRoundExpanded(turn.turn, idx, ri) ? '▼' : '▶' }}</span>
-                    <span class="round-label">{{ roundLabel(r) }}</span>
+                    <span class="round-label"><LinkedText :text="roundLabel(r)" :refs="members" @open="openSheet" /></span>
                     <span class="row-meta">{{ roundMeta(r) }}</span>
                     <template v-if="r.morale_checks?.length">
                       <span
@@ -184,11 +194,11 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                   </div>
                   <template v-if="isRoundExpanded(turn.turn, idx, ri)">
                     <div v-if="r.event === 'spell'" class="log-row attack-row">
-                      {{ r.caster }} casts {{ r.spell }} — {{ r.monsters_destroyed }} destroyed
+                      <LinkedText :text="`${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`" :refs="members" @open="openSheet" />
                     </div>
                     <template v-else>
                       <div v-for="(sc, si) in (r.spell_casts ?? [])" :key="'sc' + si" class="log-row attack-row">
-                        {{ sc.caster }} casts {{ sc.spell }}<template v-if="sc.scroll_used"> from a scroll</template> · {{ sc.monsters_destroyed }} destroyed
+                        <LinkedText :text="`${sc.caster} casts ${sc.spell}${sc.scroll_used ? ' from a scroll' : ''} · ${sc.monsters_destroyed} destroyed`" :refs="members" @open="openSheet" />
                       </div>
                       <template v-for="(ct, cti) in (r.cleric_turns ?? [])" :key="'ct' + cti">
                         <div
@@ -196,7 +206,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                           :key="'tl' + tli"
                           class="log-row attack-row"
                         >
-                          {{ ct.cleric }} → {{ tl.monster }} · {{ tl.result }}<template v-if="tl.roll"> · roll {{ tl.roll }} vs {{ tl.needed }}</template>
+                          <LinkedText :text="`${ct.cleric} → ${tl.monster} · ${tl.result}${tl.roll ? ` · roll ${tl.roll} vs ${tl.needed}` : ''}`" :refs="members" @open="openSheet" />
                         </div>
                       </template>
                       <div
@@ -204,7 +214,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                         :key="'a' + ai"
                         class="log-row attack-row"
                       >
-                        {{ attackLine(atk) }}
+                        <LinkedText :text="attackLine(atk)" :refs="members" @open="openSheet" />
                       </div>
                     </template>
                   </template>
@@ -216,14 +226,14 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                 :key="'h' + hi"
                 class="log-row attack-row heal-line"
               >
-                ✚ {{ h.name }} healed for {{ h.hp }} HP<template v-if="h.healer"> by {{ h.healer }}</template>
+                ✚ <LinkedText :text="`${h.name} healed for ${h.hp} HP${h.healer ? ` by ${h.healer}` : ''}`" :refs="members" @open="openSheet" />
               </div>
               <div
                 v-for="(rv, rvi) in (event.combat.revivals ?? [])"
                 :key="'rv' + rvi"
                 class="log-row attack-row heal-line"
               >
-                ✚ {{ rv.name }} {{ rv.source === 'potion' ? 'drinks a Cure Light Wounds potion and gets back up' : `is revived by ${rv.healer}` }} · {{ rv.hp }} HP
+                ✚ <LinkedText :text="`${rv.name} ${rv.source === 'potion' ? 'drinks a Cure Light Wounds potion and gets back up' : `is revived by ${rv.healer}`} · ${rv.hp} HP`" :refs="members" @open="openSheet" />
               </div>
             </template>
           </template>
@@ -231,7 +241,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
           <div v-else-if="event.trap_damage" class="log-row event-row">
             <span class="caret">·</span>
             <span class="event-label">
-              Trap — {{ (event.trap_victims ?? []).filter(v => v.damage > 0).map(v => `${v.name} −${v.damage}`).join(', ') || `${event.trap_damage} damage` }}
+              Trap — <LinkedText :text="(event.trap_victims ?? []).filter(v => v.damage > 0).map(v => `${v.name} −${v.damage}`).join(', ') || `${event.trap_damage} damage`" :refs="members" @open="openSheet" />
             </span>
             <span v-if="isCurrentEvent(turn, idx)" class="current-badge">This event</span>
             <span class="row-meta" :class="{ 'meta-danger': isCurrentEvent(turn, idx) }">{{ trapMeta(turn, idx) }}</span>
@@ -254,7 +264,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
         </template>
         <div v-for="dead in (turn.deaths ?? [])" :key="dead" class="log-row event-row death-row">
           <span class="caret">·</span>
-          <span class="event-label"><strong>{{ dead }}</strong> has fallen</span>
+          <span class="event-label"><strong><LinkedText :text="dead" :refs="members" @open="openSheet" /></strong> has fallen</span>
         </div>
       </template>
     </div>
