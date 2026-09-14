@@ -161,6 +161,29 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
     return _finalize_expedition(expedition, sim_result, db, keep)
 
 
+def _xp_from_log(replay_log: list[dict]) -> tuple[dict[str, int], int, bool]:
+    """(combat XP per member, treasure XP pool, whether the log carries per-combat shares).
+
+    Combat XP goes to whoever was standing at the end of each fight; treasure XP is pooled
+    for the run's survivors. Logs from before 2026-09-14 carry no shares, and the caller
+    falls back to the old even split for those.
+    """
+    combat: dict[str, int] = {}
+    treasure_xp = 0
+    has_shares = False
+    for turn in replay_log:
+        for event in turn.get("events", []):
+            fight = event.get("combat")
+            if fight and "xp_shares" in fight:
+                has_shares = True
+                for name, xp in fight["xp_shares"].items():
+                    combat[name] = combat.get(name, 0) + int(xp)
+            treasure = event.get("treasure")
+            if treasure:
+                treasure_xp += int(treasure.get("xp_value", 0))
+    return combat, treasure_xp, has_shares
+
+
 def _finalize_expedition(
     expedition: Expedition,
     sim_result: dict,
@@ -230,7 +253,13 @@ def _finalize_expedition(
         starting_hp = effective_result.get("starting_hp", {})
         sim_hp = _replay_member_hp(party.members, replay_log, dead_names, starting_hp)
 
-        xp_per_member = int(effective_result.get("xp_per_party_member", 0))
+        # Combat XP was earned per fight by those standing at its end; treasure XP
+        # (like the treasure itself) is split among those who make it home. Older
+        # saves carry no per-fight shares and keep the even split they were run with.
+        combat_xp, treasure_xp, has_shares = _xp_from_log(replay_log)
+        even_split = int(effective_result.get("xp_per_party_member", 0))
+        survivors = [m for m in party.members if m.name not in dead_names]
+        treasure_share = treasure_xp // len(survivors) if (has_shares and survivors) else 0
 
         # Buildings grant XP to their classes just by standing, stacking across
         # buildings (an Elf with a Training Grounds and a Library gets both).
@@ -244,7 +273,11 @@ def _finalize_expedition(
         went_out = list(party.members)
         for member in went_out:
             is_dead = member.name in dead_names
-            member_xp = int(xp_per_member * (1 + xp_bonus.get(member.adventurer_class.value, 0.0)))
+            if has_shares:
+                earned = combat_xp.get(member.name, 0) + (0 if is_dead else treasure_share)
+            else:
+                earned = even_split
+            member_xp = int(earned * (1 + xp_bonus.get(member.adventurer_class.value, 0.0)))
             replayed_hp = sim_hp.get(member.name, member.hp_current)
             # Clamp to real hp_max (armor buffer may have inflated starting_hp)
             final_hp = max(1, min(replayed_hp, member.hp_max)) if not is_dead else 0

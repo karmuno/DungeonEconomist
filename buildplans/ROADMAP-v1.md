@@ -163,6 +163,13 @@ this release rather than opening a fourth gate.
       XP bonus. The API computes totals per tier from who is actually assigned
       (`_stat_lines` in `app/routes/buildings.py`, shared by the Dashboard's effect tag via
       `building_effects`); the view no longer string-scrapes for "per". Tier II+ stays hidden
+- [x] **XP goes to those who earned it** (Cody, 2026-09-14). Each combat's XP is split
+      among the members standing at the end of that fight, kept even if they die later in
+      the run; treasure XP is split, like the treasure, among the run's survivors only. The
+      simulator records per-fight shares on each combat (`xp_shares`), and finalization
+      credits from the log rather than an even split by launch headcount, which had been
+      paying the dead a full share. Saves from before this carry no shares and keep the
+      even split they were run with. A flee still earns nothing
 - [x] **Parties retreat instead of dying** (2026-09-09, Cody). Party morale was hardcoded to
       **11**, so a 2d6 check failed only on a 12: 2.8% per check, ~5.5% per lethal combat,
       against a bestiary whose own morale runs 7-9. Parties fought to the death. Now
