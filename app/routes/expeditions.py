@@ -249,6 +249,9 @@ def _finalize_expedition(
         # home (Cody, 2026-09-14). The dead take nothing; a wipe earns nothing.
         survivors = [m for m in party.members if m.name not in dead_names]
         pooled_xp = _xp_in_log(replay_log)
+        if pooled_xp == 0 and not any(t.get("events") for t in replay_log):
+            # No turn-by-turn log to sum (older saves, fixtures): the run's recorded total
+            pooled_xp = int(effective_result.get("xp_earned", 0))
         survivor_share = pooled_xp // len(survivors) if survivors else 0
 
         # Buildings grant XP to their classes just by standing, stacking across
