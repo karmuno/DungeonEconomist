@@ -22,6 +22,10 @@ export interface ExpeditionMemberResult {
   alive: boolean
   hp_current: number
   hp_max: number
+  /** Totals for the run so far, so a loss beside full health reads as healed rather than broken */
+  damage_taken?: number
+  hp_healed?: number
+  revived?: number
   xp_gained: number
   gold: number
   silver: number

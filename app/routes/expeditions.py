@@ -243,7 +243,7 @@ def _finalize_expedition(
 
         # Replay HP from simulation using starting_hp snapshot
         starting_hp = effective_result.get("starting_hp", {})
-        sim_hp = _replay_member_hp(party.members, replay_log, dead_names, starting_hp)
+        sim_members = _replay_members(party.members, replay_log, dead_names, starting_hp)
 
         # All XP the run earned is one pool, split evenly among those who come
         # home (Cody, 2026-09-14). The dead take nothing; a wipe earns nothing.
@@ -268,7 +268,7 @@ def _finalize_expedition(
             is_dead = member.name in dead_names
             earned = 0 if is_dead else survivor_share
             member_xp = int(earned * (1 + xp_bonus.get(member.adventurer_class.value, 0.0)))
-            replayed_hp = sim_hp.get(member.name, member.hp_current)
+            replayed_hp = sim_members.get(member.name, {}).get("hp", member.hp_current)
             # Clamp to real hp_max (armor buffer may have inflated starting_hp)
             final_hp = max(1, min(replayed_hp, member.hp_max)) if not is_dead else 0
 
@@ -1116,8 +1116,20 @@ def get_expedition_summary(
         return _build_completed_summary(expedition, party, keep, db)
 
 
-def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp: dict = None) -> dict:
-    """Replay simulation turns to reconstruct per-member HP.
+def _round_attacks(round_entry: dict) -> list[dict]:
+    """Every attack in a round, new ordered logs and old bucketed ones alike.
+
+    Rounds recorded since the ordered-log change carry one `events` list; older
+    stored expeditions carry `attacks` and `halfling_pre_round` buckets.
+    """
+    events = round_entry.get("events")
+    if events is not None:
+        return [atk for ev in events if ev.get("kind") == "attacks" for atk in ev.get("attacks", [])]
+    return list(round_entry.get("halfling_pre_round") or round_entry.get("attacks") or [])
+
+
+def _replay_members(party_members, events_log: list, deaths: set, starting_hp: dict = None) -> dict:
+    """Replay simulation turns to reconstruct what each member ended the run with.
 
     Uses exact per-attack round_log data when available. Falls back to even
     distribution for old expeditions that lack round_log.
@@ -1126,16 +1138,30 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
         starting_hp: {name: hp} snapshot from expedition launch. Falls back
                      to live DB hp_current if not available (old expeditions).
 
-    Returns {name: current_hp} for each member.
+    Returns {name: {"hp", "damage_taken", "hp_healed", "revived"}}. The three
+    figures beside the HP are what reconciles it on screen: a member can take 4
+    and still end at full health because a Cleric closed the gap, and a row that
+    shows only the damage reads like a bug (see `damage_taken` on member rows).
     """
     hp = {}
     alive = {}
+    taken: dict[str, int] = {}
+    healed: dict[str, int] = {}
+    revived: dict[str, int] = {}
     member_names: set[str] = set()
     for m in party_members:
         name = m.name
         hp[name] = starting_hp[name] if (starting_hp and name in starting_hp) else m.hp_current
         alive[name] = True
+        taken[name] = 0
+        healed[name] = 0
+        revived[name] = 0
         member_names.add(name)
+
+    def _hurt(name: str, amount: int) -> None:
+        """Damage lands on the HP and on the running total alike."""
+        hp[name] = max(0, hp.get(name, 0) - amount)
+        taken[name] = taken.get(name, 0) + amount
 
     for turn in events_log:
         for event in turn.get("events", []):
@@ -1145,19 +1171,22 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
                 if round_log:
                     # Exact replay: apply damage from each attack that targets a PC
                     for round_entry in round_log:
-                        for atk in round_entry.get("attacks", []):
+                        for atk in _round_attacks(round_entry):
                             target = atk.get("target")
                             if target in member_names and atk.get("hit") and atk.get("damage", 0) > 0:
-                                hp[target] = max(0, hp.get(target, 0) - atk["damage"])
-                    # Post-combat revivals (cleric L2+): set to 1 HP
+                                _hurt(target, atk["damage"])
+                    # Post-combat revivals (cleric L2+ or a potion): set to 1 HP
                     for revived_name in combat.get("revived_adventurers", []):
                         if revived_name in member_names:
                             hp[revived_name] = 1
+                            revived[revived_name] = revived.get(revived_name, 0) + 1
                     # Post-combat healing: healed["hp"] is the actual amount healed
-                    for healed in combat.get("healed_adventurers", []):
-                        name = healed.get("name")
+                    for entry in combat.get("healed_adventurers", []):
+                        name = entry.get("name")
                         if name in member_names:
-                            hp[name] = hp.get(name, 0) + healed.get("hp", 0)
+                            amount = entry.get("hp", 0)
+                            hp[name] = hp.get(name, 0) + amount
+                            healed[name] = healed.get(name, 0) + amount
                 else:
                     # Fallback for old expeditions without round_log: distribute evenly
                     hp_lost = combat.get("hp_lost", 0)
@@ -1166,8 +1195,7 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
                         per_member = hp_lost // len(alive_names)
                         remainder = hp_lost % len(alive_names)
                         for i, name in enumerate(alive_names):
-                            loss = per_member + (1 if i < remainder else 0)
-                            hp[name] = max(0, hp[name] - loss)
+                            _hurt(name, per_member + (1 if i < remainder else 0))
 
             # Trap damage: simulator distributes evenly so replay matches exactly
             trap_dmg = event.get("trap_damage")
@@ -1177,15 +1205,22 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
                     per_member = trap_dmg // len(alive_names)
                     remainder = trap_dmg % len(alive_names)
                     for i, name in enumerate(alive_names):
-                        loss = per_member + (1 if i < remainder else 0)
-                        hp[name] = max(0, hp[name] - loss)
+                        _hurt(name, per_member + (1 if i < remainder else 0))
 
         # Mark deaths from this turn
         for dead_name in turn.get("deaths", []):
             alive[dead_name] = False
             hp[dead_name] = 0
 
-    return hp
+    return {
+        name: {
+            "hp": hp[name],
+            "damage_taken": taken.get(name, 0),
+            "hp_healed": healed.get(name, 0),
+            "revived": revived.get(name, 0),
+        }
+        for name in hp
+    }
 
 
 def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
@@ -1237,15 +1272,16 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         events_log.append(turn)
 
     # Reconstruct per-member HP from simulation replay
-    member_hp = {}
+    replayed = {}
     if party:
-        member_hp = _replay_member_hp(party.members, events_log, set(all_deaths), sim.get("starting_hp"))
+        replayed = _replay_members(party.members, events_log, set(all_deaths), sim.get("starting_hp"))
 
     member_results = []
     if party:
         for member in party.members:
             is_dead = member.name in all_deaths
-            current_hp = member_hp.get(member.name, member.hp_current)
+            tally = replayed.get(member.name, {})
+            current_hp = tally.get("hp", member.hp_current)
             member_results.append({
                 "id": member.id,
                 "name": member.name,
@@ -1254,6 +1290,9 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
                 "alive": not is_dead,
                 "hp_current": 0 if is_dead else current_hp,
                 "hp_max": member.hp_max,
+                "damage_taken": tally.get("damage_taken", 0),
+                "hp_healed": tally.get("hp_healed", 0),
+                "revived": tally.get("revived", 0),
                 "xp_gained": 0,
                 "gold": member.gold,
                 "silver": member.silver,
@@ -1329,9 +1368,11 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
     if sim.get("retreated"):
         dead_names = set(sim.get("dead_members", []))
 
-    sim_hp = {}
-    if party:
-        sim_hp = _replay_member_hp(party.members, replay_log, dead_names, sim.get("starting_hp"))
+    # Replay who actually went out, not who is still in the party: the dead are
+    # detached from their party at finalization, so `party.members` would leave
+    # every casualty out of the replay and report them as having taken no damage.
+    went_out = [log.adventurer for log in logs if log.adventurer]
+    sim_members = _replay_members(went_out, replay_log, dead_names, sim.get("starting_hp")) if went_out else {}
 
     member_results = []
     max_heal_days = 0
@@ -1339,7 +1380,8 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         adv = log.adventurer
         is_alive = log.status != "dead"
         # Use replayed HP for the "at expedition end" snapshot
-        end_hp = sim_hp.get(adv.name)
+        tally = sim_members.get(adv.name, {})
+        end_hp = tally.get("hp")
         if end_hp is None:
             # Fallback: approximate from hp_change
             end_hp = max(0, adv.hp_max + log.hp_change) if is_alive else 0
@@ -1354,6 +1396,9 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
             "alive": is_alive,
             "hp_current": 0 if not is_alive else end_hp,
             "hp_max": adv.hp_max,
+            "damage_taken": tally.get("damage_taken", 0),
+            "hp_healed": tally.get("hp_healed", 0),
+            "revived": tally.get("revived", 0),
             "xp_gained": log.xp_share,
             "gold": adv.gold,
             "silver": adv.silver,
