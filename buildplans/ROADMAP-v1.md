@@ -4,7 +4,7 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-09-07**
+**Status as of 2026-09-15**
 
 | | |
 | :--- | :--- |
@@ -12,8 +12,8 @@ the evidence those 10 people produce.
 | Previous release | **v0.8.1** (2026-03-26) |
 | In progress | **v0.9.1 — Safe to Invite** |
 | Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names; clickable party status |
-| Next up | v0.9.1 Safe to Invite, then v1.0 Let Them Delve |
-| Last code commit | 2026-09-07 |
+| Next up | The 2026-09-19/20 safety list (admin query, Postgres suite, restore drill, `[project]`/`uv.lock`, audits, rate limiting and CORS, deploy, playthrough, tag), then stretch Push 2 Expedition |
+| Last code commit | 2026-09-15 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
 
