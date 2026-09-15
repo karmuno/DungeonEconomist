@@ -41,12 +41,6 @@ const toHitLabel = computed(() => {
   return v >= 0 ? `+${v}` : `${v}`
 })
 
-function itemHelp(itemType: string): string | undefined {
-  if (itemType === 'weapon') return 'Weapons: Bonus to attack rolls to hit.'
-  if (itemType === 'armor') return 'Armor: Reduces damage received.'
-  return undefined
-}
-
 const hpPct = computed(() => {
   if (props.adventurer.hp_max <= 0) return 0
   return props.adventurer.hp_current / props.adventurer.hp_max
@@ -147,12 +141,15 @@ const hpBarColor = computed(() => {
     <div class="cs-section">
       <span class="cs-section-title">Equipment</span>
       <div v-if="adventurer.magic_items && adventurer.magic_items.length > 0" class="cs-items">
-        <div v-for="item in adventurer.magic_items" :key="item.id" class="cs-item" :title="itemHelp(item.item_type)">
-          <span class="cs-item-icon">{{ itemEmoji(item.item_type) }}</span>
-          <span class="cs-item-name">{{ item.name }}</span>
-          <span v-if="itemBonusLabel(item.item_type, item.bonus)" class="cs-item-bonus">
-            {{ itemBonusLabel(item.item_type, item.bonus) }}
-          </span>
+        <div v-for="item in adventurer.magic_items" :key="item.id" class="cs-item">
+          <div class="cs-item-row">
+            <span class="cs-item-icon">{{ itemEmoji(item.item_type) }}</span>
+            <span class="cs-item-name">{{ item.name }}</span>
+            <span v-if="itemBonusLabel(item.item_type, item.bonus)" class="cs-item-bonus">
+              {{ itemBonusLabel(item.item_type, item.bonus) }}
+            </span>
+          </div>
+          <div v-if="item.description" class="cs-item-desc">{{ item.description }}</div>
         </div>
       </div>
       <div v-else class="cs-no-items">No equipment</div>
@@ -428,8 +425,8 @@ const hpBarColor = computed(() => {
 
 .cs-item {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
   padding: 4px 6px;
   background: var(--bg-secondary);
   border-radius: 3px;
@@ -475,5 +472,16 @@ const hpBarColor = computed(() => {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+.cs-item-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-item-desc {
+  font-size: 10px;
+  color: #6b7280;
+  line-height: 1.4;
 }
 </style>

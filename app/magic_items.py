@@ -112,7 +112,7 @@ def get_weapon_bonus(adventurer) -> int:
 
 
 def get_armor_bonus(adventurer) -> int:
-    """Total defensive bonus for an adventurer: armor + ring (both act as HP buffer)."""
+    """Total defensive bonus for an adventurer: armor + ring. Each hit taken does this much less damage."""
     total = 0
     for item in adventurer.magic_items:
         if item.item_type in ("armor", "ring"):
@@ -134,3 +134,20 @@ def get_spell_multiplier(adventurer) -> int:
     """Get the total spell multiplier from artifacts (2^N, minimum 1)."""
     artifact_count = sum(1 for item in adventurer.magic_items if item.item_type == "artifact")
     return 2 ** artifact_count if artifact_count > 0 else 1
+
+
+_DESCRIPTIONS: dict[str, str] | None = None
+
+
+def describe_item(item_type: str, bonus: int) -> str:
+    """What an item does, in the words app/data/magic_items.json carries under `descriptions`.
+
+    `{bonus}` in the data is replaced with the item's bonus. Unknown types describe as nothing.
+    """
+    global _DESCRIPTIONS
+    if _DESCRIPTIONS is None:
+        import json
+        from pathlib import Path
+        data = json.loads((Path(__file__).parent / "data" / "magic_items.json").read_text(encoding="utf-8"))
+        _DESCRIPTIONS = dict(data.get("descriptions", {}))
+    return _DESCRIPTIONS.get(item_type, "").replace("{bonus}", str(bonus))

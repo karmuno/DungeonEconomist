@@ -80,11 +80,13 @@ class AdventurerOut(BaseModel):
             if isinstance(item, dict):
                 result.append(item)
             else:
+                from app.magic_items import describe_item
                 result.append({
                     "id": item.id,
                     "name": item.name,
                     "item_type": item.item_type,
                     "bonus": item.bonus or 0,
+                    "description": describe_item(item.item_type, item.bonus or 0),
                 })
         return result
 

@@ -134,13 +134,16 @@ async function removeMember(id: number) {
   }
 }
 
-async function togglePartySetting(field: 'healed' | 'full' | 'auto_decide') {
+// One checkbox drives both auto-delve flags; they stay separate in the backend so they
+// can be split again later without a migration.
+async function togglePartySetting(field: 'auto_delve' | 'auto_decide') {
   if (!selectedParty.value) return
-  const healed = field === 'healed' ? !selectedParty.value.auto_delve_healed : selectedParty.value.auto_delve_healed
-  const full = field === 'full' ? !selectedParty.value.auto_delve_full : selectedParty.value.auto_delve_full
-  const autoDecide = field === 'auto_decide' ? !selectedParty.value.auto_decide_events : selectedParty.value.auto_decide_events
+  const p = selectedParty.value
+  const autoDelveOn = p.auto_delve_healed || p.auto_delve_full
+  const auto = field === 'auto_delve' ? !autoDelveOn : autoDelveOn
+  const autoDecide = field === 'auto_decide' ? !p.auto_decide_events : p.auto_decide_events
   try {
-    await partiesApi.updateAutoDelve(selectedParty.value.id, healed, full, autoDecide, selectedParty.value.auto_delve_level)
+    await partiesApi.updateAutoDelve(p.id, auto, auto, autoDecide, p.auto_delve_level)
     await fetchAll()
   } catch {
     notifications.add('Failed to update settings', 'error')
@@ -303,22 +306,13 @@ async function deleteParty() {
             </button>
           </div>
           <div class="auto-delve-row mt-2">
-            <span class="auto-delve-label">Auto-Delve:</span>
-            <label class="checkbox-label">
+            <label class="checkbox-label" title="Party will automatically start an expedition when it has 6 fully-healed members.">
               <input
                 type="checkbox"
-                :checked="selectedParty.auto_delve_healed"
-                @change="togglePartySetting('healed')"
+                :checked="selectedParty.auto_delve_healed || selectedParty.auto_delve_full"
+                @change="togglePartySetting('auto_delve')"
               />
-              When Healed
-            </label>
-            <label class="checkbox-label">
-              <input
-                type="checkbox"
-                :checked="selectedParty.auto_delve_full"
-                @change="togglePartySetting('full')"
-              />
-              When Full
+              Auto-Delve
             </label>
             <select
               class="form-select auto-level-select"

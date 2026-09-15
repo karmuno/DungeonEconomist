@@ -55,7 +55,7 @@ def fresh_party() -> list[dict]:
             "hit_points": hp,
             "current_hp": hp,
             "weapon_bonus": 0,
-            "armor_buffer": 0,
+            "armor_reduction": 0,
             "building_to_hit_bonus": 0,
             "building_damage_bonus": 0,
             "morale_penalty": 0,

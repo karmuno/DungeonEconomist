@@ -8,6 +8,7 @@ import { useGameTimeStore } from '../stores/gameTime'
 import { usePlayerStore } from '../stores/player'
 import { formatCurrency } from '../utils/currency'
 import { formatGameDayShort } from '../utils/calendar'
+import { itemEmoji } from '../utils/adventurer'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import ExpeditionLogTree from '../components/expeditions/ExpeditionLogTree.vue'
@@ -173,6 +174,9 @@ const actualDurationDays = computed(() => {
         </p>
         <div class="summary-stats">
           <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
+          <span v-for="item in summary.found_items ?? []" :key="item.id" class="found-item">
+            {{ itemEmoji(item.item_type) }} {{ item.name }}<template v-if="item.holder_name"> · <span class="adv-link" @click="item.holder_id != null && (sheetAdvId = item.holder_id)">{{ item.holder_name }}</span></template>
+          </span>
           <span>XP: {{ summary.total_xp }}</span>
           <span v-if="summary.spells_left !== undefined" class="text-info">Spells Left: {{ summary.spells_left }}</span>
           <span v-if="summary.heals_left !== undefined" class="text-success">Cures Left: {{ summary.heals_left }}</span>
@@ -277,6 +281,10 @@ const actualDurationDays = computed(() => {
 </template>
 
 <style scoped>
+.found-item {
+  color: var(--accent-purple);
+}
+
 .adv-link {
   cursor: pointer;
   text-decoration: underline;

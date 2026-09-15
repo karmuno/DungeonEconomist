@@ -128,35 +128,17 @@ Widens the goal above: a stranger's first thirty seconds must not look broken, a
 mechanics they meet first must read correctly. Gameplay and UX rather than safety, kept in
 this release rather than opening a fourth gate.
 
-- [ ] **The character sheet shows "+1" without saying what it does.** Half-built already:
-      `itemHelp()` (`AdventurerDetail.vue:44`) covers **weapon and armor only**, and only as a
-      hover `title` — invisible on touch and undiscoverable anywhere. Potion, scroll and
-      artifact get no explanation at all. Every effect is defined in `app/magic_items.py`
-      (`get_weapon_bonus`, `get_armor_bonus`, `get_scroll_count`, `get_spell_multiplier`,
-      `has_potion`) — derive the copy from that module so it cannot drift from the sim.
-      **Cody writes the player-facing copy, not Claude** (2026-09-09), same as
-      `class-text-rewrite.csv`. Claude's job is to state what each item actually does
-      mechanically and wire the strings up.
-      Not a defect: `itemBonusLabel()` returning an empty string for potions and scrolls is
-      correct — consumables carry no standing bonus. A quantity badge ("how many of this do I
-      have") is **future work**, not v1.0
-- [ ] **Armor does the wrong thing.** `app/routes/expeditions.py:562` adds the item bonus to
-      starting HP as `armor_buffer`, i.e. temporary hit points. Cody's ruling 2026-09-09: it
-      should be **either per-attack damage reduction, or a bonus to the wearer's Armor Class**.
-      AC is currently uniform and invisible — `app/expedition.py:21` hardcodes `PC_AC = 7`
-      ("all PCs in leather-equivalent armor"), so no adventurer differs from another and the
-      character sheet never displays it. Taking the AC route therefore also means surfacing AC
-      on the sheet and in the combat log, which already reads "roll + bonus To-Hit vs Armor
-      Class". Decide which of the two before writing any copy, since the description follows
-      the mechanic. The existing tooltip *"Armor: Reduces damage received"* describes the
-      intended behaviour rather than the shipped one
-- [ ] **The expedition summary never names what was found.** It shows `total_loot` as
-      currency only (`ExpeditionSummaryView.vue:173`); magic items appear nowhere, so a
-      party can come back with a +2 sword and the screen that reports the delve stays silent
-      about it. Pure surfacing, no new systems: `MagicItem` already records
-      `found_expedition_id` and `found_day` (`app/models.py:251-252`), so the summary endpoint
-      can return the items for that expedition — name, type, bonus, and who is carrying it —
-      for the view to render beside the loot line
+- [x] **The character sheet says what each item does** (2026-09-15). Every item carries a
+      `description` built from `descriptions` in `app/data/magic_items.json`, with `{bonus}`
+      filled in, and the sheet prints it under the item rather than hiding it in a hover
+      title. **The words in the data are Claude's mechanical placeholders; Cody's copy goes
+      in the JSON.** A quantity badge stays future work
+- [x] **Armor is damage reduction** (Cody, 2026-09-15): each hit taken does the armor's
+      bonus less damage, to a floor of 0; rings count as armor. The temporary-hit-point
+      buffer at launch is gone. Armor Class stays uniform and undisplayed
+- [x] **The expedition summary names what was found** (2026-09-15): the completed summary
+      returns the magic items whose `found_expedition_id` is the delve, with holder, and the
+      view lists them beside the loot with the holder's name linking to their sheet
 - [x] **The Village shows every effect and how many slots are left** (2026-09-12). Each
       building row now states what the building delivers right now beside the per-unit rate
       it is built from — "+2" next to "+1 each" — plus a Slots row ("2 free") and the standing
@@ -250,12 +232,13 @@ this release rather than opening a fourth gate.
       Provisional, like the 10% building costs; tune after the cohort. Recruitment rolls at
       the flat rate for every class now. **Balance data before this change is not comparable
       with data after it**
-- [ ] **Auto-delve is one checkbox.** `auto_delve_healed` and `auto_delve_full`
-      (`app/models.py:177-178`) **stay separate in the backend** — the one checkbox sets both,
-      so they can be split again later without a migration. Tooltip: *"Party will
-      automatically start an expedition when it has 6 fully-healed members."* Move
-      `auto_delve_level` off the party settings and onto the **Delve** screen as
-      **"Auto-delve to this level"**, offered after a party is formed. No schema change
+- [x] **Auto-delve is one checkbox** (2026-09-15). On Parties and on the Dashboard party
+      cards one checkbox sets `auto_delve_healed` and `auto_delve_full` together (both stay in
+      the backend), with the tooltip *"Party will automatically start an expedition when it
+      has 6 fully-healed members."*, beside the existing depth select. The same control is
+      replicated on the Delve screen as **"Auto-delve to this level"**: checking it turns
+      auto-delve on and points it at the selected level, unchecking clears the level. No
+      schema change
 - [x] **Tavern roster empty while adventurers exist.** Reported 2026-09-09. **Root cause:**
       the Tavern calls `adventurersApi.list(true)` (`AdventurersView.vue:106`) — i.e.
       `include_all=true` — so `list_adventurers` (`app/routes/adventurers.py:100`) skips its

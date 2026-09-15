@@ -76,7 +76,7 @@ export interface AdventurerOut {
   death_day?: number | null
   death_party_name?: string | null
   bankruptcy_day?: number | null
-  magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+  magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
   next_level_xp?: number | null
   current_level_xp?: number | null
   xp_progress?: number | null
@@ -254,7 +254,7 @@ export interface DashboardStats {
       gold: number
       silver: number
       copper: number
-      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
     }>
   }>
   parties: Array<{
@@ -280,7 +280,7 @@ export interface DashboardStats {
       gold: number
       silver: number
       copper: number
-      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
     }>
   }>
   unassigned_adventurers: Array<{
@@ -295,7 +295,7 @@ export interface DashboardStats {
     gold: number
     silver: number
     copper: number
-    magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+    magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
   }>
   upkeep_forecast: import('./upkeep').UpkeepForecast
   active_expeditions: Array<{
