@@ -133,7 +133,7 @@ async function launchExpedition() {
         <template v-if="selectedParty">
           <div class="member-list">
             <div v-for="member in selectedParty.members" :key="member.id" class="member-row">
-              <span class="member-name">{{ member.name }}</span>
+              <span class="member-name" :title="member.name">{{ member.name }}</span>
               <span class="badge">{{ member.adventurer_class }}</span>
               <span class="stat">Lv {{ member.level }}</span>
               <span class="stat" :style="{ color: hpColor(member.hp_current, member.hp_max) }">
@@ -226,18 +226,27 @@ async function launchExpedition() {
   gap: 4px;
 }
 
+/* Fixed tracks so class, level and HP line up: name | class | level | HP */
 .member-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px 36px 64px;
+  column-gap: 8px;
   align-items: center;
-  gap: 8px;
   padding: 4px 0;
   border-bottom: 1px solid var(--border-color);
+}
+
+.member-row .badge {
+  justify-self: start;
 }
 
 .member-name {
   font-weight: 600;
   font-size: 13px;
-  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stat {
@@ -245,6 +254,7 @@ async function launchExpedition() {
   font-family: var(--font-mono);
   color: var(--text-muted);
   white-space: nowrap;
+  text-align: right;
 }
 
 .level-list {
