@@ -174,7 +174,8 @@ def add_adventurer_to_party(
 ):
     """Add an adventurer to a party."""
     party = _query_party_with_members(db, operation.party_id, keep.id)
-    if party is None:
+    # A disbanded party has left every list; joining it would hide the adventurer
+    if party is None or party.disbanded:
         raise HTTPException(status_code=404, detail="Party not found")
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Cannot add members to a party currently on expedition")
