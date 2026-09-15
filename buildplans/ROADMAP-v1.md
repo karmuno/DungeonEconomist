@@ -366,7 +366,8 @@ happened?* truthfully.
   just folds them into one number instead of returning them. Have it return per-member healing
   and revival totals, and render them on the member row
   (`ExpeditionSummaryView.vue:246`, `ExpeditionEventModal.vue`) so the arithmetic reads: took
-  4, healed 4, ended 6/6. Pairs with the ordered round log below, which places each heal in its round
+  4, healed 4, ended 6/6. Pairs with the ordered round log below, which places each heal in
+  its round
 - [ ] **The round log should replay one ordered event list.** The sim records a round as separate
   buckets — `attacks`, `spell_casts`, `cleric_turns` — and builds `revivals` and
   `healed_adventurers` *after* the round loop with no round number at all. The renderer
