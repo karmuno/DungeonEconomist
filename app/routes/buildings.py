@@ -71,7 +71,7 @@ def building_lines(btype: str, level: int, building: Building | None = None) -> 
         if key == "xp_bonus":
             xp = get_xp_bonus(btype)
             if xp:
-                classes = "/".join(get_class_plural(c) for c in get_allowed_classes(btype))
+                classes = " / ".join(get_class_plural(c) for c in get_allowed_classes(btype))
                 lines.append({"value": _fmt(xp), "phrase": f"{phrase} {classes}", "rate": None, "active": True})
             continue
         if key not in bonuses:

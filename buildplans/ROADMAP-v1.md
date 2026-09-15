@@ -327,31 +327,24 @@ not landed when v0.9.1 tags waits for the decision gate, since v1.0 is a freeze.
 **Push 1 — Alignment.** First because the Village below the fold makes dragging adventurers
 onto buildings barely usable.
 
-- [ ] **Village belongs beside the roster, not below the fold.** On the Dashboard,
-  `.parties-unassigned-grid` (`DashboardView.vue:537`) is a two-column `1fr 1fr` grid holding
-  Parties and Unassigned Adventurers; the Village card (`:450`, with the empty-state variant at
-  `:500`) sits full-width **underneath it**. Since Village is a drop target for building
-  assignment, assigning an unassigned adventurer means dragging while scrolling, which HTML5
-  drag handles poorly. Move Village to half width directly under Unassigned Adventurers — it
-  removes the scroll and fills the blank right-hand space.
-  Implementation note: making Village a fourth child of the existing grid does not achieve
-  this — grid rows align across columns, so a tall Parties card would leave a gap above
-  Village. Restructure as two independent column stacks instead: left holds Parties, right
-  holds Unassigned Adventurers then Village. Both Village blocks move, the populated one and
-  the empty state.
-- [ ] **Adventurer rows should line up in columns.** Quality of life. The Dashboard's unassigned
-  list (`DashboardView.vue:335-352`) is a flex row of inline `<span>`s, so no statistic sits at
-  the same horizontal position from one adventurer to the next. The item tags are rendered
-  **before** class, level, HP, XP and wealth, so a variable number of items shifts every
-  statistic after them — which is why rows look aligned until someone picks something up.
-  Four or more items is rare enough to accept as the degrading case, so a fixed-width item
-  cell that overflows there is fine.
-  Same pattern in `PartiesView.vue`, `ExpeditionLaunchView.vue` and `PartyFormationView.vue`;
-  `AdventurerList.vue`, `ExpeditionList.vue`, `RecentExpeditions.vue` and `MetricsPanel.vue`
-  already use real tables. Implementation note: the Dashboard rows are `draggable` with
-  dragstart handlers, and dragging `<tr>` elements is awkward — CSS Grid with fixed
-  `grid-template-columns` keeps the existing `<div>` structure and the drag behaviour while
-  giving the same alignment. (`fix/table-alignment` holds nothing unique against `main`.)
+- [x] **Village beside the roster** (2026-09-15). The Dashboard's middle band is two
+  independent column stacks: left holds Unassigned Adventurers with the Village card (both
+  the populated and the empty state) directly beneath, right holds Parties. Assigning to a
+  building is a drag between neighbours, never a drag while scrolling. Parties spans both
+  grid rows and the second row absorbs the extra height, so a tall Parties card never
+  opens a gap above the Village. Below 1280px viewport the cards stack in one column:
+  Unassigned, Parties, Village. The Village header row keeps a fixed name track so the
+  assigned count sits beside the name, and its effects wrap instead of truncating
+- [x] **Adventurer rows line up in columns** (2026-09-15). Every adventurer row on the
+  Dashboard (unassigned, party members, building staff), Parties, Party Formation and the
+  Delve screen is a CSS Grid with fixed tracks sized from measured cell widths, keeping the
+  `<div>` structure and the drag handlers. Items sit in their own fixed cell after the name
+  and wrap onto a second line in the rare four-plus case; a list where nobody carries an
+  item, or no row has a remove button, collapses that track so the name gets the room. Names
+  wrap rather than truncate, so they are always whole, and so do XP and wealth, at their
+  spaces, rather than widening their track. The Dashboard's party header row is a grid too
+  (Cody, 2026-09-15): the status badge used to push capacity and average level around, and
+  would have again at level 10
 
 **Push 2 — Expedition.** Second because both make the expedition views answer *what just
 happened?* truthfully.

@@ -110,15 +110,11 @@ async function formParty() {
           :key="adv.id"
           class="adv-row"
         >
-          <div class="adv-main">
-            <span class="adv-name">{{ adv.name }}</span>
-            <span class="badge">{{ adv.adventurer_class }}</span>
-          </div>
-          <div class="adv-stats">
-            <span class="stat">Lv {{ adv.level }}</span>
-            <span class="stat" :style="{ color: hpColor(adv) }">{{ adv.hp_current }}/{{ adv.hp_max }} HP</span>
-            <span class="stat xp">{{ adv.xp }}<template v-if="adv.next_level_xp"> / {{ adv.next_level_xp }}</template> XP</span>
-          </div>
+          <span class="adv-name">{{ adv.name }}</span>
+          <span class="badge">{{ adv.adventurer_class }}</span>
+          <span class="stat">Lv {{ adv.level }}</span>
+          <span class="stat" :style="{ color: hpColor(adv) }">{{ adv.hp_current }}/{{ adv.hp_max }} HP</span>
+          <span class="stat xp">{{ adv.xp }}<template v-if="adv.next_level_xp"> / {{ adv.next_level_xp }}</template> XP</span>
           <button
             class="btn btn-primary btn-sm"
             :disabled="selectedMembers.length >= MAX_PARTY_SIZE"
@@ -147,15 +143,11 @@ async function formParty() {
           :key="member.id"
           class="adv-row"
         >
-          <div class="adv-main">
-            <span class="adv-name">{{ member.name }}</span>
-            <span class="badge">{{ member.adventurer_class }}</span>
-          </div>
-          <div class="adv-stats">
-            <span class="stat">Lv {{ member.level }}</span>
-            <span class="stat" :style="{ color: hpColor(member) }">{{ member.hp_current }}/{{ member.hp_max }} HP</span>
-            <span class="stat xp">{{ member.xp }} XP</span>
-          </div>
+          <span class="adv-name">{{ member.name }}</span>
+          <span class="badge">{{ member.adventurer_class }}</span>
+          <span class="stat">Lv {{ member.level }}</span>
+          <span class="stat" :style="{ color: hpColor(member) }">{{ member.hp_current }}/{{ member.hp_max }} HP</span>
+          <span class="stat xp">{{ member.xp }} XP</span>
           <button
             class="btn btn-danger btn-sm"
             @click="removeMember(member.id)"
@@ -194,41 +186,43 @@ async function formParty() {
   min-height: 200px;
 }
 
+/* One grid per row with fixed tracks, so class, level, HP and XP line up down the
+   list: name | class | level | HP | XP | button */
 .adv-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 28px 48px 60px auto;
+  column-gap: 6px;
   align-items: center;
-  gap: 8px;
   padding: 5px 0;
   border-bottom: 1px solid var(--border-color);
 }
 
-.adv-main {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
+.adv-row .badge {
+  justify-self: start;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
 }
 
+/* Names wrap rather than truncate: a name you cannot read is not a name */
 .adv-name {
   font-weight: 600;
   font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.25;
 }
 
-.adv-stats {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+/* Statistics wrap at their spaces too, rather than widen and squeeze the name */
+.adv-row .stat {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .stat {
   font-size: 11px;
   font-family: var(--font-mono);
   white-space: nowrap;
+  text-align: right;
   color: var(--text-muted);
 }
 

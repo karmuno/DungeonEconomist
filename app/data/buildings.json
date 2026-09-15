@@ -9,7 +9,7 @@
     "min_adventurer_level": [2, 6, 9],
     "retire_level": 9,
     "xp_bonus": 0.1,
-    "effect_copy": {"healing_per_assigned": "HP/day while healing", "xp_bonus": "XP"},
+    "effect_copy": {"healing_per_assigned": "HP / day while healing", "xp_bonus": "XP"},
     "assigned_bonus_desc": "Tier I: Each Cleric grants +1 HP/day healing. Tier II: Craft Healing Potions. Tier III: Resurrect highest-level fallen on return.",
     "retire_bonus_desc": "One resurrection per expedition — a fallen adventurer may be saved.",
     "level_bonuses": {

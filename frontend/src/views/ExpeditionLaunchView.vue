@@ -226,18 +226,34 @@ async function launchExpedition() {
   gap: 4px;
 }
 
+/* Fixed tracks so class, level and HP line up: name | class | level | HP */
 .member-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 28px 48px;
+  column-gap: 6px;
   align-items: center;
-  gap: 8px;
   padding: 4px 0;
   border-bottom: 1px solid var(--border-color);
 }
 
+.member-row .badge {
+  justify-self: start;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+}
+
+/* Names wrap rather than truncate */
 .member-name {
   font-weight: 600;
   font-size: 13px;
-  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.member-row .stat {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .stat {
@@ -245,6 +261,7 @@ async function launchExpedition() {
   font-family: var(--font-mono);
   color: var(--text-muted);
   white-space: nowrap;
+  text-align: right;
 }
 
 .level-list {

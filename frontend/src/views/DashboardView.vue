@@ -444,12 +444,16 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         </div>
       </div>
 
-      <!-- Parties + Unassigned side-by-side -->
+      <!-- Left: Unassigned with the Village directly beneath, so a building assignment
+           is a drag between neighbours, never a drag while scrolling. Right: Parties,
+           spanning both rows. The second row absorbs any extra height, so a tall
+           Parties card never opens a gap above the Village. Stacked (narrow screens),
+           the cards fall into DOM order: Unassigned, Parties, Village. -->
       <div class="parties-unassigned-grid mb-2">
 
-      <!-- Unassigned Adventurers (left) -->
+      <!-- Unassigned Adventurers -->
       <div
-        class="card dash-card"
+        class="card dash-card grid-unassigned"
         :class="{ 'drop-hover': dragOverUnassigned }"
         @dragover="onUnassignedDragOver"
         @dragleave="onUnassignedDragLeave"
@@ -459,29 +463,29 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         <div v-if="stats.unassigned_adventurers.length === 0" class="text-muted" style="font-size: 12px">
           Drag adventurers here to unassign them
         </div>
-        <div class="unassigned-list">
+        <div class="unassigned-list no-remove" :class="{ 'no-items': !stats.unassigned_adventurers.some(a => a.magic_items.length) }">
           <div
             v-for="a in stats.unassigned_adventurers"
             :key="a.id"
-            class="unassigned-row draggable"
+            class="unassigned-row adv-grid draggable"
             draggable="true"
             @dragstart="onDragStart($event, a.id, a.name, 'unassigned')"
             @click.stop="openDetail(a.id)"
           >
             <span class="drag-handle">&#x2630;</span>
             <span class="unassigned-name">{{ a.name }}</span>
-            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
+            <span class="row-items"><span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span></span>
             <span class="badge">{{ a.adventurer_class }}</span>
             <span class="stat">Lv {{ a.level }}</span>
             <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
-            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp"> / {{ a.next_level_xp }}</template> XP</span>
             <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Parties (right, expandable, drop target) -->
-      <div class="card dash-card">
+      <!-- Parties (expandable, drop target) -->
+      <div class="card dash-card grid-parties">
         <div class="flex flex-between mb-1">
           <h3>Parties</h3>
           <button class="btn btn-sm btn-primary" @click="router.push('/form-party')">+ New Party</button>
@@ -508,22 +512,26 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 @click.stop="goToPartyStatus(p)"
               >{{ p.status }}</span>
             </div>
-            <div v-if="expandedPartyIds.has(p.id)" class="party-members">
+            <div
+              v-if="expandedPartyIds.has(p.id)"
+              class="party-members"
+              :class="{ 'no-items': !p.members.some(m => m.magic_items.length), 'no-remove': p.on_expedition }"
+            >
               <div
                 v-for="m in p.members"
                 :key="m.id"
-                class="party-member-row draggable"
+                class="party-member-row adv-grid draggable"
                 draggable="true"
                 @dragstart="onDragStart($event, m.id, m.name, `party:${p.id}`)"
                 @click.stop="openDetail(m.id)"
               >
                 <span class="drag-handle">&#x2630;</span>
                 <span :class="['member-name', { 'text-dead': m.hp_current <= 0 }]">{{ m.name }}</span>
-                <span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
+                <span class="row-items"><span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span></span>
                 <span class="badge">{{ m.adventurer_class }}</span>
                 <span class="stat">Lv {{ m.level }}</span>
                 <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
-                <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp">/{{ m.next_level_xp }}</template> XP</span>
+                <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp"> / {{ m.next_level_xp }}</template> XP</span>
                 <span class="stat gold">{{ formatCurrency(m.gold, m.silver, m.copper) }}</span>
                 <button v-if="!p.on_expedition" class="remove-btn" @click.stop="removeFromParty(p.id, m.id, m.name)">&times;</button>
               </div>
@@ -565,10 +573,8 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         </div>
       </div>
 
-      </div> <!-- end parties-unassigned-grid -->
-
       <!-- Village (expandable, drop target for buildings) -->
-      <div v-if="stats.buildings.length > 0" class="card dash-card mb-2">
+      <div v-if="stats.buildings.length > 0" class="card dash-card grid-village">
         <div class="flex flex-between mb-1">
           <h3>Village</h3>
           <button class="btn btn-sm btn-secondary" @click="router.push('/village')">Manage</button>
@@ -598,22 +604,26 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
               <div v-if="b.effects.length > 0" class="building-effects-full mb-1">
                 <span v-for="(fx, i) in b.effects" :key="i" class="effect-tag">{{ fx }}</span>
               </div>
-              <div v-if="b.assigned_adventurers.length > 0" class="building-assigned">
+              <div
+                v-if="b.assigned_adventurers.length > 0"
+                class="building-assigned"
+                :class="{ 'no-items': !b.assigned_adventurers.some(a => a.magic_items.length) }"
+              >
                 <div
                   v-for="a in b.assigned_adventurers"
                   :key="a.id"
-                  class="building-assigned-row draggable"
+                  class="building-assigned-row adv-grid draggable"
                   draggable="true"
                   @dragstart="onDragStart($event, a.id, a.name, `building:${b.id}`)"
                   @click.stop="openDetail(a.id)"
                 >
                   <span class="drag-handle">&#x2630;</span>
                   <span class="member-name">{{ a.name }}</span>
-                  <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
+                  <span class="row-items"><span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span></span>
                   <span class="badge">{{ a.adventurer_class }}</span>
                   <span class="stat">Lv {{ a.level }}</span>
                   <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
-                  <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+                  <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp"> / {{ a.next_level_xp }}</template> XP</span>
                   <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
                   <button class="remove-btn" @click.stop="unassignFromBuilding(b.id, a.id, a.name)">&times;</button>
                 </div>
@@ -623,10 +633,13 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
           </div>
         </div>
       </div>
-      <div v-else class="card dash-card mb-2 clickable" @click="router.push('/village')">
+      <div v-else class="card dash-card grid-village clickable" @click="router.push('/village')">
         <h3 class="mb-1">Village</h3>
         <p class="text-muted" style="font-size: 12px">No buildings yet. Visit the Village to build.</p>
       </div>
+
+      </div> <!-- end parties-unassigned-grid -->
+
     </template>
   </div>
 
@@ -656,10 +669,42 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .dash-card { padding: 12px 16px; }
 .parties-unassigned-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   gap: 12px;
   align-items: start;
 }
+.grid-unassigned { grid-column: 1; grid-row: 1; }
+.grid-village { grid-column: 1; grid-row: 2; }
+.grid-parties { grid-column: 2; grid-row: 1 / span 2; }
+/* Below this the two columns cannot each hold a full adventurer row: one column,
+   cards in DOM order */
+@media (max-width: 1280px) {
+  .parties-unassigned-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .grid-unassigned, .grid-village, .grid-parties { grid-column: auto; grid-row: auto; }
+}
+
+/* One grid per adventurer row with fixed tracks, so every statistic sits in the
+   same column from one adventurer to the next, whatever they carry:
+   handle | name | items | class | level | HP | XP | wealth | remove
+   A list whose rows carry no items, or no remove button, collapses that track so
+   the name gets the room; alignment only has to hold within one list. */
+.adv-grid {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) var(--items-col, 36px) 80px 28px 40px 60px 44px var(--remove-col, 18px);
+  column-gap: 4px;
+  align-items: center;
+}
+/* Statistics wrap at their spaces ("0/2000" over "XP", "12gp" over "5sp") rather than
+   widen their track and squeeze the name */
+.adv-grid .stat { white-space: normal; overflow-wrap: anywhere; text-align: right; line-height: 1.2; }
+.adv-grid .badge { justify-self: start; padding-left: 0.3rem; padding-right: 0.3rem; }
+.adv-grid .remove-btn { justify-self: end; }
+/* Fixed-width item cell; four or more items is rare enough that wrapping onto a
+   second line is the accepted degrading case */
+.row-items { display: flex; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.no-items { --items-col: 0px; }
+.no-remove { --remove-col: 0px; }
 
 /* Active expeditions */
 .active-list { display: flex; flex-direction: column; gap: 6px; }
@@ -677,15 +722,26 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .party-list { display: flex; flex-direction: column; gap: 2px; }
 .party-block { border-bottom: 1px solid var(--border-color); transition: background 0.15s; }
 .party-block.drop-hover { background: rgba(74, 222, 128, 0.08); border-color: var(--accent-green); }
-.party-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 12px; }
-.party-expand { font-size: 10px; color: var(--text-muted); width: 14px; }
-.party-name { font-weight: 600; font-size: 13px; flex: 1; }
-.party-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
-.party-avg-level { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+/* Fixed tracks so the status badge never pushes size and level around:
+   caret | name | size | average level | status */
+.party-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 36px 72px 104px;
+  column-gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+.party-expand { font-size: 10px; color: var(--text-muted); }
+.party-name { font-weight: 600; font-size: 13px; min-width: 0; line-height: 1.25; }
+.party-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; text-align: right; }
+.party-avg-level { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; text-align: right; }
+.party-row .badge { justify-self: end; }
 
 .party-members { padding: 4px 0 8px 22px; }
-.party-member-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer; }
-.member-name { font-weight: 600; flex: 1; font-size: 12px; }
+.party-member-row { padding: 3px 0; font-size: 12px; cursor: pointer; }
+.member-name { font-weight: 600; font-size: 12px; min-width: 0; line-height: 1.25; }
 .stat { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); }
 .party-actions { display: flex; gap: 6px; margin-top: 6px; }
 
@@ -710,33 +766,36 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 /* Unassigned */
 .unassigned-list { display: flex; flex-direction: column; gap: 3px; }
 .unassigned-row {
-  display: flex; align-items: center; gap: 8px;
   padding: 3px 0; border-bottom: 1px solid var(--border-color); font-size: 12px;
   cursor: pointer;
 }
 .unassigned-row.draggable { cursor: pointer; }
 .unassigned-row.draggable:active { cursor: pointer; }
 .drag-handle { color: var(--text-muted); font-size: 12px; }
-.unassigned-name { font-weight: 600; flex: 1; font-size: 12px; }
+.unassigned-name { font-weight: 600; font-size: 12px; min-width: 0; line-height: 1.25; }
 
 /* Buildings */
 .buildings-list { display: flex; flex-direction: column; gap: 2px; }
 .building-block { border-bottom: 1px solid var(--border-color); transition: background 0.15s; }
 .building-block.drop-hover { background: rgba(74, 222, 128, 0.08); border-color: var(--accent-green); }
 /* One grid per row with fixed tracks, so every row's cells line up as a table:
-   caret | name | assigned | what the staff deliver | what the building grants */
+   caret | name | assigned | what the staff deliver | what the building grants
+   The name track is fixed so the count sits close to it and the two effect cells get
+   the rest of the width; effects wrap rather than truncate. */
 .building-row {
   display: grid;
-  grid-template-columns: 14px minmax(120px, 1fr) 84px minmax(0, 2fr) minmax(0, 2fr);
+  grid-template-columns: 14px 132px 72px minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   column-gap: 8px;
   padding: 6px 0;
   cursor: pointer;
 }
-.building-row-name { font-weight: 600; font-size: 13px; }
-.building-cell { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.building-effect-tag { font-size: 10px; font-family: var(--font-mono); color: var(--accent-green); }
-.building-effect-tag + .building-effect-tag::before { content: '\B7'; margin-right: 8px; color: var(--text-muted); }
+.building-row-name { font-weight: 600; font-size: 13px; min-width: 0; line-height: 1.25; }
+.building-row .party-size { text-align: left; }
+/* Effects flow as text and wrap at their spaces, separated by a dot */
+.building-cell { min-width: 0; font-size: 10px; line-height: 1.3; }
+.building-effect-tag { font-family: var(--font-mono); color: var(--accent-green); }
+.building-effect-tag + .building-effect-tag::before { content: ' \B7 '; color: var(--text-muted); }
 .building-expanded { padding: 4px 0 8px 22px; }
 .building-effects-full { display: flex; gap: 6px; flex-wrap: wrap; }
 .effect-tag {
@@ -762,7 +821,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 
 /* Building assigned list */
 .building-assigned { display: flex; flex-direction: column; gap: 2px; }
-.building-assigned-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; cursor: pointer; }
+.building-assigned-row { padding: 2px 0; font-size: 12px; cursor: pointer; }
 
 /* Remove/drag controls */
 .remove-btn {

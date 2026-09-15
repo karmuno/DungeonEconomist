@@ -1196,14 +1196,14 @@ def test_building_response_states_totals_and_free_slots(client: TestClient, db_s
     assert (built["slots_total"], built["slots_free"]) == (3, 2)
     assert built["current_stats"] == [
         {"value": "+1", "phrase": "to-hit in combat", "rate": "+1", "active": True},
-        {"value": "+10%", "phrase": "XP Fighters/Elves/Halflings/Dwarves", "rate": None, "active": True},
+        {"value": "+10%", "phrase": "XP Fighters / Elves / Halflings / Dwarves", "rate": None, "active": True},
     ]
-    assert built["effects"] == ["+1 to-hit in combat", "+10% XP Fighters/Elves/Halflings/Dwarves"]
+    assert built["effects"] == ["+1 to-hit in combat", "+10% XP Fighters / Elves / Halflings / Dwarves"]
 
     unbuilt = next(r for r in rows if r["building_type"] == "temple")
     assert unbuilt["current_stats"] == []
     assert unbuilt["next_stats"] == [
-        {"value": None, "phrase": "HP/day while healing", "rate": "+1", "active": False},
+        {"value": None, "phrase": "HP / day while healing", "rate": "+1", "active": False},
         {"value": "+10%", "phrase": "XP Clerics", "rate": None, "active": True},
     ]
 
