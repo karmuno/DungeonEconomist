@@ -131,8 +131,8 @@ this release rather than opening a fourth gate.
 - [x] **The character sheet says what each item does** (2026-09-15). Every item carries a
       `description` built from `descriptions` in `app/data/magic_items.json`, with `{bonus}`
       filled in, and the sheet prints it under the item rather than hiding it in a hover
-      title. **The words in the data are Claude's mechanical placeholders; Cody's copy goes
-      in the JSON.** A quantity badge stays future work
+      title. Copy is Cody's (potion and scroll, 2026-09-15; the rest approved as written). A
+      quantity badge stays future work
 - [x] **Armor is damage reduction** (Cody, 2026-09-15): each hit taken does the armor's
       bonus less damage, to a floor of 0; rings count as armor. The temporary-hit-point
       buffer at launch is gone. Armor Class stays uniform and undisplayed

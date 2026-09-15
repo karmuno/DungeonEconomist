@@ -3,8 +3,8 @@
     "weapon": "+{bonus} to-hit and +{bonus} damage.",
     "armor": "Each hit taken does {bonus} less damage.",
     "ring": "Each hit taken does {bonus} less damage.",
-    "potion": "Drunk the moment its bearer falls: back up at 1 HP. One use.",
-    "scroll": "One extra spell cast that slays any monster. One use.",
+    "potion": "When reduced to 0 HP, consume potion to restore 1 HP.",
+    "scroll": "Casts a devastating spell when consumed.",
     "artifact": "Doubles spell casts per expedition."
   },
   "prefixes": [

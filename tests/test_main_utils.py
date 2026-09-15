@@ -1330,5 +1330,5 @@ def test_item_descriptions_come_from_data():
     from app.magic_items import describe_item
     assert describe_item("weapon", 2) == "+2 to-hit and +2 damage."
     assert describe_item("armor", 1) == "Each hit taken does 1 less damage."
-    assert describe_item("potion", 1).endswith("One use.")
+    assert describe_item("potion", 1) == "When reduced to 0 HP, consume potion to restore 1 HP."
     assert describe_item("mystery", 1) == ""
