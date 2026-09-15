@@ -220,7 +220,7 @@ async function deleteParty() {
             :key="adv.id"
             class="adv-row"
           >
-            <span class="adv-name" :title="adv.name">{{ adv.name }}</span>
+            <span class="adv-name">{{ adv.name }}</span>
             <span class="badge">{{ adv.adventurer_class }}</span>
             <span class="stat">Lv {{ adv.level }}</span>
             <span class="stat" :style="{ color: hpColor(adv) }">{{ adv.hp_current }}/{{ adv.hp_max }} HP</span>
@@ -260,7 +260,7 @@ async function deleteParty() {
             :key="member.id"
             class="adv-row"
           >
-            <span class="adv-name" :title="member.name">{{ member.name }}</span>
+            <span class="adv-name">{{ member.name }}</span>
             <span class="badge">{{ member.adventurer_class }}</span>
             <span class="stat">Lv {{ member.level }}</span>
             <span class="stat" :style="{ color: hpColor(member) }">{{ member.hp_current }}/{{ member.hp_max }} HP</span>
@@ -345,8 +345,8 @@ async function deleteParty() {
    list: name | class | level | HP | XP | button */
 .adv-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 86px 36px 64px minmax(88px, max-content) auto;
-  column-gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 80px 28px 48px 60px auto;
+  column-gap: 6px;
   align-items: center;
   padding: 5px 0;
   border-bottom: 1px solid var(--border-color);
@@ -354,15 +354,23 @@ async function deleteParty() {
 
 .adv-row .badge {
   justify-self: start;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
 }
 
+/* Names wrap rather than truncate: a name you cannot read is not a name */
 .adv-name {
   font-weight: 600;
   font-size: 13px;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+/* Statistics wrap at their spaces too, rather than widen and squeeze the name */
+.adv-row .stat {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .stat {

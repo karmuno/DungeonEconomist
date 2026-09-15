@@ -330,16 +330,19 @@ onto buildings barely usable.
 - [x] **Village beside the roster** (2026-09-15). The Dashboard's middle band is two
   independent column stacks: left holds Unassigned Adventurers with the Village card (both
   the populated and the empty state) directly beneath, right holds Parties. Assigning to a
-  building is a drag between neighbours, never a drag while scrolling; independent stacks
-  rather than one grid so a tall Parties card never opens a gap above the Village. Below
-  1280px viewport the stacks collapse to one column
+  building is a drag between neighbours, never a drag while scrolling. Parties spans both
+  grid rows and the second row absorbs the extra height, so a tall Parties card never
+  opens a gap above the Village. Below 1280px viewport the cards stack in one column:
+  Unassigned, Parties, Village. The Village header row keeps a fixed name track so the
+  assigned count sits beside the name, and its effects wrap instead of truncating
 - [x] **Adventurer rows line up in columns** (2026-09-15). Every adventurer row on the
   Dashboard (unassigned, party members, building staff), Parties, Party Formation and the
   Delve screen is a CSS Grid with fixed tracks sized from measured cell widths, keeping the
   `<div>` structure and the drag handlers. Items sit in their own fixed cell after the name
   and wrap onto a second line in the rare four-plus case; a list where nobody carries an
   item, or no row has a remove button, collapses that track so the name gets the room. Names
-  ellipsize with the full name in the title. The Dashboard's party header row is a grid too
+  wrap rather than truncate, so they are always whole, and so do XP and wealth, at their
+  spaces, rather than widening their track. The Dashboard's party header row is a grid too
   (Cody, 2026-09-15): the status badge used to push capacity and average level around, and
   would have again at level 10
 

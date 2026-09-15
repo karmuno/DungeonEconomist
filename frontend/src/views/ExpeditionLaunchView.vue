@@ -133,7 +133,7 @@ async function launchExpedition() {
         <template v-if="selectedParty">
           <div class="member-list">
             <div v-for="member in selectedParty.members" :key="member.id" class="member-row">
-              <span class="member-name" :title="member.name">{{ member.name }}</span>
+              <span class="member-name">{{ member.name }}</span>
               <span class="badge">{{ member.adventurer_class }}</span>
               <span class="stat">Lv {{ member.level }}</span>
               <span class="stat" :style="{ color: hpColor(member.hp_current, member.hp_max) }">
@@ -229,8 +229,8 @@ async function launchExpedition() {
 /* Fixed tracks so class, level and HP line up: name | class | level | HP */
 .member-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 86px 36px 64px;
-  column-gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 80px 28px 48px;
+  column-gap: 6px;
   align-items: center;
   padding: 4px 0;
   border-bottom: 1px solid var(--border-color);
@@ -238,15 +238,22 @@ async function launchExpedition() {
 
 .member-row .badge {
   justify-self: start;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
 }
 
+/* Names wrap rather than truncate */
 .member-name {
   font-weight: 600;
   font-size: 13px;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.member-row .stat {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .stat {
