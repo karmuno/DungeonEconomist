@@ -230,6 +230,8 @@ const actualDurationDays = computed(() => {
               <th>Class</th>
               <th>Level</th>
               <th>Status</th>
+              <th>Took</th>
+              <th>Healed</th>
               <th>HP</th>
               <th v-if="!isActive">XP Gained</th>
               <th v-if="!isActive">Wealth</th>
@@ -248,6 +250,8 @@ const actualDurationDays = computed(() => {
                 <span v-if="member.alive" class="badge badge-alive">{{ isActive ? 'Active' : 'Alive' }}</span>
                 <span v-else class="badge badge-dead">Dead</span>
               </td>
+              <td class="text-danger">{{ member.damage_taken ? `−${member.damage_taken}` : '—' }}</td>
+              <td class="text-heal">{{ member.hp_healed ? `+${member.hp_healed}` : '—' }}</td>
               <td>
                 <ProgressBar v-if="member.alive" :value="member.hp_current" :max="member.hp_max" />
                 <span v-else>&mdash;</span>
@@ -281,6 +285,10 @@ const actualDurationDays = computed(() => {
 </template>
 
 <style scoped>
+.text-heal {
+  color: var(--accent-green);
+}
+
 .found-item {
   color: var(--accent-purple);
 }

@@ -84,7 +84,10 @@ interface DamageTotals {
   dealt: Map<string, number>
   taken: Map<string, number>
   casts: Map<string, number>
+  /** HP healed, credited to whoever did the healing */
   healed: Map<string, number>
+  /** HP healed, credited to whoever received it — what reconciles a loss with the HP bar */
+  mended: Map<string, number>
 }
 
 function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
@@ -92,6 +95,7 @@ function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
   const taken = new Map<string, number>()
   const casts = new Map<string, number>()
   const healed = new Map<string, number>()
+  const mended = new Map<string, number>()
   for (const turn of turns) {
     for (const ev of turn.events ?? []) {
       for (const v of ev.trap_victims ?? []) {
@@ -100,10 +104,12 @@ function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
       // Credit the healer, not the patient (older logs name no healer and are skipped)
       for (const h of ev.combat?.healed_adventurers ?? []) {
         if (h.healer && names.has(h.healer)) healed.set(h.healer, (healed.get(h.healer) ?? 0) + h.hp)
+        if (names.has(h.name)) mended.set(h.name, (mended.get(h.name) ?? 0) + h.hp)
       }
       // Revives count as healing too: a potion credits the adventurer who held it
       for (const rv of ev.combat?.revivals ?? []) {
         if (names.has(rv.healer)) healed.set(rv.healer, (healed.get(rv.healer) ?? 0) + rv.hp)
+        if (names.has(rv.name)) mended.set(rv.name, (mended.get(rv.name) ?? 0) + rv.hp)
       }
       for (const r of ev.combat?.round_log ?? []) {
         if (r.event === 'spell' && r.caster && names.has(r.caster)) {
@@ -120,7 +126,7 @@ function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
       }
     }
   }
-  return { dealt, taken, casts, healed }
+  return { dealt, taken, casts, healed, mended }
 }
 
 const memberNames = computed(() => summary.value?.member_results.map(m => m.name) ?? [])
@@ -139,15 +145,23 @@ const currentTurn = computed<TurnLog | null>(() =>
 interface EventRow {
   member: ExpeditionMemberResult
   damage: number
+  healed: number
 }
 
+// Damage and healing from the SAME turn, so the row's arithmetic closes: a member
+// can take 4 and still stand at 6/6 because a Cleric closed the gap between the
+// two numbers. Showing only the loss is what made that row look like a bug.
 const eventRows = computed<EventRow[]>(() => {
   const s = summary.value
   if (!s) return []
   const turn = currentTurn.value
   const names = new Set(memberNames.value)
-  const taken = turn ? tallyTurns([turn], names).taken : new Map<string, number>()
-  return s.member_results.map(m => ({ member: m, damage: taken.get(m.name) ?? 0 }))
+  const tally = turn ? tallyTurns([turn], names) : null
+  return s.member_results.map(m => ({
+    member: m,
+    damage: tally?.taken.get(m.name) ?? 0,
+    healed: tally?.mended.get(m.name) ?? 0,
+  }))
 })
 
 // --- "Expedition So Far" ledger ----------------------------------------------
@@ -278,6 +292,7 @@ function hpColor(member: ExpeditionMemberResult): string {
           <div class="this-event-grid">
             <div class="grid-head">Party</div>
             <div class="grid-head num">Dmg</div>
+            <div class="grid-head num">Healed</div>
             <div class="grid-head num">HP</div>
             <template v-for="row in eventRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
@@ -286,6 +301,9 @@ function hpColor(member: ExpeditionMemberResult): string {
               </div>
               <div class="cell num dmg-cell">
                 <template v-if="row.damage > 0">−{{ row.damage }}</template>
+              </div>
+              <div class="cell num heal-cell">
+                <template v-if="row.healed > 0">+{{ row.healed }}</template>
               </div>
               <div class="cell num hp-cell">
                 <div class="hp-track">
@@ -467,7 +485,7 @@ function hpColor(member: ExpeditionMemberResult): string {
 /* 2. This Event */
 .this-event-grid {
   display: grid;
-  grid-template-columns: 1fr 52px 132px;
+  grid-template-columns: 1fr 52px 60px 132px;
   gap: 2px 8px;
   margin-top: 2px;
 }
@@ -514,6 +532,11 @@ function hpColor(member: ExpeditionMemberResult): string {
 .dmg-cell {
   font-size: 13px;
   color: #ef4444;
+}
+
+.heal-cell {
+  font-size: 13px;
+  color: #4ade80;
 }
 
 .hp-cell {

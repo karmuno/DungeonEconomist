@@ -1362,3 +1362,81 @@ def test_item_descriptions_come_from_data():
     assert describe_item("armor", 1) == "Each hit taken does 1 less damage."
     assert describe_item("potion", 1) == "When reduced to 0 HP, consume potion to restore 1 HP."
     assert describe_item("mystery", 1) == ""
+
+
+# --- the replay returns the healing that reconciles a loss with the HP bar ---
+
+class _Member:
+    """The two fields `_replay_members` reads off a party member."""
+
+    def __init__(self, name: str, hp_current: int, hp_max: int):
+        self.name = name
+        self.hp_current = hp_current
+        self.hp_max = hp_max
+
+
+def test_replay_returns_damage_healing_and_revivals_per_member():
+    """A member can take 4 and end at full health; the row needs both numbers to read."""
+    from app.routes.expeditions import _replay_members
+
+    members = [_Member("Vera", 6, 6), _Member("Orin", 6, 6)]
+    log = [{
+        "turn": 1,
+        "deaths": [],
+        "events": [{
+            "combat": {
+                "round_log": [{
+                    "round": 1,
+                    "attacks": [
+                        {"attacker": "Goblin #1", "target": "Vera", "hit": True, "damage": 4},
+                        {"attacker": "Goblin #2", "target": "Orin", "hit": False, "damage": 0},
+                    ],
+                }],
+                "healed_adventurers": [{"name": "Vera", "hp": 4, "healer": "Orin"}],
+            }
+        }],
+    }]
+
+    out = _replay_members(members, log, deaths=set(), starting_hp={"Vera": 6, "Orin": 6})
+    assert out["Vera"] == {"hp": 6, "damage_taken": 4, "hp_healed": 4, "revived": 0}
+    assert out["Orin"] == {"hp": 6, "damage_taken": 0, "hp_healed": 0, "revived": 0}
+
+
+def test_replay_counts_a_revival_and_the_damage_that_caused_it():
+    from app.routes.expeditions import _replay_members
+
+    members = [_Member("Vera", 6, 6)]
+    log = [{
+        "turn": 1,
+        "deaths": [],
+        "events": [{
+            "combat": {
+                "round_log": [{
+                    "round": 1,
+                    "attacks": [{"attacker": "Ogre", "target": "Vera", "hit": True, "damage": 8}],
+                }],
+                "revived_adventurers": ["Vera"],
+                "healed_adventurers": [{"name": "Vera", "hp": 3, "healer": "Edric"}],
+            }
+        }],
+    }]
+
+    out = _replay_members(members, log, deaths=set(), starting_hp={"Vera": 6})
+    # Revived to 1, then healed 3: the HP bar reads 4/6 and the row explains how
+    assert out["Vera"] == {"hp": 4, "damage_taken": 8, "hp_healed": 3, "revived": 1}
+
+
+def test_replay_counts_trap_damage_and_the_no_round_log_fallback():
+    from app.routes.expeditions import _replay_members
+
+    members = [_Member("Vera", 10, 10), _Member("Orin", 10, 10)]
+    log = [
+        {"turn": 1, "deaths": [], "events": [{"trap_damage": 5}]},
+        {"turn": 2, "deaths": [], "events": [{"combat": {"hp_lost": 4}}]},
+    ]
+
+    out = _replay_members(members, log, deaths=set(), starting_hp={"Vera": 10, "Orin": 10})
+    assert out["Vera"]["damage_taken"] == 5  # 3 of the trap, 2 of the fight
+    assert out["Orin"]["damage_taken"] == 4  # 2 of the trap, 2 of the fight
+    assert out["Vera"]["hp"] == 5
+    assert out["Orin"]["hp"] == 6
