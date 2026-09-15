@@ -1440,3 +1440,81 @@ def test_replay_counts_trap_damage_and_the_no_round_log_fallback():
     assert out["Orin"]["damage_taken"] == 4  # 2 of the trap, 2 of the fight
     assert out["Vera"]["hp"] == 5
     assert out["Orin"]["hp"] == 6
+
+
+def test_completed_summary_reports_what_the_dead_took(client: TestClient, db_session: Session):
+    """The dead leave their party at finalization, so replaying `party.members`
+    left every casualty out and reported them as having taken no damage."""
+    from app.models import ExpeditionLog
+
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+
+    survivor = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    casualty = create_adventurer_db(db_session, keep.id, name="Ilsa", xp=0, gold=0)
+    survivor.hp_current = 6
+    casualty.hp_current = 0
+    casualty.is_dead = True
+
+    party = Party(keep_id=keep.id, name="Alpha")
+    db_session.add(party)
+    db_session.commit()
+    db_session.refresh(party)
+    # As finalization leaves it: the survivor is still in the party, the dead is not
+    party.members.append(survivor)
+    db_session.commit()
+
+    combat_log = [{
+        "turn": 1,
+        "deaths": ["Ilsa"],
+        "events": [{
+            "combat": {
+                "round_log": [{
+                    "round": 1,
+                    "events": [{
+                        "kind": "attacks",
+                        "side": "monsters",
+                        "attacks": [
+                            {"attacker": "Ogre", "target": "Rurik", "hit": True, "damage": 4},
+                            {"attacker": "Ogre", "target": "Ilsa", "hit": True, "damage": 10},
+                        ],
+                    }],
+                }],
+            }
+        }],
+    }]
+
+    expedition = Expedition(
+        party_id=party.id,
+        start_day=keep.current_day - 3,
+        duration_days=3,
+        return_day=keep.current_day,
+        dungeon_level=1,
+        result="completed",
+        started_at=datetime.now(),
+        finished_at=datetime.now(),
+        simulation_data={
+            "log": combat_log,
+            "dead_members": ["Ilsa"],
+            "starting_hp": {"Rurik": 10, "Ilsa": 10},
+        },
+    )
+    db_session.add(expedition)
+    db_session.commit()
+    db_session.refresh(expedition)
+
+    for adv, status in ((survivor, "alive"), (casualty, "dead")):
+        db_session.add(ExpeditionLog(
+            expedition_id=expedition.id,
+            adventurer_id=adv.id,
+            xp_share=0,
+            hp_change=0,
+            status=status,
+        ))
+    db_session.commit()
+
+    summary = client.get(f"/expeditions/{expedition.id}/summary",
+                         headers=auth_headers(token, keep.id)).json()
+    took = {m["name"]: m["damage_taken"] for m in summary["member_results"]}
+    assert took == {"Rurik": 4, "Ilsa": 10}

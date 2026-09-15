@@ -1368,9 +1368,11 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
     if sim.get("retreated"):
         dead_names = set(sim.get("dead_members", []))
 
-    sim_members = {}
-    if party:
-        sim_members = _replay_members(party.members, replay_log, dead_names, sim.get("starting_hp"))
+    # Replay who actually went out, not who is still in the party: the dead are
+    # detached from their party at finalization, so `party.members` would leave
+    # every casualty out of the replay and report them as having taken no damage.
+    went_out = [log.adventurer for log in logs if log.adventurer]
+    sim_members = _replay_members(went_out, replay_log, dead_names, sim.get("starting_hp")) if went_out else {}
 
     member_results = []
     max_heal_days = 0

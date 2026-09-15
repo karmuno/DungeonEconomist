@@ -230,9 +230,9 @@ const actualDurationDays = computed(() => {
               <th>Class</th>
               <th>Level</th>
               <th>Status</th>
-              <th>Took</th>
-              <th>Healed</th>
-              <th>HP</th>
+              <th class="col-hurt">Took</th>
+              <th class="col-hurt">Healed</th>
+              <th class="col-hp">HP</th>
               <th v-if="!isActive">XP Gained</th>
               <th v-if="!isActive">Wealth</th>
             </tr>
@@ -250,9 +250,9 @@ const actualDurationDays = computed(() => {
                 <span v-if="member.alive" class="badge badge-alive">{{ isActive ? 'Active' : 'Alive' }}</span>
                 <span v-else class="badge badge-dead">Dead</span>
               </td>
-              <td class="text-danger">{{ member.damage_taken ? `−${member.damage_taken}` : '—' }}</td>
-              <td class="text-heal">{{ member.hp_healed ? `+${member.hp_healed}` : '—' }}</td>
-              <td>
+              <td class="col-hurt text-danger">{{ member.damage_taken ? `−${member.damage_taken}` : '—' }}</td>
+              <td class="col-hurt text-heal">{{ member.hp_healed ? `+${member.hp_healed}` : '—' }}</td>
+              <td class="col-hp">
                 <ProgressBar v-if="member.alive" :value="member.hp_current" :max="member.hp_max" />
                 <span v-else>&mdash;</span>
               </td>
@@ -287,6 +287,19 @@ const actualDurationDays = computed(() => {
 <style scoped>
 .text-heal {
   color: var(--accent-green);
+}
+
+/* Took and Healed are two or three glyphs; without this they take their share of
+   the table and squeeze the HP bar down to a stub. */
+.col-hurt {
+  width: 1%;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  white-space: nowrap;
+}
+
+.col-hp {
+  min-width: 7.5rem;
 }
 
 .found-item {
