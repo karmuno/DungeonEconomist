@@ -1116,6 +1116,18 @@ def get_expedition_summary(
         return _build_completed_summary(expedition, party, keep, db)
 
 
+def _round_attacks(round_entry: dict) -> list[dict]:
+    """Every attack in a round, new ordered logs and old bucketed ones alike.
+
+    Rounds recorded since the ordered-log change carry one `events` list; older
+    stored expeditions carry `attacks` and `halfling_pre_round` buckets.
+    """
+    events = round_entry.get("events")
+    if events is not None:
+        return [atk for ev in events if ev.get("kind") == "attacks" for atk in ev.get("attacks", [])]
+    return list(round_entry.get("halfling_pre_round") or round_entry.get("attacks") or [])
+
+
 def _replay_members(party_members, events_log: list, deaths: set, starting_hp: dict = None) -> dict:
     """Replay simulation turns to reconstruct what each member ended the run with.
 
@@ -1159,7 +1171,7 @@ def _replay_members(party_members, events_log: list, deaths: set, starting_hp: d
                 if round_log:
                     # Exact replay: apply damage from each attack that targets a PC
                     for round_entry in round_log:
-                        for atk in round_entry.get("attacks", []):
+                        for atk in _round_attacks(round_entry):
                             target = atk.get("target")
                             if target in member_names and atk.get("hit") and atk.get("damage", 0) > 0:
                                 _hurt(target, atk["damage"])

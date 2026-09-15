@@ -252,7 +252,10 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 if atk["target_died"]:
                     monsters_killed += 1
                     monster_deaths_total += 1
-        round_log.append({"round": 0, "halfling_pre_round": r0_attacks})
+        round_log.append({
+            "round": 0,
+            "events": [{"kind": "attacks", "side": "party", "label": "Sling Volley", "attacks": r0_attacks}],
+        })
         if not living_monsters():
             xp = sum(max(1, int(m["hd"])) * 100 for m in monsters)
             return {
@@ -277,11 +280,18 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
     round_num = 0
     while living_party() and living_monsters() and round_num < 20:
         round_num += 1
+        # One ordered list, appended to as each thing actually resolves. The three
+        # buckets it replaces (attacks / spell_casts / cleric_turns) left the log's
+        # chronology to be reconstructed by the renderer, which got it wrong three
+        # ways: a spell rendered above the monster attacks that preceded it, turn
+        # undead rendered after the spell though it resolves before everything, and
+        # post-combat healing hung off the end of the fight. Append here and the
+        # renderer plays it back; the next addition cannot create a fourth.
         round_entry: dict = {
             "round": round_num,
-            "attacks": [],
-            "morale_checks": [],
+            "events": [],
         }
+        events: list[dict] = round_entry["events"]
 
         # Snapshot alive party at start of round (PCs killed in B still act in C)
         party_snapshot = list(living_party())
@@ -304,7 +314,6 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
         party_deaths_in_round = 0
         turned_clerics: set[str] = set()
         round_spell_casters: set[str] = set()
-        cleric_turns = []
         for pc in party_snapshot:
             if pc["current_hp"] <= 0:
                 continue
@@ -321,7 +330,9 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             destroyed, turn_log = _do_turn_attempt(pc, turnable)
             cleric_turned = True
             turned_clerics.add(pc["name"])
-            cleric_turns.append(turn_log)
+            # Turn undead uses the Cleric's action regardless of initiative, so it
+            # resolves before anything else in the round and is logged there.
+            events.append({"kind": "turn_undead", **turn_log})
             for m in destroyed:
                 if m["current_hp"] > 0:
                     m["current_hp"] = 0
@@ -329,14 +340,13 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     monster_deaths_total += 1
                     monsters_turned += 1
                     monster_deaths_in_round += 1
-        if cleric_turns:
-            round_entry["cleric_turns"] = cleric_turns
 
         monster_snapshot: list[dict] = []
 
         def do_party_attacks(use_snapshot: bool = False) -> None:
             nonlocal monster_deaths_in_round, monsters_killed, monster_deaths_total
             attackers = party_snapshot if use_snapshot else living_party()  # noqa: B023
+            struck: list[dict] = []
             for pc in attackers:
                 if pc["current_hp"] <= 0 and not use_snapshot:
                     continue
@@ -350,15 +360,18 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                         break
                     target = pick_target(alive_m)
                     atk = _do_attack(pc, target)
-                    round_entry["attacks"].append(atk)  # noqa: B023
+                    struck.append(atk)
                     if atk["target_died"]:
                         monster_deaths_in_round += 1
                         monsters_killed += 1
                         monster_deaths_total += 1
+            if struck:
+                events.append({"kind": "attacks", "side": "party", "attacks": struck})  # noqa: B023
 
         def do_monster_attacks(use_snapshot: bool = False) -> None:
             nonlocal party_deaths_in_round, hp_lost_party, party_deaths_total
             attackers = monster_snapshot if use_snapshot else living_monsters()  # noqa: B023
+            struck: list[dict] = []
             for mon in attackers:
                 if mon["current_hp"] <= 0 and not use_snapshot:
                     continue
@@ -372,10 +385,12 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     target = pick_target(alive_p)
                     atk = _do_attack(mon, target)
                     hp_lost_party += atk["damage"]
-                    round_entry["attacks"].append(atk)  # noqa: B023
+                    struck.append(atk)
                     if atk["target_died"]:
                         party_deaths_in_round += 1
                         party_deaths_total += 1
+            if struck:
+                events.append({"kind": "attacks", "side": "monsters", "attacks": struck})  # noqa: B023
 
         # ── B & C. Attacks in initiative order ────────────────────────────────
         # MU/Elf spells fire only on the party's initiative turn.
@@ -411,7 +426,8 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 monster_deaths_total += _n
                 _caster["spells_remaining"] -= 1
                 round_spell_casters.add(_caster["name"])  # noqa: B023
-                round_entry.setdefault("spell_casts", []).append({  # noqa: B023
+                events.append({  # noqa: B023
+                    "kind": "spell",
                     "caster": _caster["name"],
                     "spell": _spell,
                     "monsters_destroyed": _n,
@@ -443,7 +459,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             if "first" not in monster_morale_done:
                 monster_morale_done.add("first")
                 check = _morale_check("monsters", monster_morale_val, morale_penalty)
-                round_entry["morale_checks"].append(check)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     monsters_fled_flag = True
                     monsters_fled = len(living_monsters())
@@ -455,7 +471,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     and monster_deaths_total >= len(monsters) / 2):
                 monster_morale_done.add("half")
                 check = _morale_check("monsters", monster_morale_val, morale_penalty)
-                round_entry["morale_checks"].append(check)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     monsters_fled_flag = True
                     monsters_fled = len(living_monsters())
@@ -466,7 +482,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             if "first" not in party_morale_done:
                 party_morale_done.add("first")
                 check = _morale_check("party", PARTY_MORALE)
-                round_entry["morale_checks"].append(check)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     party_fled = True
 
@@ -475,7 +491,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     and party_deaths_total >= len(party) / 2):
                 party_morale_done.add("half")
                 check = _morale_check("party", PARTY_MORALE)
-                round_entry["morale_checks"].append(check)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     party_fled = True
 
@@ -487,6 +503,17 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
     # ── Post-combat: Potion auto-revive ────────────────────────────────────────
     # Every revive is logged so the turn-by-turn can explain a "slain" adventurer
     # who is still standing, and so the healing is credited to whoever provided it.
+    def _recovery_events() -> list[dict]:
+        """Where post-combat recovery is logged: the end of the last round fought.
+
+        It resolves after the round loop, so it has no round of its own; hanging it
+        off the end of the combat instead left the heals and revivals floating free
+        of the chronology they belong to.
+        """
+        if not round_log:
+            round_log.append({"round": round_num, "events": []})
+        return round_log[-1].setdefault("events", [])
+
     revivals: list[dict] = []
     potion_revived = []
     # Fires even on a rout: a potion you are carrying does not care that you ran.
@@ -497,7 +524,9 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             pc["potion_consumed"] = True
             potion_revived.append(pc["name"])
             revived_adventurers.append(pc["name"])
-            revivals.append({"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"})
+            revival = {"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"}
+            revivals.append(revival)
+            _recovery_events().append({"kind": "revival", **revival})
 
     # ── Post-combat: Cleric revival ───────────────────────────────────────────
     # Fires even on a rout. The revival is an abstraction: it represents the Cleric
@@ -518,7 +547,9 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 break
             dead["current_hp"] = 1
             revived_adventurers.append(dead["name"])
-            revivals.append({"name": dead["name"], "hp": 1, "healer": pc["name"], "source": "cleric"})
+            revival = {"name": dead["name"], "hp": 1, "healer": pc["name"], "source": "cleric"}
+            revivals.append(revival)
+            _recovery_events().append({"kind": "revival", **revival})
             capacity -= 1
         pc["revivals_remaining"] = capacity
 
@@ -543,7 +574,9 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             old_hp = target["current_hp"]
             target["current_hp"] = min(target.get("hit_points", old_hp + amount), old_hp + amount)
             healed = target["current_hp"] - old_hp
-            healed_adventurers.append({"name": target["name"], "hp": healed, "healer": pc["name"]})
+            cure = {"name": target["name"], "hp": healed, "healer": pc["name"]}
+            healed_adventurers.append(cure)
+            _recovery_events().append({"kind": "heal", **cure})
             charges -= 1
         pc["heals_remaining"] = charges
 

@@ -701,3 +701,118 @@ def test_cleric_heal_charges_scale_with_level():
     assert exp.party[0]["heals_remaining"] == 0   # 1 // 2 = 0
     assert exp.party[1]["heals_remaining"] == 2   # 4 // 2 = 2
     assert exp.party[2]["heals_remaining"] == 3   # 6 // 2 = 3
+
+
+# ─── The round log is one ordered event list ──────────────────────────────────
+
+def _kinds(round_entry: dict) -> list[str]:
+    return [ev["kind"] for ev in round_entry["events"]]
+
+
+def test_a_round_is_one_ordered_event_list():
+    """The buckets are gone: a round carries `events`, in the order they resolved."""
+    pc = make_pc("Kira", cls="Fighter", level=1, hp=20)
+    with patch("app.expedition.random.randint", side_effect=[6, 1, 20, 6, 1]):
+        result = resolve_combat_rounds([pc], [make_monster("Goblin", hp=1)])
+
+    assert len(result["round_log"]) == 1
+    round_one = result["round_log"][0]
+    assert "attacks" not in round_one
+    assert "spell_casts" not in round_one
+    assert "cleric_turns" not in round_one
+    # Party wins initiative and kills the goblin; a monster killed in B still retaliates,
+    # so the round is two attack blocks in the order they happened.
+    assert _kinds(round_one) == ["attacks", "attacks"]
+    assert [ev["side"] for ev in round_one["events"]] == ["party", "monsters"]
+    assert [a["attacker"] for a in round_one["events"][0]["attacks"]] == ["Kira"]
+    assert [a["target"] for a in round_one["events"][1]["attacks"]] == ["Kira"]
+
+
+def test_monsters_first_puts_their_attacks_before_the_spell():
+    """Observed 2026-09-09: "Round 1 (monsters first)" listed Sleep above the Ogre
+    attacks that had already happened. The simulation was right; only the log lied."""
+    mu = make_pc("Wizard", cls="Magic-User", level=1, hp=30, spells=1)
+    # randint: party init 1, monster init 6 (monsters win) · goblin attack roll 20,
+    # damage 3 · spell cast check 5 (>=4, fires) · no party attack left to roll
+    with patch("app.expedition.random.randint", side_effect=[1, 6, 20, 3, 5]):
+        result = resolve_combat_rounds([mu], [make_monster("Goblin", hd=0.5, hp=9)])
+
+    round_one = result["round_log"][0]
+    assert round_one["initiative_winner"] == "monsters"
+    kinds = _kinds(round_one)
+    assert kinds.index("attacks") < kinds.index("spell"), kinds
+    assert round_one["events"][kinds.index("attacks")]["side"] == "monsters"
+
+
+def test_turn_undead_resolves_before_everything_else_in_its_round():
+    """Turn undead spends the Cleric's action regardless of initiative, so it is
+    first in the round even when the party won initiative and attacks follow."""
+    cleric = make_pc("Edric", cls="Cleric", level=4, hp=20, turns=1)
+    # randint: party init 6, monster init 1 · turn roll 12 (2d6 = 6+6) · attacks after
+    with patch("app.expedition.random.randint", side_effect=[6, 1, 6, 6, 20, 6, 1, 1]):
+        result = resolve_combat_rounds([cleric], [make_monster("Skeleton", hd=1, is_undead=True, hp=3)])
+
+    kinds = _kinds(result["round_log"][0])
+    assert kinds[0] == "turn_undead", kinds
+
+
+def test_post_combat_healing_is_tagged_to_the_last_round_fought():
+    """A cure used to hang off the end of the combat with no round at all."""
+    cleric = make_pc("Edric", cls="Cleric", level=2, hp=20, heals=1)
+    fighter = make_pc("Kira", cls="Fighter", level=1, hp=5)
+    fighter["hit_points"] = 20
+
+    with patch("app.expedition.random.randint", side_effect=[6, 1, 20, 6, 1, 4]):
+        result = resolve_combat_rounds([cleric, fighter], [make_monster("Goblin", hp=1)])
+
+    last_round = result["round_log"][-1]
+    heals = [ev for ev in last_round["events"] if ev["kind"] == "heal"]
+    assert heals == [{"kind": "heal", "name": "Kira", "hp": 5, "healer": "Edric"}]
+    # The combat-level list the replay and the ledger read is unchanged
+    assert result["healed_adventurers"] == [{"name": "Kira", "hp": 5, "healer": "Edric"}]
+
+
+def test_a_potion_revival_lands_in_the_round_as_well():
+    fighter = make_pc("Kira", cls="Fighter", level=1, hp=1)
+    fighter["has_potion"] = True
+    # randint: party init 1, monster init 6 (monsters first) · ogre hits for 8
+    with patch("app.expedition.random.randint", side_effect=[1, 6, 20, 8, 20, 8, 20, 8, 20, 8]):
+        result = resolve_combat_rounds([fighter], [make_monster("Ogre", hd=4, hp=20)])
+
+    revivals = [ev for r in result["round_log"] for ev in r["events"] if ev["kind"] == "revival"]
+    assert revivals == [{"kind": "revival", "name": "Kira", "hp": 1, "healer": "Kira", "source": "potion"}]
+    assert result["revivals"] == [{"name": "Kira", "hp": 1, "healer": "Kira", "source": "potion"}]
+
+
+def test_the_halfling_volley_is_a_labelled_party_attack_block():
+    halfling = make_pc("Pip", cls="Halfling", level=1, hp=20)
+    with patch("app.expedition.random.randint", side_effect=[20, 6, 6, 1, 20, 6, 1]):
+        result = resolve_combat_rounds([halfling], [make_monster("Goblin", hp=1)])
+
+    volley = result["round_log"][0]
+    assert volley["round"] == 0
+    assert volley["events"][0]["kind"] == "attacks"
+    assert volley["events"][0]["side"] == "party"
+    assert volley["events"][0]["label"] == "Sling Volley"
+
+
+def test_morale_checks_ride_the_same_ordered_list():
+    """Every kind of round content goes through `events`, so the next addition
+    cannot invent a fourth bucket with an order of its own."""
+    import random
+
+    random.seed(7)
+    saw_morale = False
+    for _ in range(80):
+        party = [make_pc(f"PC{i}", cls="Fighter", level=1, hp=12) for i in range(3)]
+        monsters = [make_monster("Goblin", hd=0.5, hp=2) for _ in range(4)]
+        result = resolve_combat_rounds(party, monsters)
+        for r in result["round_log"]:
+            assert "morale_checks" not in r
+            for ev in r["events"]:
+                assert ev["kind"] in {"attacks", "spell", "turn_undead", "morale", "heal", "revival"}
+                if ev["kind"] == "morale":
+                    saw_morale = True
+                    assert ev["side"] in {"party", "monsters"}
+                    assert isinstance(ev["passed"], bool)
+    assert saw_morale, "no morale check fired in 80 fights; the fixture is not exercising it"

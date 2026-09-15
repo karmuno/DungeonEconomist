@@ -6,6 +6,7 @@ import { useGameTimeStore } from '../../stores/gameTime'
 import { formatCurrency } from '../../utils/currency'
 import ModalDialog from '../shared/ModalDialog.vue'
 import ExpeditionLogTree from './ExpeditionLogTree.vue'
+import { roundAttacks, roundSpellCasts } from '../../types/expeditionLog'
 import type { TurnLog } from '../../types/expeditionLog'
 
 const props = defineProps<{
@@ -112,13 +113,10 @@ function tallyTurns(turns: TurnLog[], names: Set<string>): DamageTotals {
         if (names.has(rv.name)) mended.set(rv.name, (mended.get(rv.name) ?? 0) + rv.hp)
       }
       for (const r of ev.combat?.round_log ?? []) {
-        if (r.event === 'spell' && r.caster && names.has(r.caster)) {
-          casts.set(r.caster, (casts.get(r.caster) ?? 0) + 1)
-        }
-        for (const sc of r.spell_casts ?? []) {
+        for (const sc of roundSpellCasts(r)) {
           if (names.has(sc.caster)) casts.set(sc.caster, (casts.get(sc.caster) ?? 0) + 1)
         }
-        for (const a of [...(r.halfling_pre_round ?? []), ...(r.attacks ?? [])]) {
+        for (const a of roundAttacks(r)) {
           if (!a.hit) continue
           if (names.has(a.attacker)) dealt.set(a.attacker, (dealt.get(a.attacker) ?? 0) + a.damage)
           if (names.has(a.target)) taken.set(a.target, (taken.get(a.target) ?? 0) + a.damage)
