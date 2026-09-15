@@ -478,7 +478,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
             <span class="badge">{{ a.adventurer_class }}</span>
             <span class="stat">Lv {{ a.level }}</span>
             <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
-            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp"> / {{ a.next_level_xp }}</template> XP</span>
             <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
           </div>
         </div>
@@ -531,7 +531,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 <span class="badge">{{ m.adventurer_class }}</span>
                 <span class="stat">Lv {{ m.level }}</span>
                 <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
-                <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp">/{{ m.next_level_xp }}</template> XP</span>
+                <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp"> / {{ m.next_level_xp }}</template> XP</span>
                 <span class="stat gold">{{ formatCurrency(m.gold, m.silver, m.copper) }}</span>
                 <button v-if="!p.on_expedition" class="remove-btn" @click.stop="removeFromParty(p.id, m.id, m.name)">&times;</button>
               </div>
@@ -623,7 +623,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                   <span class="badge">{{ a.adventurer_class }}</span>
                   <span class="stat">Lv {{ a.level }}</span>
                   <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
-                  <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+                  <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp"> / {{ a.next_level_xp }}</template> XP</span>
                   <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
                   <button class="remove-btn" @click.stop="unassignFromBuilding(b.id, a.id, a.name)">&times;</button>
                 </div>
@@ -792,9 +792,10 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 }
 .building-row-name { font-weight: 600; font-size: 13px; min-width: 0; line-height: 1.25; }
 .building-row .party-size { text-align: left; }
-.building-cell { min-width: 0; display: flex; flex-wrap: wrap; column-gap: 8px; row-gap: 2px; }
-.building-effect-tag { font-size: 10px; font-family: var(--font-mono); color: var(--accent-green); }
-.building-effect-tag { white-space: nowrap; }
+/* Effects flow as text and wrap at their spaces, separated by a dot */
+.building-cell { min-width: 0; font-size: 10px; line-height: 1.3; }
+.building-effect-tag { font-family: var(--font-mono); color: var(--accent-green); }
+.building-effect-tag + .building-effect-tag::before { content: ' \B7 '; color: var(--text-muted); }
 .building-expanded { padding: 4px 0 8px 22px; }
 .building-effects-full { display: flex; gap: 6px; flex-wrap: wrap; }
 .effect-tag {
