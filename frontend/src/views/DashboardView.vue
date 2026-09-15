@@ -8,7 +8,7 @@ import * as buildingsApi from '../api/buildings'
 import * as adventurersApi from '../api/adventurers'
 import type { DashboardStats, AdventurerOut } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
-import { useNotificationsStore } from '../stores/notifications'
+import { useNotificationsStore, type NotificationType } from '../stores/notifications'
 import { formatCurrency } from '../utils/currency'
 import { itemEmoji, itemBonusLabel } from '../utils/adventurer'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
@@ -136,15 +136,17 @@ function toggleBuilding(type: string) {
   expandedBuilding.value = expandedBuilding.value === type ? null : type
 }
 
-// Drag source tracking: "unassigned", "party:ID", or "building:ID"
+// A slot an adventurer can occupy: "unassigned", "party:ID", or "building:ID"
+type Slot = string
+
 const dragOverUnassigned = ref(false)
-let dragSource = ''
+let dragSource: Slot = ''
 let dragAdvId = 0
 let dragAdvName = ''
 
 type AdvEntry = DashboardStats['unassigned_adventurers'][number]
 
-function onDragStart(e: DragEvent, advId: number, advName: string, source: string) {
+function onDragStart(e: DragEvent, advId: number, advName: string, source: Slot) {
   dragAdvId = advId
   dragAdvName = advName
   dragSource = source
@@ -152,16 +154,19 @@ function onDragStart(e: DragEvent, advId: number, advName: string, source: strin
   e.dataTransfer?.setData('text/plain', String(advId))
 }
 
-function findAndSpliceAdventurer(advId: number, source: string): AdvEntry | null {
+function slotId(slot: Slot): number {
+  return Number(slot.split(':')[1])
+}
+
+function findAndSpliceAdventurer(advId: number, slot: Slot): AdvEntry | null {
   if (!stats.value) return null
-  if (source === 'unassigned') {
+  if (slot === 'unassigned') {
     const idx = stats.value.unassigned_adventurers.findIndex(a => a.id === advId)
     if (idx === -1) return null
     return stats.value.unassigned_adventurers.splice(idx, 1)[0]
   }
-  if (source.startsWith('party:')) {
-    const partyId = Number(source.split(':')[1])
-    const party = stats.value.parties.find(p => p.id === partyId)
+  if (slot.startsWith('party:')) {
+    const party = stats.value.parties.find(p => p.id === slotId(slot))
     if (!party) return null
     const idx = party.members.findIndex(m => m.id === advId)
     if (idx === -1) return null
@@ -169,9 +174,8 @@ function findAndSpliceAdventurer(advId: number, source: string): AdvEntry | null
     party.member_count = party.members.length
     return adv
   }
-  if (source.startsWith('building:')) {
-    const buildingId = Number(source.split(':')[1])
-    const building = stats.value.buildings.find(b => b.id === buildingId)
+  if (slot.startsWith('building:')) {
+    const building = stats.value.buildings.find(b => b.id === slotId(slot))
     if (!building) return null
     const idx = building.assigned_adventurers.findIndex(a => a.id === advId)
     if (idx === -1) return null
@@ -182,15 +186,116 @@ function findAndSpliceAdventurer(advId: number, source: string): AdvEntry | null
   return null
 }
 
-function removeSourceApi(source: string, advId: number): Promise<unknown> | undefined {
-  if (source.startsWith('party:')) {
-    const partyId = Number(source.split(':')[1])
-    return partiesApi.removeMember({ party_id: partyId, adventurer_id: advId })
+// Local mirror of a server slot. False when the slot is gone from local state.
+function insertLocal(slot: Slot, adv: AdvEntry): boolean {
+  if (!stats.value) return false
+  if (slot === 'unassigned') {
+    stats.value.unassigned_adventurers.push(adv)
+    return true
   }
-  if (source.startsWith('building:')) {
-    const buildingId = Number(source.split(':')[1])
-    return buildingsApi.unassign(buildingId, advId)
+  if (slot.startsWith('party:')) {
+    const party = stats.value.parties.find(p => p.id === slotId(slot))
+    if (!party) return false
+    party.members.push(adv)
+    party.member_count = party.members.length
+    return true
   }
+  if (slot.startsWith('building:')) {
+    const building = stats.value.buildings.find(b => b.id === slotId(slot))
+    if (!building) return false
+    building.assigned_adventurers.push(adv)
+    building.assigned_count = building.assigned_adventurers.length
+    return true
+  }
+  return false
+}
+
+// Server call that vacates a slot. "unassigned" needs none.
+function vacateSlotApi(slot: Slot, advId: number): Promise<unknown> | undefined {
+  if (slot.startsWith('party:')) {
+    return partiesApi.removeMember({ party_id: slotId(slot), adventurer_id: advId })
+  }
+  if (slot.startsWith('building:')) {
+    return buildingsApi.unassign(slotId(slot), advId)
+  }
+}
+
+// Server call that fills a slot. "unassigned" needs none: vacating the
+// source already leaves the adventurer there.
+function fillSlotApi(slot: Slot, advId: number): Promise<unknown> | undefined {
+  if (slot.startsWith('party:')) {
+    return partiesApi.addMember({ party_id: slotId(slot), adventurer_id: advId })
+  }
+  if (slot.startsWith('building:')) {
+    return buildingsApi.assign(slotId(slot), advId)
+  }
+}
+
+function errorDetail(err: unknown, fallback: string): string {
+  return (err as { data?: { detail?: string } } | null)?.data?.detail ?? fallback
+}
+
+/**
+ * Move an adventurer between slots, showing the move immediately.
+ *
+ * On failure they go back to their original slot. Only if the original slot
+ * refuses them (e.g. the party disbanded the moment they left it) do they
+ * land in Unassigned. Server truth is re-fetched afterwards either way.
+ */
+async function moveAdventurer(
+  advId: number,
+  advName: string,
+  source: Slot,
+  dest: Slot,
+  successMsg: string,
+  successType: NotificationType,
+  failMsg: string,
+) {
+  if (!stats.value || source === dest) return
+  const adv = findAndSpliceAdventurer(advId, source)
+  if (!adv) return
+  if (!insertLocal(dest, adv)) {
+    insertLocal(source, adv)
+    return
+  }
+  const successNoteId = notifications.add(successMsg, successType)
+
+  // Vacating the last seat disbands the party, so there is no slot to return to
+  let sourceGone: boolean
+  try {
+    const vacated = await vacateSlotApi(source, advId)
+    sourceGone = Boolean((vacated as { deleted?: boolean } | undefined)?.deleted)
+  } catch (err) {
+    // Nothing changed on the server: the original slot still holds them
+    if (successNoteId !== undefined) notifications.remove(successNoteId)
+    notifications.add(errorDetail(err, failMsg), 'error')
+    findAndSpliceAdventurer(advId, dest)
+    insertLocal(source, adv)
+    fetchStats()
+    return
+  }
+
+  try {
+    await fillSlotApi(dest, advId)
+  } catch (err) {
+    if (successNoteId !== undefined) notifications.remove(successNoteId)
+    notifications.add(errorDetail(err, failMsg), 'error')
+    findAndSpliceAdventurer(advId, dest)
+    let restored = source === 'unassigned'
+    if (!restored && !sourceGone) {
+      try {
+        await fillSlotApi(source, advId)
+        restored = true
+      } catch {
+        // Original slot refused them; they stay unassigned on the server
+      }
+    }
+    if (!restored || !insertLocal(source, adv)) {
+      insertLocal('unassigned', adv)
+      notifications.add(`${advName} returned to tavern`, 'info')
+    }
+  }
+  fetchStats()
 }
 
 // Drop on party
@@ -203,25 +308,13 @@ function onPartyDragLeave() { dragOverPartyId.value = null }
 async function onPartyDrop(e: DragEvent, partyId: number) {
   e.preventDefault()
   dragOverPartyId.value = null
-  if (!dragAdvId || !stats.value) return
-  const party = stats.value.parties.find(p => p.id === partyId)
+  if (!dragAdvId) return
+  const party = stats.value?.parties.find(p => p.id === partyId)
   if (!party) return
-  const adv = findAndSpliceAdventurer(dragAdvId, dragSource)
-  if (!adv) return
-  party.members.push(adv)
-  party.member_count = party.members.length
-  notifications.add(`${dragAdvName} joined ${party.name}`, 'success')
-  try {
-    const calls: Promise<unknown>[] = []
-    const rm = removeSourceApi(dragSource, dragAdvId)
-    if (rm) calls.push(rm)
-    calls.push(partiesApi.addMember({ party_id: partyId, adventurer_id: dragAdvId }))
-    await Promise.all(calls)
-    fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to add to party', 'error')
-    await fetchStats()
-  }
+  await moveAdventurer(
+    dragAdvId, dragAdvName, dragSource, `party:${partyId}`,
+    `${dragAdvName} joined ${party.name}`, 'success', 'Failed to add to party',
+  )
 }
 
 // Drop on building
@@ -234,23 +327,11 @@ function onBuildingDragLeave() { dragOverBuilding.value = null }
 async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'][0]) {
   e.preventDefault()
   dragOverBuilding.value = null
-  if (!building.id || !dragAdvId || !stats.value) return
-  const adv = findAndSpliceAdventurer(dragAdvId, dragSource)
-  if (!adv) return
-  building.assigned_adventurers.push(adv)
-  building.assigned_count = building.assigned_adventurers.length
-  notifications.add(`${dragAdvName} assigned to ${building.name}`, 'success')
-  try {
-    const calls: Promise<unknown>[] = []
-    const rm = removeSourceApi(dragSource, dragAdvId)
-    if (rm) calls.push(rm)
-    calls.push(buildingsApi.assign(building.id, dragAdvId))
-    await Promise.all(calls)
-    fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to assign', 'error')
-    await fetchStats()
-  }
+  if (!building.id || !dragAdvId) return
+  await moveAdventurer(
+    dragAdvId, dragAdvName, dragSource, `building:${building.id}`,
+    `${dragAdvName} assigned to ${building.name}`, 'success', 'Failed to assign',
+  )
 }
 
 // Drop on unassigned zone (to unassign from party or building)
@@ -265,49 +346,26 @@ function onUnassignedDragLeave() { dragOverUnassigned.value = false }
 async function onUnassignedDrop(e: DragEvent) {
   e.preventDefault()
   dragOverUnassigned.value = false
-  if (!dragAdvId || dragSource === 'unassigned' || !stats.value) return
-  const adv = findAndSpliceAdventurer(dragAdvId, dragSource)
-  if (!adv) return
-  stats.value.unassigned_adventurers.push(adv)
-  notifications.add(`${dragAdvName} returned to tavern`, 'info')
-  try {
-    await removeSourceApi(dragSource, dragAdvId)
-    fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
-    await fetchStats()
-  }
+  if (!dragAdvId) return
+  await moveAdventurer(
+    dragAdvId, dragAdvName, dragSource, 'unassigned',
+    `${dragAdvName} returned to tavern`, 'info', 'Failed to unassign',
+  )
 }
 
 // Direct unassign buttons
 async function removeFromParty(partyId: number, advId: number, advName: string) {
-  if (stats.value) {
-    const adv = findAndSpliceAdventurer(advId, `party:${partyId}`)
-    if (adv) stats.value.unassigned_adventurers.push(adv)
-  }
-  notifications.add(`${advName} removed from party`, 'info')
-  try {
-    await partiesApi.removeMember({ party_id: partyId, adventurer_id: advId })
-    fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to remove', 'error')
-    await fetchStats()
-  }
+  await moveAdventurer(
+    advId, advName, `party:${partyId}`, 'unassigned',
+    `${advName} removed from party`, 'info', 'Failed to remove',
+  )
 }
 
 async function unassignFromBuilding(buildingId: number, advId: number, advName: string) {
-  if (stats.value) {
-    const adv = findAndSpliceAdventurer(advId, `building:${buildingId}`)
-    if (adv) stats.value.unassigned_adventurers.push(adv)
-  }
-  notifications.add(`${advName} returned to tavern`, 'info')
-  try {
-    await buildingsApi.unassign(buildingId, advId)
-    fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
-    await fetchStats()
-  }
+  await moveAdventurer(
+    advId, advName, `building:${buildingId}`, 'unassigned',
+    `${advName} returned to tavern`, 'info', 'Failed to unassign',
+  )
 }
 
 // Auto-delve / auto-decide toggle

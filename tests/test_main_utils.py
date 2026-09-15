@@ -703,6 +703,36 @@ def test_disbanded_party_keeps_its_expeditions(client: TestClient, db_session: S
     assert [(e["id"], e["party_name"]) for e in expeditions] == [(exp.id, "Old Guard")]
 
 
+
+def test_add_member_to_disbanded_party_is_rejected(client: TestClient, db_session: Session):
+    """A disbanded party has left every list, so joining it would hide the
+    adventurer from the dashboard. The dashboard's drop-revert path relies on
+    this 404 to fall back to Unassigned."""
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Ghost Company", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    last = create_adventurer_db(db_session, keep.id, name="Last One", xp=0, gold=0)
+    party.members.append(last)
+    db_session.commit()
+
+    r = client.post(
+        "/parties/remove-member/",
+        json={"party_id": party.id, "adventurer_id": last.id},
+        headers=auth_headers(token, keep.id),
+    )
+    assert r.json() == {"deleted": True, "party_id": party.id}
+
+    r = client.post(
+        "/parties/add-member/",
+        json={"party_id": party.id, "adventurer_id": last.id},
+        headers=auth_headers(token, keep.id),
+    )
+    assert r.status_code == 404, r.text
+
+    db_session.refresh(party)
+    assert party.members == []
+
 # ── Character sheet: to-hit and class abilities ─────────────────────────────
 
 def _cleric(db: Session, keep_id: int, level: int) -> Adventurer:
