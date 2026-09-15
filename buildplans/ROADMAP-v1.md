@@ -119,8 +119,9 @@ already playing — `player_events` records from the moment v0.9.1 deploys, so t
 written mid-cohort and still see every event. Sketch the four queries while designing the
 table anyway: writing them is how you find out the schema cannot answer them.
 
-Legibility items (buildings XP, Village, item descriptions, found items, auto-delve) fill
-whatever remains and otherwise fall to v1.1; none of them block inviting anyone.
+The legibility items that were to fill the remaining time have all landed; what fills it
+now is the **Stretch goals** block at the end of this release, three pushes in priority
+order. None of them block inviting anyone.
 
 ### Before strangers see it
 
@@ -317,6 +318,100 @@ this release rather than opening a fourth gate.
       chip from `design_handoff_bmc_chip/`, in the sidebar footer under Submit Feedback,
       above the version line. No payment integration
 
+### Stretch goals — three pushes, in this order
+
+Fill whatever remains of the 2026-09-19/20 weekend once the safety list above is done. None
+of these block inviting anyone. Each push ships whole before the next starts; whatever has
+not landed when v0.9.1 tags waits for the decision gate, since v1.0 is a freeze.
+
+**Push 1 — Alignment.** First because the Village below the fold makes dragging adventurers
+onto buildings barely usable.
+
+- [ ] **Village belongs beside the roster, not below the fold.** On the Dashboard,
+  `.parties-unassigned-grid` (`DashboardView.vue:537`) is a two-column `1fr 1fr` grid holding
+  Parties and Unassigned Adventurers; the Village card (`:450`, with the empty-state variant at
+  `:500`) sits full-width **underneath it**. Since Village is a drop target for building
+  assignment, assigning an unassigned adventurer means dragging while scrolling, which HTML5
+  drag handles poorly. Move Village to half width directly under Unassigned Adventurers — it
+  removes the scroll and fills the blank right-hand space.
+  Implementation note: making Village a fourth child of the existing grid does not achieve
+  this — grid rows align across columns, so a tall Parties card would leave a gap above
+  Village. Restructure as two independent column stacks instead: left holds Parties, right
+  holds Unassigned Adventurers then Village. Both Village blocks move, the populated one and
+  the empty state.
+- [ ] **Adventurer rows should line up in columns.** Quality of life. The Dashboard's unassigned
+  list (`DashboardView.vue:335-352`) is a flex row of inline `<span>`s, so no statistic sits at
+  the same horizontal position from one adventurer to the next. The item tags are rendered
+  **before** class, level, HP, XP and wealth, so a variable number of items shifts every
+  statistic after them — which is why rows look aligned until someone picks something up.
+  Four or more items is rare enough to accept as the degrading case, so a fixed-width item
+  cell that overflows there is fine.
+  Same pattern in `PartiesView.vue`, `ExpeditionLaunchView.vue` and `PartyFormationView.vue`;
+  `AdventurerList.vue`, `ExpeditionList.vue`, `RecentExpeditions.vue` and `MetricsPanel.vue`
+  already use real tables. Implementation note: the Dashboard rows are `draggable` with
+  dragstart handlers, and dragging `<tr>` elements is awkward — CSS Grid with fixed
+  `grid-template-columns` keeps the existing `<div>` structure and the drag behaviour while
+  giving the same alignment. (`fix/table-alignment` holds nothing unique against `main`.)
+
+**Push 2 — Expedition.** Second because both make the expedition views answer *what just
+happened?* truthfully.
+
+- [ ] **The live expedition summary should show healing per member.** Today a member row can read
+  a loss next to full health — "-4" beside "6/6 HP" — which looks like a bug because nothing
+  reconciles the two numbers. It is not a bug: `_replay_member_hp`
+  (`app/routes/expeditions.py:1046`) applies attack damage, then revivals, then
+  `healed_adventurers`, so the *final* HP is right; the damage figure and the HP bar are simply
+  computed from different halves of the story with the healing invisible between them.
+  Surfacing, not new mechanics: the replay already consumes per-member healing and revivals and
+  just folds them into one number instead of returning them. Have it return per-member healing
+  and revival totals, and render them on the member row
+  (`ExpeditionSummaryView.vue:246`, `ExpeditionEventModal.vue`) so the arithmetic reads: took
+  4, healed 4, ended 6/6. Pairs with the ordered round log below, which places each heal in
+  its round
+- [ ] **The round log should replay one ordered event list.** The sim records a round as separate
+  buckets — `attacks`, `spell_casts`, `cleric_turns` — and builds `revivals` and
+  `healed_adventurers` *after* the round loop with no round number at all. The renderer
+  (`ExpeditionLogTree.vue:185-208`) emits those buckets in a fixed order, so the log's
+  chronology is a reconstruction, and it is wrong in three known ways:
+  · on a **monsters-first** round the spell renders *before* the monster attacks that actually
+  preceded it (observed 2026-09-09: "Round 1 (monsters first)" listing Sleep above sixteen Ogre
+  attacks) · **Cleric turn undead** renders after the spell, but resolves before everything,
+  since it happens regardless of initiative · **heals and revivals** hang off the end of the
+  combat rather than appearing where they occurred.
+  **The simulation is correct in every one of these — only the log misrepresents it.**
+  Fix: have `resolve_combat_rounds` append to a single ordered `events` list per round and have
+  the renderer play it back, with post-combat recovery tagged to the round it belongs to. That
+  closes all three at once and stops the next addition from creating a fourth. It also removes
+  the renderer's need to infer which side an attack came from by looking the attacker's name up
+  in `pcNames` (`ExpeditionLogTree.vue:57`).
+
+**Push 3 — Polish.** Third because it is just that.
+
+- [ ] **Monsters need a plural form and an article.** Singular combat reads "Your party fought
+  Goblin."; it should read "a Goblin" / "an Ogre". Plurals are already handled, badly, by a
+  heuristic in `app/expedition_events.py:169-175` — `f`/`fe` becomes `ves`, everything else
+  gets `s` — which is right for Dwarf, Wolf, Elf and Werewolf but produces **"Robber Flys",
+  "Harpys", "Ochre Jellys" and "Mummys"**. Note the same block appears twice in that file
+  (`:58` builds a label too).
+  Put both in the data rather than deriving them: `plural` and `article` fields per monster in
+  `app/data/monsters.json` (100 entries). Deriving the plural is already wrong for 4 of 100.
+  Deriving the article from a leading vowel happens to work for today's eight — Acolyte, Orc,
+  Oil Beetle, Elf, Ochre Jelly, Ogre, Owl Bear, Amber Golem — but breaks the moment a Unicorn
+  or an Umber Hulk is added, both of which take "a" despite the vowel. Data costs one field
+  and is correct by construction.
+- [ ] **The upkeep total collected should sit with the treasury, not under the ledger.** The
+  Upkeep Day modal shows `Treasury [before] -> [after]` on one line
+  (`UpkeepDayModal.vue:44-54`), while the amount actually taken in appears as a "Collected"
+  cell at the bottom of the per-adventurer grid (`:88-91`). The headline number is the one
+  buried. Show it as **`+X` directly beneath the original treasury value**, as first-class
+  information.
+  No backend work: the payload already carries `collected_cp`, and it equals
+  `treasury_after_cp - treasury_before_cp`, so the figure needs no computing.
+  Two things to settle while doing it: `.outcome-row` is a single horizontal line of spans, so
+  a value *below* the before-figure means stacking that cell rather than adding another span;
+  and the grid's totals row also carries collected XP and any unpaid amount, so decide whether
+  the money cell moves out of it (leaving XP and unpaid behind) or is shown in both places.
+
 **Not in this release, on purpose:** domain migration. A studio-branded tip link on
 `venturekeep.stahlsystems.com` is fine for 10 invited people. Decide the name in an hour on a
 weeknight; move the domain after the cohort if there is still a reason to.
@@ -406,42 +501,6 @@ shows it matters.
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
-- **The upkeep total collected should sit with the treasury, not under the ledger.** The
-  Upkeep Day modal shows `Treasury [before] -> [after]` on one line
-  (`UpkeepDayModal.vue:44-54`), while the amount actually taken in appears as a "Collected"
-  cell at the bottom of the per-adventurer grid (`:88-91`). The headline number is the one
-  buried. Show it as **`+X` directly beneath the original treasury value**, as first-class
-  information.
-  No backend work: the payload already carries `collected_cp`, and it equals
-  `treasury_after_cp - treasury_before_cp`, so the figure needs no computing.
-  Two things to settle while doing it: `.outcome-row` is a single horizontal line of spans, so
-  a value *below* the before-figure means stacking that cell rather than adding another span;
-  and the grid's totals row also carries collected XP and any unpaid amount, so decide whether
-  the money cell moves out of it (leaving XP and unpaid behind) or is shown in both places.
-- **Monsters need a plural form and an article.** Singular combat reads "Your party fought
-  Goblin."; it should read "a Goblin" / "an Ogre". Plurals are already handled, badly, by a
-  heuristic in `app/expedition_events.py:169-175` — `f`/`fe` becomes `ves`, everything else
-  gets `s` — which is right for Dwarf, Wolf, Elf and Werewolf but produces **"Robber Flys",
-  "Harpys", "Ochre Jellys" and "Mummys"**. Note the same block appears twice in that file
-  (`:58` builds a label too).
-  Put both in the data rather than deriving them: `plural` and `article` fields per monster in
-  `app/data/monsters.json` (100 entries). Deriving the plural is already wrong for 4 of 100.
-  Deriving the article from a leading vowel happens to work for today's eight — Acolyte, Orc,
-  Oil Beetle, Elf, Ochre Jelly, Ogre, Owl Bear, Amber Golem — but breaks the moment a Unicorn
-  or an Umber Hulk is added, both of which take "a" despite the vowel. Data costs one field
-  and is correct by construction.
-- **Village belongs beside the roster, not below the fold.** On the Dashboard,
-  `.parties-unassigned-grid` (`DashboardView.vue:537`) is a two-column `1fr 1fr` grid holding
-  Parties and Unassigned Adventurers; the Village card (`:450`, with the empty-state variant at
-  `:500`) sits full-width **underneath it**. Since Village is a drop target for building
-  assignment, assigning an unassigned adventurer means dragging while scrolling, which HTML5
-  drag handles poorly. Move Village to half width directly under Unassigned Adventurers — it
-  removes the scroll and fills the blank right-hand space.
-  Implementation note: making Village a fourth child of the existing grid does not achieve
-  this — grid rows align across columns, so a tall Parties card would leave a gap above
-  Village. Restructure as two independent column stacks instead: left holds Parties, right
-  holds Unassigned Adventurers then Village. Both Village blocks move, the populated one and
-  the empty state.
 - **"Skip to Event" should stop only at something actionable.** An auto-launching expedition
   currently halts the skip. Immediate cause: the auto-launch event is emitted with
   `type="expedition_complete"` (`app/routes/game.py:356`) — a launch announced as a completion
@@ -453,46 +512,6 @@ shows it matters.
   ledger and a death still stop the clock. **Stairs must keep stopping it regardless**: they
   always prompt the player, by standing rule. Worth checking the mislabelled type does not also
   make the frontend treat a launch as a return.
-- **Adventurer rows should line up in columns.** Quality of life. The Dashboard's unassigned
-  list (`DashboardView.vue:335-352`) is a flex row of inline `<span>`s, so no statistic sits at
-  the same horizontal position from one adventurer to the next. The item tags are rendered
-  **before** class, level, HP, XP and wealth, so a variable number of items shifts every
-  statistic after them — which is why rows look aligned until someone picks something up.
-  Four or more items is rare enough to accept as the degrading case, so a fixed-width item
-  cell that overflows there is fine.
-  Same pattern in `PartiesView.vue`, `ExpeditionLaunchView.vue` and `PartyFormationView.vue`;
-  `AdventurerList.vue`, `ExpeditionList.vue`, `RecentExpeditions.vue` and `MetricsPanel.vue`
-  already use real tables. Implementation note: the Dashboard rows are `draggable` with
-  dragstart handlers, and dragging `<tr>` elements is awkward — CSS Grid with fixed
-  `grid-template-columns` keeps the existing `<div>` structure and the drag behaviour while
-  giving the same alignment. (`fix/table-alignment` holds nothing unique against `main`.)
-- **The live expedition summary should show healing per member.** Today a member row can read
-  a loss next to full health — "-4" beside "6/6 HP" — which looks like a bug because nothing
-  reconciles the two numbers. It is not a bug: `_replay_member_hp`
-  (`app/routes/expeditions.py:1046`) applies attack damage, then revivals, then
-  `healed_adventurers`, so the *final* HP is right; the damage figure and the HP bar are simply
-  computed from different halves of the story with the healing invisible between them.
-  Surfacing, not new mechanics: the replay already consumes per-member healing and revivals and
-  just folds them into one number instead of returning them. Have it return per-member healing
-  and revival totals, and render them on the member row
-  (`ExpeditionSummaryView.vue:246`, `ExpeditionEventModal.vue`) so the arithmetic reads: took
-  4, healed 4, ended 6/6. Pairs naturally with the in-round healing display above
-- **The round log should replay one ordered event list.** The sim records a round as separate
-  buckets — `attacks`, `spell_casts`, `cleric_turns` — and builds `revivals` and
-  `healed_adventurers` *after* the round loop with no round number at all. The renderer
-  (`ExpeditionLogTree.vue:185-208`) emits those buckets in a fixed order, so the log's
-  chronology is a reconstruction, and it is wrong in three known ways:
-  · on a **monsters-first** round the spell renders *before* the monster attacks that actually
-  preceded it (observed 2026-09-09: "Round 1 (monsters first)" listing Sleep above sixteen Ogre
-  attacks) · **Cleric turn undead** renders after the spell, but resolves before everything,
-  since it happens regardless of initiative · **heals and revivals** hang off the end of the
-  combat rather than appearing where they occurred.
-  **The simulation is correct in every one of these — only the log misrepresents it.**
-  Fix: have `resolve_combat_rounds` append to a single ordered `events` list per round and have
-  the renderer play it back, with post-combat recovery tagged to the round it belongs to. That
-  closes all three at once and stops the next addition from creating a fourth. It also removes
-  the renderer's need to infer which side an attack came from by looking the attacker's name up
-  in `pcNames` (`ExpeditionLogTree.vue:57`).
 
 - **A routed party should not collect the treasure.** `determine_room_contents()`
   (`app/expedition.py:629`) returns `[MONSTER, TREASURE]` for two-thirds of monster rooms, and
@@ -508,8 +527,6 @@ shows it matters.
   Today the outcome `"Party Fled"` is set and **nothing anywhere reads it** — no event, no
   notification, no branch. With morale at 7 this will now happen often, so it needs to be
   visible or the player will not understand why a delve went badly.
-- **Armor should reduce damage or raise Armor Class**, not add temporary hit points. Balance
-  change, deferred so the cohort's death data lands first. See the armor item in v0.9.1.
 
 - **The in-process simulator never forgets a launch.** `app/routes/expeditions.py:40` holds one
   `DungeonSimulator` for the life of the process, and every launch appends a party list and an
