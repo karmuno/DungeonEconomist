@@ -57,13 +57,21 @@ async function fetchStats() {
 // 'refresh-dashboard' once the day's event popup is on screen, so state
 // never updates ahead of its event being shown.
 watch(() => gameTime.expeditionVersion, fetchStats)
+
+function onDashboardData(data: DashboardStats) {
+  stats.value = data
+  loading.value = false
+}
+
 onMounted(() => {
   fetchStats()
   eventBus.on('refresh-dashboard', fetchStats)
+  eventBus.on('dashboard-data', onDashboardData)
 })
 
 onUnmounted(() => {
   eventBus.off('refresh-dashboard', fetchStats)
+  eventBus.off('dashboard-data', onDashboardData)
 })
 
 function progressPct(exp: DashboardStats['active_expeditions'][0]): number {
@@ -134,6 +142,8 @@ let dragSource = ''
 let dragAdvId = 0
 let dragAdvName = ''
 
+type AdvEntry = DashboardStats['unassigned_adventurers'][number]
+
 function onDragStart(e: DragEvent, advId: number, advName: string, source: string) {
   dragAdvId = advId
   dragAdvName = advName
@@ -142,16 +152,45 @@ function onDragStart(e: DragEvent, advId: number, advName: string, source: strin
   e.dataTransfer?.setData('text/plain', String(advId))
 }
 
-// Helper: remove adventurer from their current source
-async function removeFromSource() {
-  if (dragSource.startsWith('party:')) {
-    const partyId = Number(dragSource.split(':')[1])
-    await partiesApi.removeMember({ party_id: partyId, adventurer_id: dragAdvId })
-  } else if (dragSource.startsWith('building:')) {
-    const buildingId = Number(dragSource.split(':')[1])
-    await buildingsApi.unassign(buildingId, dragAdvId)
+function findAndSpliceAdventurer(advId: number, source: string): AdvEntry | null {
+  if (!stats.value) return null
+  if (source === 'unassigned') {
+    const idx = stats.value.unassigned_adventurers.findIndex(a => a.id === advId)
+    if (idx === -1) return null
+    return stats.value.unassigned_adventurers.splice(idx, 1)[0]
   }
-  // "unassigned" — nothing to remove from
+  if (source.startsWith('party:')) {
+    const partyId = Number(source.split(':')[1])
+    const party = stats.value.parties.find(p => p.id === partyId)
+    if (!party) return null
+    const idx = party.members.findIndex(m => m.id === advId)
+    if (idx === -1) return null
+    const adv = party.members.splice(idx, 1)[0]
+    party.member_count = party.members.length
+    return adv
+  }
+  if (source.startsWith('building:')) {
+    const buildingId = Number(source.split(':')[1])
+    const building = stats.value.buildings.find(b => b.id === buildingId)
+    if (!building) return null
+    const idx = building.assigned_adventurers.findIndex(a => a.id === advId)
+    if (idx === -1) return null
+    const adv = building.assigned_adventurers.splice(idx, 1)[0]
+    building.assigned_count = building.assigned_adventurers.length
+    return adv
+  }
+  return null
+}
+
+function removeSourceApi(source: string, advId: number): Promise<unknown> | undefined {
+  if (source.startsWith('party:')) {
+    const partyId = Number(source.split(':')[1])
+    return partiesApi.removeMember({ party_id: partyId, adventurer_id: advId })
+  }
+  if (source.startsWith('building:')) {
+    const buildingId = Number(source.split(':')[1])
+    return buildingsApi.unassign(buildingId, advId)
+  }
 }
 
 // Drop on party
@@ -164,15 +203,24 @@ function onPartyDragLeave() { dragOverPartyId.value = null }
 async function onPartyDrop(e: DragEvent, partyId: number) {
   e.preventDefault()
   dragOverPartyId.value = null
-  if (!dragAdvId) return
-  const party = stats.value?.parties.find(p => p.id === partyId)
+  if (!dragAdvId || !stats.value) return
+  const party = stats.value.parties.find(p => p.id === partyId)
+  if (!party) return
+  const adv = findAndSpliceAdventurer(dragAdvId, dragSource)
+  if (!adv) return
+  party.members.push(adv)
+  party.member_count = party.members.length
+  notifications.add(`${dragAdvName} joined ${party.name}`, 'success')
   try {
-    await removeFromSource()
-    await partiesApi.addMember({ party_id: partyId, adventurer_id: dragAdvId })
-    notifications.add(`${dragAdvName} joined ${party?.name ?? 'party'}`, 'success')
-    await fetchStats()
+    const calls: Promise<unknown>[] = []
+    const rm = removeSourceApi(dragSource, dragAdvId)
+    if (rm) calls.push(rm)
+    calls.push(partiesApi.addMember({ party_id: partyId, adventurer_id: dragAdvId }))
+    await Promise.all(calls)
+    fetchStats()
   } catch (err: any) {
     notifications.add(err?.data?.detail ?? 'Failed to add to party', 'error')
+    await fetchStats()
   }
 }
 
@@ -186,14 +234,22 @@ function onBuildingDragLeave() { dragOverBuilding.value = null }
 async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'][0]) {
   e.preventDefault()
   dragOverBuilding.value = null
-  if (!building.id || !dragAdvId) return
+  if (!building.id || !dragAdvId || !stats.value) return
+  const adv = findAndSpliceAdventurer(dragAdvId, dragSource)
+  if (!adv) return
+  building.assigned_adventurers.push(adv)
+  building.assigned_count = building.assigned_adventurers.length
+  notifications.add(`${dragAdvName} assigned to ${building.name}`, 'success')
   try {
-    await removeFromSource()
-    await buildingsApi.assign(building.id, dragAdvId)
-    notifications.add(`${dragAdvName} assigned to ${building.name}`, 'success')
-    await fetchStats()
+    const calls: Promise<unknown>[] = []
+    const rm = removeSourceApi(dragSource, dragAdvId)
+    if (rm) calls.push(rm)
+    calls.push(buildingsApi.assign(building.id, dragAdvId))
+    await Promise.all(calls)
+    fetchStats()
   } catch (err: any) {
     notifications.add(err?.data?.detail ?? 'Failed to assign', 'error')
+    await fetchStats()
   }
 }
 
@@ -209,34 +265,48 @@ function onUnassignedDragLeave() { dragOverUnassigned.value = false }
 async function onUnassignedDrop(e: DragEvent) {
   e.preventDefault()
   dragOverUnassigned.value = false
-  if (!dragAdvId || dragSource === 'unassigned') return
+  if (!dragAdvId || dragSource === 'unassigned' || !stats.value) return
+  const adv = findAndSpliceAdventurer(dragAdvId, dragSource)
+  if (!adv) return
+  stats.value.unassigned_adventurers.push(adv)
+  notifications.add(`${dragAdvName} returned to tavern`, 'info')
   try {
-    await removeFromSource()
-    notifications.add(`${dragAdvName} returned to tavern`, 'info')
-    await fetchStats()
+    await removeSourceApi(dragSource, dragAdvId)
+    fetchStats()
   } catch (err: any) {
     notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
+    await fetchStats()
   }
 }
 
 // Direct unassign buttons
 async function removeFromParty(partyId: number, advId: number, advName: string) {
+  if (stats.value) {
+    const adv = findAndSpliceAdventurer(advId, `party:${partyId}`)
+    if (adv) stats.value.unassigned_adventurers.push(adv)
+  }
+  notifications.add(`${advName} removed from party`, 'info')
   try {
     await partiesApi.removeMember({ party_id: partyId, adventurer_id: advId })
-    notifications.add(`${advName} removed from party`, 'info')
-    await fetchStats()
+    fetchStats()
   } catch (err: any) {
     notifications.add(err?.data?.detail ?? 'Failed to remove', 'error')
+    await fetchStats()
   }
 }
 
 async function unassignFromBuilding(buildingId: number, advId: number, advName: string) {
+  if (stats.value) {
+    const adv = findAndSpliceAdventurer(advId, `building:${buildingId}`)
+    if (adv) stats.value.unassigned_adventurers.push(adv)
+  }
+  notifications.add(`${advName} returned to tavern`, 'info')
   try {
     await buildingsApi.unassign(buildingId, advId)
-    notifications.add(`${advName} returned to tavern`, 'info')
-    await fetchStats()
+    fetchStats()
   } catch (err: any) {
     notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
+    await fetchStats()
   }
 }
 

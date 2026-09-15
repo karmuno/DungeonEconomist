@@ -18,6 +18,7 @@ import type { UpkeepDayData } from '../../types/upkeep'
 import type { AdventurerRef } from '../../types'
 import { linkAdventurerNames } from '../../utils/adventurer'
 import * as expeditionsApi from '../../api/expeditions'
+import { getDashboardStats } from '../../api/game'
 import eventBus from '../../eventBus'
 
 const router = useRouter()
@@ -320,9 +321,14 @@ const skipping = ref(false)
 async function advanceDay() {
   try {
     const result = await gameTime.advanceDay()
-    // Popups open in the same tick as the response — no awaits before them,
-    // so nothing can render post-advance state ahead of the event popup
     notifications.onDayAdvanced(result.current_day)
+
+    // Pre-fetch dashboard stats so the roster is up-to-date before
+    // notifications appear (prevents "recruit arrived" showing before
+    // the tavern list updates)
+    const newStats = await getDashboardStats()
+    eventBus.emit('dashboard-data', newStats)
+
     processEvents(result.events)
     pendingRefresh.value = true
     maybeFlushRefresh()
@@ -341,6 +347,10 @@ async function skipToEvent() {
   try {
     const result = await gameTime.skipToEvent()
     notifications.onDayAdvanced(result.current_day)
+
+    const newStats = await getDashboardStats()
+    eventBus.emit('dashboard-data', newStats)
+
     processEvents(result.events)
     pendingRefresh.value = true
     maybeFlushRefresh()
