@@ -678,8 +678,12 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .grid-village { grid-column: 1; grid-row: 2; }
 .grid-parties { grid-column: 2; grid-row: 1 / span 2; }
 /* Below this the two columns cannot each hold a full adventurer row: one column,
-   cards in DOM order */
-@media (max-width: 1280px) {
+   cards in DOM order. The number is ~300px above the width the grid actually gets,
+   because the sidebar takes that much and a media query cannot see it: at a 1180px
+   viewport the grid has ~870px and each column ~430px, which leaves the name track
+   98px — two lines for the longest names. Below that the name goes to three lines
+   (84px at 1152, 59px at 1100), which is when the row stops reading as a row. */
+@media (max-width: 1180px) {
   .parties-unassigned-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   .grid-unassigned, .grid-village, .grid-parties { grid-column: auto; grid-row: auto; }
 }
