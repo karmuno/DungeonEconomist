@@ -622,8 +622,8 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             "base_level": member.level,
             "weapon_bonus": weapon_bonus,  # OSE: a magic weapon is to-hit and damage, nothing else
             "hit_points": member.hp_max,
-            "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
-            "armor_buffer": armor_bonus,  # track buffer separately
+            "current_hp": member.hp_current,
+            "armor_reduction": armor_bonus,  # each hit taken does this much less damage
             "xp": member.xp,
             "building_to_hit_bonus": building_bonuses["to_hit_bonus"],
             "building_damage_bonus": building_bonuses["damage_bonus"],
@@ -753,8 +753,8 @@ def launch_expedition(
             "base_level": member.level,
             "weapon_bonus": weapon_bonus,  # OSE: a magic weapon is to-hit and damage, nothing else
             "hit_points": member.hp_max,
-            "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
-            "armor_buffer": armor_bonus,  # track buffer separately
+            "current_hp": member.hp_current,
+            "armor_reduction": armor_bonus,  # each hit taken does this much less damage
             "xp": member.xp,
             "building_to_hit_bonus": building_bonuses["to_hit_bonus"],
             "building_damage_bonus": building_bonuses["damage_bonus"],
@@ -1373,6 +1373,20 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         with contextlib.suppress(json.JSONDecodeError, TypeError):
             events_log.append(json.loads(node.log))
 
+    # Magic items this delve brought home, and who is carrying them
+    from app.models import MagicItem
+    found_items = [
+        {
+            "id": item.id,
+            "name": item.name,
+            "item_type": item.item_type,
+            "bonus": item.bonus or 0,
+            "holder_id": item.adventurer_id,
+            "holder_name": item.adventurer.name if item.adventurer else None,
+        }
+        for item in db.query(MagicItem).filter(MagicItem.found_expedition_id == expedition.id).order_by(MagicItem.id).all()
+    ]
+
     return {
         "expedition_id": expedition.id,
         "party_id": expedition.party_id,
@@ -1393,6 +1407,7 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "spells_left": sim.get("spells_left", 0),
         "heals_left": sim.get("heals_left", 0),
         "stairs_found": sim.get("stairs_found"),
+        "found_items": found_items,
     }
 
 

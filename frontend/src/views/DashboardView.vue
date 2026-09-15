@@ -241,14 +241,15 @@ async function unassignFromBuilding(buildingId: number, advId: number, advName: 
 }
 
 // Auto-delve / auto-decide toggle
-async function togglePartySetting(partyId: number, field: 'healed' | 'full' | 'auto_decide') {
+// One checkbox drives both auto-delve flags (kept separate in the backend)
+async function togglePartySetting(partyId: number, field: 'auto_delve' | 'auto_decide') {
   const party = stats.value?.parties.find(p => p.id === partyId)
   if (!party) return
-  const healed = field === 'healed' ? !party.auto_delve_healed : party.auto_delve_healed
-  const full = field === 'full' ? !party.auto_delve_full : party.auto_delve_full
+  const autoDelveOn = party.auto_delve_healed || party.auto_delve_full
+  const auto = field === 'auto_delve' ? !autoDelveOn : autoDelveOn
   const autoDecide = field === 'auto_decide' ? !party.auto_decide_events : party.auto_decide_events
   try {
-    await partiesApi.updateAutoDelve(partyId, healed, full, autoDecide, party.auto_delve_level)
+    await partiesApi.updateAutoDelve(partyId, auto, auto, autoDecide, party.auto_delve_level)
     await fetchStats()
   } catch {
     notifications.add('Failed to update settings', 'error')
@@ -413,14 +414,9 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 <button class="btn btn-sm btn-secondary" @click.stop="router.push(`/parties/${p.id}`)">Manage</button>
               </div>
               <div class="auto-delve-row">
-                <span class="auto-delve-label">Auto-Delve:</span>
-                <label class="checkbox-label" @click.stop>
-                  <input type="checkbox" :checked="p.auto_delve_healed" @change="togglePartySetting(p.id, 'healed')" />
-                  When Healed
-                </label>
-                <label class="checkbox-label" @click.stop>
-                  <input type="checkbox" :checked="p.auto_delve_full" @change="togglePartySetting(p.id, 'full')" />
-                  When Full
+                <label class="checkbox-label" title="Party will automatically start an expedition when it has 6 fully-healed members." @click.stop>
+                  <input type="checkbox" :checked="p.auto_delve_healed || p.auto_delve_full" @change="togglePartySetting(p.id, 'auto_delve')" />
+                  Auto-Delve
                 </label>
                 <select
                   class="form-select auto-level-select"

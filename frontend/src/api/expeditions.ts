@@ -28,6 +28,15 @@ export interface ExpeditionMemberResult {
   copper: number
 }
 
+export interface FoundItem {
+  id: number
+  name: string
+  item_type: string
+  bonus: number
+  holder_id: number | null
+  holder_name: string | null
+}
+
 export interface ExpeditionSummaryDetail {
   expedition_id: number
   party_id: number
@@ -41,6 +50,7 @@ export interface ExpeditionSummaryDetail {
   actual_return_day?: number | null
   member_results: ExpeditionMemberResult[]
   total_loot: number
+  found_items?: FoundItem[]
   total_silver: number
   total_copper: number
   total_xp: number

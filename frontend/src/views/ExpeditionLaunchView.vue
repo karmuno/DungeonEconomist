@@ -70,6 +70,25 @@ onMounted(async () => {
   loading.value = false
 })
 
+// The same control as on Parties and the Dashboard, pointed at the level on screen:
+// checking it turns auto-delve on for this level; unchecking clears the level.
+async function setAutoDelveHere(on: boolean) {
+  const p = selectedParty.value
+  if (!p) return
+  try {
+    await partiesApi.updateAutoDelve(
+      p.id,
+      on || p.auto_delve_healed,
+      on || p.auto_delve_full,
+      p.auto_decide_events,
+      on ? selectedLevel.value : null,
+    )
+    parties.value = await partiesApi.list()
+  } catch {
+    // the checkbox re-renders from the party as it stands
+  }
+}
+
 async function launchExpedition() {
   if (!selectedParty.value) return
   submitting.value = true
@@ -158,6 +177,14 @@ async function launchExpedition() {
           <div class="text-muted" style="font-size: 12px">
             Duration: {{ selectedLevelInfo.duration_days }} day{{ selectedLevelInfo.duration_days !== 1 ? 's' : '' }}
           </div>
+          <label v-if="selectedParty && selectedLevelInfo.unlocked" class="checkbox-label auto-here" title="Party will automatically start an expedition when it has 6 fully-healed members.">
+            <input
+              type="checkbox"
+              :checked="selectedParty.auto_delve_level === selectedLevel && (selectedParty.auto_delve_healed || selectedParty.auto_delve_full)"
+              @change="setAutoDelveHere(($event.target as HTMLInputElement).checked)"
+            />
+            Auto-delve to this level
+          </label>
         </div>
 
         <div class="mt-2 flex gap-1">
@@ -291,5 +318,13 @@ async function launchExpedition() {
 .selected-depth {
   font-weight: 700;
   color: var(--accent-green);
+}
+.auto-here {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  cursor: pointer;
 }
 </style>

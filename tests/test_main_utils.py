@@ -1302,3 +1302,33 @@ def test_a_fled_fight_pays_for_kills_only():
     assert combat_xp(wolves, monsters_killed=0, monsters_fled=0, party_fled=True) == 0
     assert combat_xp(wolves, monsters_killed=3, monsters_fled=2, party_fled=False) == 1000
     assert combat_xp([], 0, 0, False) == 0
+
+
+# --- armor is damage reduction; items describe themselves from data ---
+
+def test_armor_reduces_each_hit_to_a_floor_of_zero():
+    import random
+
+    from app.expedition import _do_attack
+    random.seed(1)
+    attacker = {"name": "Orc #1", "thac0": 19, "to_hit_bonus": 0, "damage_bonus": 0}
+    for armor, floor in ((0, 1), (1, 0), (6, 0)):
+        hits = 0
+        for _ in range(200):
+            target = {"name": "Vet", "ac": 9, "current_hp": 100, "armor_reduction": armor}
+            atk = _do_attack(attacker, target)
+            if atk["hit"]:
+                hits += 1
+                assert atk["damage"] >= floor
+                assert atk["damage"] == 100 - target["current_hp"]
+                if armor >= 6:
+                    assert atk["damage"] == 0
+        assert hits > 0
+
+
+def test_item_descriptions_come_from_data():
+    from app.magic_items import describe_item
+    assert describe_item("weapon", 2) == "+2 to-hit and +2 damage."
+    assert describe_item("armor", 1) == "Each hit taken does 1 less damage."
+    assert describe_item("potion", 1).endswith("One use.")
+    assert describe_item("mystery", 1) == ""

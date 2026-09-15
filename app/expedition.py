@@ -173,6 +173,8 @@ def _do_attack(attacker: dict, target: dict) -> dict:
     if hit:
         damage = random.randint(1, 6) + attacker.get("damage_bonus", 0)
         damage = max(1, damage)  # minimum 1 damage on a hit
+        # Magic armor and rings: each hit taken does that much less damage, to a floor of 0
+        damage = max(0, damage - target.get("armor_reduction", 0))
         target["current_hp"] -= damage
         if target["current_hp"] <= 0:
             target["current_hp"] = 0

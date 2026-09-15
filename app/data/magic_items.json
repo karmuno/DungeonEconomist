@@ -1,4 +1,12 @@
 {
+  "descriptions": {
+    "weapon": "+{bonus} to-hit and +{bonus} damage.",
+    "armor": "Each hit taken does {bonus} less damage.",
+    "ring": "Each hit taken does {bonus} less damage.",
+    "potion": "Drunk the moment its bearer falls: back up at 1 HP. One use.",
+    "scroll": "One extra spell cast that slays any monster. One use.",
+    "artifact": "Doubles spell casts per expedition."
+  },
   "prefixes": [
     "Gleaming", "Ancient", "Enchanted", "Blessed", "Shimmering",
     "Runed", "Eldritch", "Frostbound", "Flameforged", "Shadowforged",
