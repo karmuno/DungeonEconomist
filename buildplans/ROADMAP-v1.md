@@ -495,7 +495,8 @@ shows it matters.
 - Highlight which tab is home (row 14); "Form an Adventuring Party" copy (row 5)
 - Keep creation feedback beyond the header name (row 5)
 
-### v1.1 — queued 2026-09-09- **A morale check when the party is at half its total HP or less.** Today morale only fires
+### v1.1 — queued 2026-09-09
+- **A morale check when the party is at half its total HP or less.** Today morale only fires
   after a *death* (`party_deaths_in_round > 0`), so six adventurers at 1 HP each with nobody
   dead never check at all. An HP-threshold check lets a party leave before the first corpse,
   which is what actually prevents a wipe rather than mitigating one.
