@@ -12,7 +12,7 @@ the evidence those 10 people produce.
 | Previous release | **v0.8.1** (2026-03-26) |
 | In progress | **v0.9.1 — Safe to Invite** |
 | Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names; clickable party status |
-| Next up | The 2026-09-19/20 safety list (admin query, Postgres suite, restore drill, `[project]`/`uv.lock`, audits, rate limiting and CORS, deploy, playthrough, tag), then stretch Push 2 Expedition |
+| Next up | The 2026-09-19/20 safety list (admin query, Postgres suite, restore drill, `[project]`/`uv.lock`, audits, rate limiting and CORS, deploy, playthrough, tag). Stretch pushes 1 and 2 are done; Push 3 Polish remains |
 | Last code commit | 2026-09-15 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -346,37 +346,35 @@ onto buildings barely usable.
   (Cody, 2026-09-15): the status badge used to push capacity and average level around, and
   would have again at level 10
 
-**Push 2 — Expedition.** Second because both make the expedition views answer *what just
-happened?* truthfully.
+**Push 2 — Expedition — DONE 2026-09-15.** Second because both make the expedition views
+answer *what just happened?* truthfully.
 
-- [ ] **The live expedition summary should show healing per member.** Today a member row can read
-  a loss next to full health — "-4" beside "6/6 HP" — which looks like a bug because nothing
-  reconciles the two numbers. It is not a bug: `_replay_member_hp`
-  (`app/routes/expeditions.py:1046`) applies attack damage, then revivals, then
-  `healed_adventurers`, so the *final* HP is right; the damage figure and the HP bar are simply
-  computed from different halves of the story with the healing invisible between them.
-  Surfacing, not new mechanics: the replay already consumes per-member healing and revivals and
-  just folds them into one number instead of returning them. Have it return per-member healing
-  and revival totals, and render them on the member row
-  (`ExpeditionSummaryView.vue:246`, `ExpeditionEventModal.vue`) so the arithmetic reads: took
-  4, healed 4, ended 6/6. Pairs with the ordered round log below, which places each heal in
-  its round
-- [ ] **The round log should replay one ordered event list.** The sim records a round as separate
-  buckets — `attacks`, `spell_casts`, `cleric_turns` — and builds `revivals` and
-  `healed_adventurers` *after* the round loop with no round number at all. The renderer
-  (`ExpeditionLogTree.vue:185-208`) emits those buckets in a fixed order, so the log's
-  chronology is a reconstruction, and it is wrong in three known ways:
-  · on a **monsters-first** round the spell renders *before* the monster attacks that actually
-  preceded it (observed 2026-09-09: "Round 1 (monsters first)" listing Sleep above sixteen Ogre
-  attacks) · **Cleric turn undead** renders after the spell, but resolves before everything,
-  since it happens regardless of initiative · **heals and revivals** hang off the end of the
-  combat rather than appearing where they occurred.
-  **The simulation is correct in every one of these — only the log misrepresents it.**
-  Fix: have `resolve_combat_rounds` append to a single ordered `events` list per round and have
-  the renderer play it back, with post-combat recovery tagged to the round it belongs to. That
-  closes all three at once and stops the next addition from creating a fourth. It also removes
-  the renderer's need to infer which side an attack came from by looking the attacker's name up
-  in `pcNames` (`ExpeditionLogTree.vue:57`).
+- [x] **The live expedition summary shows healing per member** (2026-09-15). A member row
+  could read a loss next to full health — "-4" beside "6/6 HP" — which looks like a bug and
+  is not one: `_replay_member_hp` applied attack damage, then revivals, then
+  `healed_adventurers`, so the *final* HP was right and the damage figure was computed from
+  the other half of the story with the healing invisible between them. The replay is now
+  `_replay_members` and returns `damage_taken`, `hp_healed` and `revived` alongside the HP;
+  both summary builders put the three on every member row. The event modal's This Event
+  table tallies healing **received** in the current turn beside the damage taken in that
+  same turn, so the arithmetic closes: took 4, healed 4, ended 6/6. The So Far ledger keeps
+  crediting the healer. Found on the way: the completed summary replayed `party.members`,
+  but the dead are detached from their party at finalization, so every casualty came back
+  having taken no damage — it replays who actually went out instead
+- [x] **The round log replays one ordered event list** (2026-09-15). `resolve_combat_rounds`
+  appends to one `events` list per round as each thing resolves — `turn_undead`, `spell`,
+  `attacks` (tagged with the side that made them), `morale` — and post-combat recovery is
+  appended to the last round fought. The renderer plays that list back, which closed all
+  three known misreadings at once: the spell above the monster attacks that preceded it on a
+  monsters-first round, turn undead after the spell though it resolves before everything,
+  and heals and revivals hanging off the end of the combat. **The simulation was correct in
+  every one; only the log misrepresented it.** The renderer also no longer infers a side by
+  looking the attacker up in `pcNames`, so a monster named after an adventurer is not
+  mistaken for one. Verified in the browser on a fresh delve: round 2 (monsters first) now
+  lists six Wolf attacks above Sleep, where the same fight forced back into the old bucket
+  shape still lists Sleep first. Expeditions stored before this keep their buckets and still
+  render — `roundAttacks` / `roundSpellCasts` / `roundMoraleChecks` normalise either shape
+  for the ledger and the replay
 
 **Push 3 — Polish.** Third because it is just that.
 
