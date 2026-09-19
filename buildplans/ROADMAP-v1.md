@@ -345,8 +345,20 @@ this release rather than opening a fourth gate.
       out of scope with no planned fix, so this is accepted as unreachable rather than fixed).
       `npm audit` couldn't run: npmjs.org's audit endpoint was down for maintenance
       (503) at the time — worth a re-run once it's back
-- [ ] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production
-- [ ] 30-minute smoke in Chrome, Firefox, Safari
+- [x] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production (2026-09-19).
+      Checked against the live deployment directly rather than the code, since the question is
+      whether the env vars are actually set there: a CORS preflight from an untrusted origin
+      gets a flat `400 Disallowed CORS origin` with no `access-control-allow-origin` header,
+      while the same preflight from `https://venturekeep.stahlsystems.com` gets `200` with
+      `access-control-allow-origin` echoing that exact origin — confirms `CORS_ORIGINS` is set
+      to the real domain, not left at the `*` fallback. 12 rapid `POST /auth/login` requests
+      returned `401` for the first 10 and `429` for the 11th and 12th, matching
+      `auth_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)` exactly
+- [~] 30-minute smoke in Chrome, Firefox, Safari. Chrome done (2026-09-19), against the current
+      `qa` branch: login, Dashboard, Village, Tavern (roster, filters, Graveyard/Debtor's
+      Prison), Parties, Expeditions, an expedition summary, a linked character sheet, and
+      Advance Day — zero console errors, zero failed network requests. Firefox and Safari still
+      need a manual pass; nothing here drives those engines
 
 ### The two links that are the point
 - [x] In-game feedback form per `buildplans/feedback-form-spec.md` and the
