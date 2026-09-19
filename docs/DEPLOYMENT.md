@@ -426,6 +426,18 @@ gunzip -c ~/venturekeep-data/backups/venturekeep-20260326.sql.gz | \
   docker exec -i venturekeep-db psql -U venturekeep venturekeep
 ```
 
+If a restore lands on a database that already has tables (rather than a fresh instance), drop
+the schema first so `psql` isn't recreating objects that already exist:
+
+```bash
+docker exec venturekeep-db psql -U venturekeep venturekeep -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+```
+
+**Drilled 2026-09-19** against a local `docker compose up db`: seeded one account and one keep,
+`pg_dump | gzip` to a file exactly as above, dropped the schema to simulate total loss, restored
+from the gzipped dump, and confirmed the account and the keep's treasury both came back exactly
+as seeded. Both commands above work as written.
+
 ---
 
 ## Troubleshooting
