@@ -288,8 +288,14 @@ this release rather than opening a fourth gate.
       what killed them or how outmatched they were answers none of the questions the decision
       gate asks. Capture it on the wipe event, not by reconstruction afterwards — levels and
       party membership change once the dust settles
-- [ ] One admin query or console command that answers: did they enter the core loop, where
-      did they leave, did they return, did they reach a death or a level-up
+- [x] One admin query or console command that answers: did they enter the core loop, where
+      did they leave, did they return, did they reach a death or a level-up. `scripts/gate_queries.py`
+      (2026-09-19): reads whatever `DATABASE_URL` points at, prints a per-account summary
+      (first `expedition_started`, completed-expedition and return counts, first death/level-up,
+      wipe count), a last-event-per-account "where did they leave" report, every TPK in full, and
+      `--username` for one account's whole timeline. Aggregated in Python over one pass of
+      `player_events` rather than dialect-specific SQL, so it runs unchanged against SQLite or
+      Postgres. Verified against the live dev database (13 accounts, one active cohort member)
 
 ### Don't lose their worlds
 - [ ] Run the existing test suite against Postgres: make the test engine read `DATABASE_URL`
