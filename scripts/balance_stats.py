@@ -134,6 +134,40 @@ def delving(session) -> None:
         print(f"    {str(result):<16} {int(n)}")
 
 
+def deaths_by_depth(session) -> None:
+    """Where deaths actually happen, by dungeon depth rather than character level.
+
+    Also reports the average level of the dead at each depth. A living adventurer's level
+    keeps changing after any given delve, so it cannot say what level they were on a past
+    expedition; the dead are the only population whose level is frozen at the moment it
+    happened, so this is restricted to them rather than quietly averaging in a survivor's
+    current (and possibly much later, much higher) level. It answers "how leveled is whoever
+    actually dies here", not "how leveled is the party sent to this depth" — the latter would
+    need level reconstructed from adventurer_levelled events, not the adventurers table.
+    """
+    delvers = dict(q(session, "SELECT e.dungeon_level, COUNT(*) FROM expedition_logs l "
+                              "JOIN expeditions e ON e.id = l.expedition_id "
+                              "JOIN parties p ON p.id = e.party_id "
+                              f"{where(keep_col='p.keep_id')} GROUP BY e.dungeon_level"))
+    dead_clause = where("l.status = 'dead'", keep_col='p.keep_id')
+    deaths = dict(q(session, "SELECT e.dungeon_level, COUNT(*) FROM expedition_logs l "
+                             "JOIN expeditions e ON e.id = l.expedition_id "
+                             "JOIN parties p ON p.id = e.party_id "
+                             f"{dead_clause} GROUP BY e.dungeon_level"))
+    avg_death_level = dict(q(session, "SELECT e.dungeon_level, AVG(a.level) FROM expedition_logs l "
+                                      "JOIN expeditions e ON e.id = l.expedition_id "
+                                      "JOIN parties p ON p.id = e.party_id "
+                                      "JOIN adventurers a ON a.id = l.adventurer_id "
+                                      f"{dead_clause} GROUP BY e.dungeon_level"))
+    print("\n== Deaths by dungeon depth ==")
+    print("  depth   delvers   deaths   lethality   avg level of the dead")
+    for depth in sorted(delvers):
+        n_delvers = int(delvers[depth])
+        n_deaths = int(deaths.get(depth, 0))
+        level = f"{float(avg_death_level[depth]):.1f}" if depth in avg_death_level else "-"
+        print(f"    {str(depth):<5} {n_delvers:7d}   {n_deaths:5d}   {pct(n_deaths, n_delvers):6.1f}%   {level:>12}")
+
+
 def gear(session) -> None:
     """Whether the dying carry anything, which decides if item changes can help them."""
     print("\n== Gear ==")
@@ -196,6 +230,7 @@ def main() -> None:
         survival(session)
         progression(session)
         delving(session)
+        deaths_by_depth(session)
         gear(session)
         morale()
     finally:
