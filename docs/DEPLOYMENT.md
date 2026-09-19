@@ -434,8 +434,7 @@ docker exec venturekeep-db psql -U venturekeep venturekeep -c "DROP SCHEMA publi
 ```
 
 Practice this at least once before relying on it: seed a throwaway keep, take a backup, drop
-the schema to simulate total loss, restore, and confirm the data came back exact. A restore
-step nobody has ever run is a guess, not a plan.
+the schema to simulate total loss, restore, and confirm the data came back exact.
 
 ---
 
