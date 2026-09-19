@@ -433,10 +433,9 @@ the schema first so `psql` isn't recreating objects that already exist:
 docker exec venturekeep-db psql -U venturekeep venturekeep -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 ```
 
-**Drilled 2026-09-19** against a local `docker compose up db`: seeded one account and one keep,
-`pg_dump | gzip` to a file exactly as above, dropped the schema to simulate total loss, restored
-from the gzipped dump, and confirmed the account and the keep's treasury both came back exactly
-as seeded. Both commands above work as written.
+Practice this at least once before relying on it: seed a throwaway keep, take a backup, drop
+the schema to simulate total loss, restore, and confirm the data came back exact. A restore
+step nobody has ever run is a guess, not a plan.
 
 ---
 
