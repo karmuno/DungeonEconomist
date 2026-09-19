@@ -1,4 +1,5 @@
 import math
+import os
 from datetime import datetime
 
 import pytest
@@ -10,12 +11,16 @@ from app.auth import create_access_token, hash_password
 from app.database import get_db
 from app.main import app
 from app.models import Account, Adventurer, AdventurerClass, Base, Expedition, Keep, Party
+from app.player_events import seed_event_types
 
-# Use an in-memory SQLite database for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_db.sqlite"
+# Defaults to a local SQLite file; set DATABASE_URL to run the same suite against Postgres
+# (e.g. `docker compose up db`), matching how the app itself picks a database.
+SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./test_db.sqlite")
+_is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -33,6 +38,10 @@ app.dependency_overrides[get_db] = override_get_db
 def db_session():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
+    # The migration seeds event_types in production; create_all only makes the table.
+    # SQLite doesn't enforce the FK so this was silently unneeded there — Postgres does.
+    seed_event_types(db)
+    db.commit()
     try:
         yield db
     finally:

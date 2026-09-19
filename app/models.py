@@ -172,7 +172,14 @@ class Party(Base):
     name = Column(String, default='New Party')
     created_at = Column(DateTime)
     on_expedition = Column(Boolean, default=False)
-    current_expedition_id = Column(Integer, ForeignKey('expeditions.id', ondelete='SET NULL'), nullable=True)
+    # use_alter: parties <-> expeditions is a two-way FK cycle (expeditions.party_id back). Inline
+    # DDL can't create either table first; ALTER-ing this one in after both exist lets
+    # Base.metadata.create_all/drop_all (app startup, tests) order it, on any backend.
+    current_expedition_id = Column(
+        Integer,
+        ForeignKey('expeditions.id', ondelete='SET NULL', use_alter=True, name='fk_parties_current_expedition_id'),
+        nullable=True,
+    )
     keep_id = Column(Integer, ForeignKey('keeps.id'), nullable=False)
     auto_delve_healed = Column(Boolean, default=False, nullable=False)
     auto_delve_full = Column(Boolean, default=False, nullable=False)

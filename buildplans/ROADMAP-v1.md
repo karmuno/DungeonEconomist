@@ -298,11 +298,28 @@ this release rather than opening a fourth gate.
       Postgres. Verified against the live dev database (13 accounts, one active cohort member)
 
 ### Don't lose their worlds
-- [ ] Run the existing test suite against Postgres: make the test engine read `DATABASE_URL`
-      and run once against `docker compose up db`. No new tests. (Integration tests against
-      the production engine are a v1 blocker; this is their smallest honest scope)
+- [x] Run the existing test suite against Postgres (2026-09-19): `tests/test_main_utils.py` now
+      reads `DATABASE_URL`, falling back to the SQLite file exactly as the app does. Ran once
+      against `docker compose up db` and found two real gaps SQLite's laxity had been hiding,
+      both fixed rather than worked around:
+      **(1)** `parties.current_expedition_id` and `expeditions.party_id` form a two-way FK
+      cycle. The initial migration already breaks it with a deferred, named
+      `ALTER TABLE ... ADD CONSTRAINT fk_parties_current_expedition_id`, but the SQLAlchemy
+      model never matched that with `use_alter=True` — harmless for migrated databases, but
+      `Base.metadata.drop_all()` (the test fixture's teardown, on any backend) can't sort the
+      cycle without it, and errors on Postgres where SQLite just warns and moves on. Fixed in
+      `app/models.py`, naming the constraint identically to the migration so nothing drifts.
+      **(2)** Every `player_events` insert carries an `event_type_id` FK to `event_types`, seeded
+      by the production migration but never by `Base.metadata.create_all()`. SQLite doesn't
+      enforce the FK, so tests never needed the seed; Postgres does, and the entire
+      player-events test surface failed until the fixture called the existing
+      `seed_event_types()` helper (`app/player_events.py`, written for exactly this and never
+      wired in). With both fixed, all 108 tests pass identically against SQLite and Postgres.
+      No new tests, per scope
 - [x] Nightly `pg_dump` cron with 30-day retention (`docs/DEPLOYMENT.md`)
-- [ ] Restore from a backup once, on purpose. Write the steps into `docs/DEPLOYMENT.md`
+- [x] Restore from a backup once, on purpose (2026-09-19): drilled against local
+      `docker compose up db` — seed, `pg_dump | gzip`, drop the schema to simulate total loss,
+      restore, confirm the data came back exact. Steps in `docs/DEPLOYMENT.md`
 
 ### Don't get owned on day one
 - [ ] Move Python deps to a `[project]` table in `pyproject.toml` with a real `uv.lock`
