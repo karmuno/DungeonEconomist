@@ -21,9 +21,9 @@ Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired 
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - Node.js 18+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- [uv](https://docs.astral.sh/uv/)
 
 ### Installation
 
@@ -31,9 +31,8 @@ Built with **FastAPI**, **SQLAlchemy**, **Vue 3**, and **TypeScript**. Inspired 
 git clone https://github.com/karmuno/DungeonEconomist.git
 cd DungeonEconomist
 
-# Backend: create virtual environment and install dependencies
-uv venv
-uv pip install -r requirements.txt
+# Backend: create the virtual environment and install locked dependencies
+uv sync
 
 # Frontend: install dependencies
 cd frontend

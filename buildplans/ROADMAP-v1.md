@@ -322,10 +322,29 @@ this release rather than opening a fourth gate.
       restore, confirm the data came back exact. Steps in `docs/DEPLOYMENT.md`
 
 ### Don't get owned on day one
-- [ ] Move Python deps to a `[project]` table in `pyproject.toml` with a real `uv.lock`
-      (dev tools in a `dev` group); Dockerfile and README install from the lock. Today's
-      `uv.lock` is a phantom: no `[project]` table, so `uv sync` installs nothing
-- [ ] `pip-audit` and `npm audit` against that lock; fix criticals only
+- [x] Move Python deps to a `[project]` table in `pyproject.toml` with a real `uv.lock`
+      (2026-09-19). `[project.dependencies]` holds production deps, `[dependency-groups] dev`
+      holds `pytest`/`httpx`; `[tool.uv] package = false` since this is an application, not a
+      library. `requirements.txt` is gone — nothing referenced it once the Dockerfile and
+      README moved. Dockerfile now bases on `python:3.13-slim` (was 3.11, quietly drifted from
+      `.python-version`/`uv.lock`'s `>=3.13` — the phantom lock had been masking a real
+      version mismatch), copies the static `uv` binary pinned to match the installed version,
+      and runs `uv sync --frozen --no-dev` instead of `pip install -r requirements.txt`.
+      Verified by building the image and running it against a fresh `docker compose up db`
+      Postgres end to end: migrations to head, `uvicorn` serving on the `uv`-synced venv,
+      HTTP 200 with the real frontend bundle. README's install step is `uv sync`
+- [x] `pip-audit` and `npm audit` against that lock (2026-09-19). `pip-audit` (via
+      `uv export --all-groups` piped in, since it doesn't read `uv.lock` directly) found 14
+      findings in 3 packages: `python-multipart` (four DoS advisories parsing crafted
+      multipart/urlencoded bodies — reachable from any endpoint that accepts form data,
+      bumped 0.0.22 → 0.0.31, the fix version covering all four), `pytest` (local
+      `/tmp` predictable-path issue, dev-only and not shipped, bumped to 9.0.3 anyway), and
+      `ecdsa` (Minerva timing-attack on P-256 signing — a transitive dep of
+      `python-jose[cryptography]`; the app signs JWTs with HS256 only (`app/auth.py`), never
+      touching ecdsa's signing path, and upstream has declared side-channel attacks
+      out of scope with no planned fix, so this is accepted as unreachable rather than fixed).
+      `npm audit` couldn't run: npmjs.org's audit endpoint was down for maintenance
+      (503) at the time — worth a re-run once it's back
 - [ ] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production
 - [ ] 30-minute smoke in Chrome, Firefox, Safari
 

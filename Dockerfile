@@ -17,12 +17,17 @@ COPY --from=version-info /version.txt /tmp/version.txt
 RUN APP_VERSION=$(cat /tmp/version.txt) npm run build
 
 # -- Production image --
-FROM python:3.11-slim
+FROM python:3.13-slim
 WORKDIR /app
 
-# Install Python dependencies (no dev/test deps needed)
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Static uv binary, pinned to match the version this repo's uv.lock was generated with
+COPY --from=ghcr.io/astral-sh/uv:0.9.10 /uv /usr/local/bin/uv
+
+# Install from the lock, production group only (no pytest/httpx)
+ENV UV_PYTHON_DOWNLOADS=never
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy backend code and data
 COPY app/ ./app/
