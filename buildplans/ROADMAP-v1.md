@@ -4,16 +4,16 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-09-15**
+**Status as of 2026-09-30**
 
 | | |
 | :--- | :--- |
-| Released (tagged on `rc`, merged to `main`, deployed to demo) | **v0.9 — The Polish Release** (2026-09-07) |
-| Previous release | **v0.8.1** (2026-03-26) |
-| In progress | **v0.9.1 — Safe to Invite** |
-| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names; clickable party status |
-| Next up | The 2026-09-19/20 safety list (admin query, Postgres suite, restore drill, `[project]`/`uv.lock`, audits, rate limiting and CORS, deploy, playthrough, tag). Stretch pushes 1 and 2 are done; Push 3 Polish remains |
-| Last code commit | 2026-09-15 |
+| Latest release (tagged on `rc`) | **v0.9.1 — Safe to Invite** (2026-09-30). Not yet merged to `main` or deployed |
+| Deployed to demo | **v0.9 — The Polish Release** (2026-09-07) |
+| In progress | **v1.0 — Let Them Delve** (not started) |
+| Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits clean; CORS and rate limiting confirmed in production |
+| Next up | Deploy v0.9.1 and merge `rc` into `main`; Firefox and Safari smoke; one playthrough on the deployed build; the invites |
+| Last code commit | 2026-09-19 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
 
@@ -91,7 +91,7 @@ Party → Expedition → Heal → Repeat → Upkeep → Build) and tag.
 
 ---
 
-## v0.9.1 — Safe to Invite — IN PROGRESS
+## v0.9.1 — Safe to Invite — TAGGED 2026-09-30 (`v0.9.1` on `rc`), not yet deployed
 
 Goal: *I can intentionally invite 10 strangers without fearing that their arrival destroys
 the game or their progress, and I can see what they did.*
@@ -434,7 +434,7 @@ answer *what just happened?* truthfully.
   render — `roundAttacks` / `roundSpellCasts` / `roundMoraleChecks` normalise either shape
   for the ledger and the replay
 
-**Push 3 — Polish.** Third because it is just that.
+**Push 3 — Polish.** Not in v0.9.1; both items wait for the decision gate.
 
 - [ ] **Monsters need a plural form and an article.** Singular combat reads "Your party fought
   Goblin."; it should read "a Goblin" / "an Ogre". Plurals are already handled, badly, by a
@@ -465,8 +465,8 @@ answer *what just happened?* truthfully.
 `venturekeep.stahlsystems.com` is fine for 10 invited people. Decide the name in an hour on a
 weeknight; move the domain after the cohort if there is still a reason to.
 
-**In parallel, weekday hours, not code:** the announcement and the list of 10 people. If the
-invite list is not ready when v0.9.1 tags, the roadmap did not matter.
+**In parallel, weekday hours, not code:** the announcement and the list of 10 people, ready by
+the time v0.9.1 deploys.
 
 ---
 
