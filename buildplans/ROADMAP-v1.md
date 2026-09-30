@@ -343,8 +343,12 @@ this release rather than opening a fourth gate.
       `python-jose[cryptography]`; the app signs JWTs with HS256 only (`app/auth.py`), never
       touching ecdsa's signing path, and upstream has declared side-channel attacks
       out of scope with no planned fix, so this is accepted as unreachable rather than fixed).
-      `npm audit` couldn't run: npmjs.org's audit endpoint was down for maintenance
-      (503) at the time — worth a re-run once it's back
+      `npm audit` (2026-09-30) found 7 in the frontend lock, 5 high, all in build tooling
+      rather than the shipped bundle: `vite` (Windows `server.fs.deny` bypass, `launch-editor`
+      NTLM hash disclosure), `postcss` (unescaped `</style>` in stringify output, source-map
+      file reads), `postcss-selector-parser`, `picomatch`, `brace-expansion`, `nanoid` and
+      `@humanfs/node`. `npm audit fix` clears all seven inside the existing ranges (vite 6.4.3,
+      postcss 8.5.28); `vue-tsc` and the production build pass on the new lock
 - [x] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production (2026-09-19).
       Checked against the live deployment directly rather than the code, since the question is
       whether the env vars are actually set there: a CORS preflight from an untrusted origin
