@@ -1039,6 +1039,13 @@ def get_expedition_results(
                         "next_level": member.level + 1
                     })
 
+        # A run is simulated to its end at launch, so until it is home its recorded
+        # totals are still ahead of it. It has no node rows yet either.
+        if db_expedition.result == "completed":
+            totals = _recorded_totals(db_expedition, node_results)
+        else:
+            totals = {"gold": 0, "silver": 0, "copper": 0, "xp": 0}
+
         result = {
             "expedition_id": expedition_id,
             "party_id": db_expedition.party_id,
@@ -1050,12 +1057,12 @@ def get_expedition_results(
             "duration_days": db_expedition.duration_days,
             "return_day": db_expedition.return_day,
             "actual_return_day": (db_expedition.simulation_data or {}).get("actual_return_day"),
-            "treasure_total": sum(node.loot for node in node_results),
-            "treasure_silver": 0,
-            "treasure_copper": 0,
+            "treasure_total": totals["gold"],
+            "treasure_silver": totals["silver"],
+            "treasure_copper": totals["copper"],
             "special_items": [],
-            "xp_earned": sum(node.xp_earned for node in node_results),
-            "xp_per_party_member": sum(node.xp_earned for node in node_results) / max(1, len(party.members)) if party else 0,
+            "xp_earned": totals["xp"],
+            "xp_per_party_member": totals["xp"] / max(1, len(party.members)) if party else 0,
             "resources_used": {"hp_lost": 0},
             "dead_members": [log_entry.adventurer.name for log_entry in expedition_logs if log_entry.status == "dead"],
             "party_status": party_status,
