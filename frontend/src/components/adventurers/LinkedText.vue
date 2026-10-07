@@ -21,20 +21,20 @@ const segments = computed(() => linkAdventurerNames(props.text, props.refs))
 <template>
   <span><template v-for="(seg, i) in segments" :key="i"><span
     v-if="seg.advId"
-    class="adv-link"
+    class="sheet-link"
     @click.stop="emit('open', seg.advId)"
   >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></span>
 </template>
 
 <style scoped>
-.adv-link {
+.sheet-link {
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: #374151;
   text-underline-offset: 2px;
 }
 
-.adv-link:hover {
+.sheet-link:hover {
   color: #4ade80;
   text-decoration-color: #4ade80;
 }

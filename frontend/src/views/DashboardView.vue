@@ -467,7 +467,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
           <div
             v-for="a in stats.unassigned_adventurers"
             :key="a.id"
-            class="unassigned-row adv-grid draggable"
+            class="unassigned-row roster-grid draggable"
             draggable="true"
             @dragstart="onDragStart($event, a.id, a.name, 'unassigned')"
             @click.stop="openDetail(a.id)"
@@ -520,7 +520,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
               <div
                 v-for="m in p.members"
                 :key="m.id"
-                class="party-member-row adv-grid draggable"
+                class="party-member-row roster-grid draggable"
                 draggable="true"
                 @dragstart="onDragStart($event, m.id, m.name, `party:${p.id}`)"
                 @click.stop="openDetail(m.id)"
@@ -612,7 +612,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 <div
                   v-for="a in b.assigned_adventurers"
                   :key="a.id"
-                  class="building-assigned-row adv-grid draggable"
+                  class="building-assigned-row roster-grid draggable"
                   draggable="true"
                   @dragstart="onDragStart($event, a.id, a.name, `building:${b.id}`)"
                   @click.stop="openDetail(a.id)"
@@ -693,7 +693,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
    handle | name | items | class | level | HP | XP | wealth | remove
    A list whose rows carry no items, or no remove button, collapses that track so
    the name gets the room; alignment only has to hold within one list. */
-.adv-grid {
+.roster-grid {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) var(--items-col, 36px) 80px 28px 40px 60px 44px var(--remove-col, 18px);
   column-gap: 4px;
@@ -701,9 +701,9 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 }
 /* Statistics wrap at their spaces ("0/2000" over "XP", "12gp" over "5sp") rather than
    widen their track and squeeze the name */
-.adv-grid .stat { white-space: normal; overflow-wrap: anywhere; text-align: right; line-height: 1.2; }
-.adv-grid .badge { justify-self: start; padding-left: 0.3rem; padding-right: 0.3rem; }
-.adv-grid .remove-btn { justify-self: end; }
+.roster-grid .stat { white-space: normal; overflow-wrap: anywhere; text-align: right; line-height: 1.2; }
+.roster-grid .badge { justify-self: start; padding-left: 0.3rem; padding-right: 0.3rem; }
+.roster-grid .remove-btn { justify-self: end; }
 /* Fixed-width item cell; four or more items is rare enough that wrapping onto a
    second line is the accepted degrading case */
 .row-items { display: flex; flex-wrap: wrap; gap: 2px; min-width: 0; }

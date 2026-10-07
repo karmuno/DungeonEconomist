@@ -166,8 +166,8 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
           <span class="stat-label">Assigned<template v-if="b.slots_free"> · {{ b.slots_free }} free</template></span>
           <div class="assigned-row">
             <template v-for="slot in slotViews(b)" :key="slot.index">
-              <span v-if="slot.adventurer" class="adv-chip">
-                <span class="adv-link" @click="sheetAdvId = slot.adventurer.id">{{ slot.adventurer.name }}</span>
+              <span v-if="slot.adventurer" class="roster-chip">
+                <span class="sheet-link" @click="sheetAdvId = slot.adventurer.id">{{ slot.adventurer.name }}</span>
                 <span class="chip-level">Lv {{ slot.adventurer.level }}</span>
                 <span class="chip-x" @click="unassign(b, slot.adventurer.id)">×</span>
               </span>
@@ -326,7 +326,7 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
   position: relative;
 }
 
-.adv-chip {
+.roster-chip {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
@@ -336,7 +336,7 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
   border-radius: 3px;
 }
 
-.adv-link {
+.sheet-link {
   font-size: 11px;
   color: #e5e7eb;
   cursor: pointer;
@@ -345,7 +345,7 @@ function isPicking(b: BuildingData, slotIndex: number): boolean {
   text-underline-offset: 2px;
 }
 
-.adv-link:hover {
+.sheet-link:hover {
   text-decoration-color: #4ade80;
 }
 

@@ -438,7 +438,7 @@ onUnmounted(() => {
           :key="i"
         ><span
           v-if="seg.advId"
-          class="adv-name-link"
+          class="roster-name-link"
           @click.stop="sheetAdvId = seg.advId"
         >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></span>
         <span
@@ -504,7 +504,7 @@ onUnmounted(() => {
         :key="i"
       ><span
         v-if="seg.advId"
-        class="adv-name-link"
+        class="roster-name-link"
         @click.stop="sheetAdvId = seg.advId"
       >{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></p>
       <div class="choice-popup-buttons">
@@ -852,7 +852,7 @@ onUnmounted(() => {
 /* Adventurer names inside notification and popup text. Rendered inline in
    this component (not via a wrapper component) so the name is always visible
    even if a stray rule targets nested spans. */
-.adv-name-link {
+.roster-name-link {
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: currentColor;
@@ -860,7 +860,7 @@ onUnmounted(() => {
   text-underline-offset: 2px;
 }
 
-.adv-name-link:hover {
+.roster-name-link:hover {
   text-decoration-style: solid;
 }
 </style>

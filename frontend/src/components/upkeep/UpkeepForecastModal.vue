@@ -69,7 +69,7 @@ function fmtXp(xp: number): string {
         <template v-for="row in forecast.rows" :key="row.id">
           <div class="fcell left">
             <span
-              class="adv-link"
+              class="sheet-link"
               :class="{ short: row.short_cp > 0 }"
               @click="emit('openSheet', row.id)"
             >{{ row.name }}</span>
@@ -200,7 +200,7 @@ function fmtXp(xp: number): string {
   border-bottom: 1px solid #374151;
 }
 
-.adv-link {
+.sheet-link {
   font-size: 12px;
   color: #e5e7eb;
   cursor: pointer;
@@ -212,11 +212,11 @@ function fmtXp(xp: number): string {
   text-overflow: ellipsis;
 }
 
-.adv-link:hover {
+.sheet-link:hover {
   text-decoration-color: #4ade80;
 }
 
-.adv-link.short {
+.sheet-link.short {
   color: #ef4444;
 }
 
