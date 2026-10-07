@@ -218,9 +218,9 @@ async function deleteParty() {
           <div
             v-for="adv in availableAdventurers"
             :key="adv.id"
-            class="adv-row"
+            class="roster-row"
           >
-            <span class="adv-name">{{ adv.name }}</span>
+            <span class="roster-name">{{ adv.name }}</span>
             <span class="badge">{{ adv.adventurer_class }}</span>
             <span class="stat">Lv {{ adv.level }}</span>
             <span class="stat" :style="{ color: hpColor(adv) }">{{ adv.hp_current }}/{{ adv.hp_max }} HP</span>
@@ -258,9 +258,9 @@ async function deleteParty() {
           <div
             v-for="member in selectedParty.members"
             :key="member.id"
-            class="adv-row"
+            class="roster-row"
           >
-            <span class="adv-name">{{ member.name }}</span>
+            <span class="roster-name">{{ member.name }}</span>
             <span class="badge">{{ member.adventurer_class }}</span>
             <span class="stat">Lv {{ member.level }}</span>
             <span class="stat" :style="{ color: hpColor(member) }">{{ member.hp_current }}/{{ member.hp_max }} HP</span>
@@ -343,7 +343,7 @@ async function deleteParty() {
 
 /* One grid per row with fixed tracks, so class, level, HP and XP line up down the
    list: name | class | level | HP | XP | button */
-.adv-row {
+.roster-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 80px 28px 48px 60px auto;
   column-gap: 6px;
@@ -352,14 +352,14 @@ async function deleteParty() {
   border-bottom: 1px solid var(--border-color);
 }
 
-.adv-row .badge {
+.roster-row .badge {
   justify-self: start;
   padding-left: 0.3rem;
   padding-right: 0.3rem;
 }
 
 /* Names wrap rather than truncate: a name you cannot read is not a name */
-.adv-name {
+.roster-name {
   font-weight: 600;
   font-size: 13px;
   min-width: 0;
@@ -367,7 +367,7 @@ async function deleteParty() {
 }
 
 /* Statistics wrap at their spaces too, rather than widen and squeeze the name */
-.adv-row .stat {
+.roster-row .stat {
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.2;

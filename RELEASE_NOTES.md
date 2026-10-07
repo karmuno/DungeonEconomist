@@ -1,3 +1,17 @@
+# v0.9.2
+
+## Bug Fixes
+
+- **Adventurer names hidden by ad blockers**: every linked adventurer name was a `<span class="adv-link">`, and EasyList and AdGuard Base both hide that class on every site. Under uBlock Origin, Adblock Plus, AdGuard or Brave, names were missing from the expedition event modal, the expedition summary and its log, the decision page, the upkeep ledgers and the Village slots. The class is now `sheet-link`, and the other `adv-` prefixed classes are renamed with it.
+
+## Technical
+
+- `tests/test_frontend_class_names.py` fails on any frontend class, id or selector starting with `ad-`, `ads-`, `adv-`, `advert-` or `sponsor-`
+- No schema or environment changes
+- 109 tests passing
+
+---
+
 # v0.9.1 — The Safety Release
 
 Makes the game safe to put in front of its first invited players: errors are reported, player actions are recorded, backups are proven to restore, and the combat and XP bugs found while measuring balance are fixed.
@@ -26,6 +40,7 @@ Makes the game safe to put in front of its first invited players: errors are rep
 - **CORS allow-list and login rate limiting verified against the live deployment**: an untrusted origin is refused, and the 11th login attempt in a minute gets a 429
 - **Python deps in a `[project]` table with a real `uv.lock`**; `requirements.txt` removed. Dockerfile on `python:3.13-slim` with `uv sync --frozen --no-dev`
 - `python-multipart` 0.0.31, clearing four DoS advisories
+- Frontend lockfile on vite 6.4.3 and postcss 8.5.28, clearing seven advisories in build tooling
 
 ## Feedback
 

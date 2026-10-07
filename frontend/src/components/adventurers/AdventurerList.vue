@@ -43,7 +43,7 @@ function partyDisplay(adv: AdventurerOut): string {
         style="cursor: pointer"
         @click="emit('select', adv.id)"
       >
-        <td><span :class="{ 'adv-dead': adv.is_dead }">{{ adv.name }}</span></td>
+        <td><span :class="{ 'is-dead': adv.is_dead }">{{ adv.name }}</span></td>
         <td>
           <span v-for="item in (adv.magic_items || [])" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
         </td>
@@ -63,7 +63,7 @@ function partyDisplay(adv: AdventurerOut): string {
 </template>
 
 <style scoped>
-.adv-dead {
+.is-dead {
   text-decoration: line-through;
   opacity: 0.6;
 }

@@ -107,8 +107,8 @@ function eventClass(type: string): string {
         <p class="event-message"><LinkedText :text="pendingEvent.message" :refs="members" @open="sheetAdvId = $event" /></p>
 
         <div v-if="members.length" class="event-party">
-          <div v-for="m in members" :key="m.id" class="event-member" :class="{ 'adv-dead': !m.alive }">
-            <span class="adv-link" @click="sheetAdvId = m.id">{{ m.name }}</span>
+          <div v-for="m in members" :key="m.id" class="event-member" :class="{ 'is-dead': !m.alive }">
+            <span class="sheet-link" @click="sheetAdvId = m.id">{{ m.name }}</span>
             <span class="member-meta">{{ m.adventurer_class }} · Lv {{ m.level }} · {{ m.alive ? `${m.hp_current}/${m.hp_max} HP` : 'Dead' }}</span>
           </div>
         </div>
@@ -180,7 +180,7 @@ function eventClass(type: string): string {
   font-size: 12px;
 }
 
-.event-member.adv-dead {
+.event-member.is-dead {
   color: #6b7280;
 }
 
@@ -189,14 +189,14 @@ function eventClass(type: string): string {
   color: #6b7280;
 }
 
-.adv-link {
+.sheet-link {
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: #374151;
   text-underline-offset: 2px;
 }
 
-.adv-link:hover {
+.sheet-link:hover {
   color: #4ade80;
   text-decoration-color: #4ade80;
 }
