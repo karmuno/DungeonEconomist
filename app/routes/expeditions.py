@@ -21,7 +21,7 @@ from app.models import (
 )
 from app.player_events import EventType, log_first_auto_delve, log_player_event, wipe_details
 from app.progression import apply_level_ups, check_for_level_up
-from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
+from app.schemas import ExpeditionCreate, ExpeditionResult
 from app.simulator import DungeonSimulator
 
 router = APIRouter()
@@ -982,95 +982,75 @@ def get_expedition_results(
     if not db_expedition:
         raise HTTPException(status_code=404, detail="Expedition not found")
 
-    try:
-        result = simulator.get_expedition_results(expedition_id)
+    party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
+    node_results = db.query(ExpeditionNodeResult).filter(
+        ExpeditionNodeResult.expedition_id == expedition_id
+    ).all()
+    expedition_logs = db.query(ExpeditionLog).filter(
+        ExpeditionLog.expedition_id == expedition_id
+    ).all()
 
-        if "party_members_ready_for_level_up" not in result:
-            party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
-            if party:
-                members_ready = []
-                for member in party.members:
-                    if check_for_level_up(member.level, member.xp, member.adventurer_class):
-                        members_ready.append({
-                            "id": member.id,
-                            "name": member.name,
-                            "current_level": member.level,
-                            "next_level": member.level + 1
-                        })
-                result["party_members_ready_for_level_up"] = members_ready
+    log = []
+    for node in node_results:
+        try:
+            turn_log = json.loads(node.log)
+            log.append(turn_log)
+        except (json.JSONDecodeError, TypeError):
+            pass
 
-        result["actual_return_day"] = (db_expedition.simulation_data or {}).get("actual_return_day")
-        return result
-    except ValueError:
-        party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
-        node_results = db.query(ExpeditionNodeResult).filter(
-            ExpeditionNodeResult.expedition_id == expedition_id
-        ).all()
-        expedition_logs = db.query(ExpeditionLog).filter(
-            ExpeditionLog.expedition_id == expedition_id
-        ).all()
+    party_status = {
+        "members_total": len(party.members) if party else 0,
+        "members_alive": len([m for m in party.members if m.hp_current > 0]) if party else 0,
+        "members_dead": len([log_entry for log_entry in expedition_logs if log_entry.status == "dead"]),
+        "hp_current": sum(m.hp_current for m in party.members) if party else 0,
+        "hp_max": sum(m.hp_max for m in party.members) if party else 0,
+        "hp_percentage": (sum(m.hp_current for m in party.members) /
+                         sum(m.hp_max for m in party.members)) * 100 if party and sum(m.hp_max for m in party.members) > 0 else 0
+    }
 
-        log = []
-        for node in node_results:
-            try:
-                turn_log = json.loads(node.log)
-                log.append(turn_log)
-            except (json.JSONDecodeError, TypeError):
-                pass
+    members_ready_for_level_up = []
+    if party:
+        for member in party.members:
+            if check_for_level_up(member.level, member.xp, member.adventurer_class):
+                members_ready_for_level_up.append({
+                    "id": member.id,
+                    "name": member.name,
+                    "current_level": member.level,
+                    "next_level": member.level + 1
+                })
 
-        party_status = {
-            "members_total": len(party.members) if party else 0,
-            "members_alive": len([m for m in party.members if m.hp_current > 0]) if party else 0,
-            "members_dead": len([log_entry for log_entry in expedition_logs if log_entry.status == "dead"]),
-            "hp_current": sum(m.hp_current for m in party.members) if party else 0,
-            "hp_max": sum(m.hp_max for m in party.members) if party else 0,
-            "hp_percentage": (sum(m.hp_current for m in party.members) /
-                             sum(m.hp_max for m in party.members)) * 100 if party and sum(m.hp_max for m in party.members) > 0 else 0
-        }
+    # A run is simulated to its end at launch, so until it is home its recorded
+    # totals are still ahead of it. It has no node rows yet either.
+    if db_expedition.result == "completed":
+        totals = _recorded_totals(db_expedition, node_results)
+    else:
+        totals = {"gold": 0, "silver": 0, "copper": 0, "xp": 0}
 
-        members_ready_for_level_up = []
-        if party:
-            for member in party.members:
-                if check_for_level_up(member.level, member.xp, member.adventurer_class):
-                    members_ready_for_level_up.append({
-                        "id": member.id,
-                        "name": member.name,
-                        "current_level": member.level,
-                        "next_level": member.level + 1
-                    })
+    result = {
+        "expedition_id": expedition_id,
+        "party_id": db_expedition.party_id,
+        "dungeon_level": db_expedition.dungeon_level or 1,
+        "turns": len(node_results),
+        "start_time": db_expedition.started_at,
+        "end_time": db_expedition.finished_at,
+        "start_day": db_expedition.start_day,
+        "duration_days": db_expedition.duration_days,
+        "return_day": db_expedition.return_day,
+        "actual_return_day": (db_expedition.simulation_data or {}).get("actual_return_day"),
+        "treasure_total": totals["gold"],
+        "treasure_silver": totals["silver"],
+        "treasure_copper": totals["copper"],
+        "special_items": [],
+        "xp_earned": totals["xp"],
+        "xp_per_party_member": totals["xp"] / max(1, len(party.members)) if party else 0,
+        "resources_used": {"hp_lost": 0},
+        "dead_members": [log_entry.adventurer.name for log_entry in expedition_logs if log_entry.status == "dead"],
+        "party_status": party_status,
+        "log": log,
+        "party_members_ready_for_level_up": members_ready_for_level_up
+    }
 
-        # A run is simulated to its end at launch, so until it is home its recorded
-        # totals are still ahead of it. It has no node rows yet either.
-        if db_expedition.result == "completed":
-            totals = _recorded_totals(db_expedition, node_results)
-        else:
-            totals = {"gold": 0, "silver": 0, "copper": 0, "xp": 0}
-
-        result = {
-            "expedition_id": expedition_id,
-            "party_id": db_expedition.party_id,
-            "dungeon_level": 1,
-            "turns": len(node_results),
-            "start_time": db_expedition.started_at,
-            "end_time": db_expedition.finished_at,
-            "start_day": db_expedition.start_day,
-            "duration_days": db_expedition.duration_days,
-            "return_day": db_expedition.return_day,
-            "actual_return_day": (db_expedition.simulation_data or {}).get("actual_return_day"),
-            "treasure_total": totals["gold"],
-            "treasure_silver": totals["silver"],
-            "treasure_copper": totals["copper"],
-            "special_items": [],
-            "xp_earned": totals["xp"],
-            "xp_per_party_member": totals["xp"] / max(1, len(party.members)) if party else 0,
-            "resources_used": {"hp_lost": 0},
-            "dead_members": [log_entry.adventurer.name for log_entry in expedition_logs if log_entry.status == "dead"],
-            "party_status": party_status,
-            "log": log,
-            "party_members_ready_for_level_up": members_ready_for_level_up
-        }
-
-        return result
+    return result
 
 
 @router.get("/expeditions/")
@@ -1480,53 +1460,3 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "stairs_found": sim.get("stairs_found"),
         "found_items": found_items,
     }
-
-
-@router.post("/expeditions/{expedition_id}/advance", response_model=TurnResult)
-def advance_expedition_turn(
-    expedition_id: int,
-    keep: Keep = Depends(get_current_keep),
-    db: Session = Depends(get_db),
-):
-    """Advance an expedition by one turn"""
-    db_expedition = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(
-        Expedition.id == expedition_id,
-        Party.keep_id == keep.id,
-    ).first()
-    if not db_expedition:
-        raise HTTPException(status_code=404, detail="Expedition not found")
-
-    if db_expedition.result != "in_progress":
-        raise HTTPException(status_code=400, detail="Expedition is already completed")
-
-    try:
-        result = simulator.advance_turn(expedition_id)
-
-        if result["expedition_ended"]:
-            db_expedition.result = "completed"
-            db_expedition.finished_at = datetime.now()
-
-            party = db.query(Party).filter(Party.id == db_expedition.party_id).first()
-            if party:
-                party.on_expedition = False
-                party.current_expedition_id = None
-
-                for member in party.members:
-                    member.on_expedition = False
-                    member.is_available = (member.hp_current == member.hp_max)
-
-            db.commit()
-
-        exp_node = ExpeditionNodeResult(
-            expedition_id=db_expedition.id,
-            success=True,
-            xp_earned=sum(event.get("xp_earned", 0) for event in result["events"]) if "events" in result else 0,
-            loot=sum(event.get("treasure", {}).get("gold", 0) for event in result["events"] if "treasure" in event) if "events" in result else 0,
-            log=json.dumps(result)
-        )
-        db.add(exp_node)
-        db.commit()
-
-        return result
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Expedition not found in simulator") from None
