@@ -37,8 +37,16 @@ def _make_json_safe(obj):
         return [_make_json_safe(v) for v in obj]
     return obj
 
-# Shared simulator instance
-simulator = DungeonSimulator()
+
+def _simulate_run(party_members: list[dict], dungeon_level: int) -> dict:
+    """Simulate a whole expedition for this roster as it stands now.
+
+    Each run gets a simulator of its own: nothing of it outlives the launch but
+    the result returned here, and no later request can reach it by number.
+    """
+    run = DungeonSimulator()
+    run_id = run.start_expedition(run.add_party(party_members), dungeon_level=dungeon_level)
+    return run.run_expedition_to_completion(run_id)
 
 
 def _get_building_bonuses(keep: Keep, db: Session) -> dict:
@@ -638,14 +646,11 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             member_dict["spell_multiplier"] = multiplier
         party_members.append(member_dict)
 
-    simulator_party_idx = simulator.add_party(party_members)
-    expedition_id_sim = simulator.start_expedition(simulator_party_idx, dungeon_level=dungeon_level)
-
     start_day = keep.current_day
     duration = get_level_duration(dungeon_level)
     return_day = start_day + duration - 1
 
-    sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
+    sim_result = _simulate_run(party_members, dungeon_level)
     sim_result["starting_hp"] = {
         m["name"]: m.get("current_hp", m.get("hit_points", 10))
         for m in party_members
@@ -769,23 +774,12 @@ def launch_expedition(
             member_dict["spell_multiplier"] = multiplier
         party_members.append(member_dict)
 
-    # Always register the roster as it stands now. Reusing a party cached in the
-    # process-global simulator (matched on its first member) simulated every later
-    # launch against the roster from the first one: the dead, at their original
-    # HP, level and items. The auto-launch path has always registered fresh.
-    simulator_party_idx = simulator.add_party(party_members)
-
-    expedition_id_sim = simulator.start_expedition(
-        simulator_party_idx,
-        dungeon_level=expedition_data.dungeon_level
-    )
-
     start_day = keep.current_day
     duration = get_level_duration(requested_level)
     return_day = start_day + duration - 1
 
     # Run simulation now, then build interactive phases
-    sim_result = simulator.run_expedition_to_completion(expedition_id_sim)
+    sim_result = _simulate_run(party_members, requested_level)
 
     # Store starting HP snapshot for accurate replay later
     sim_result["starting_hp"] = {

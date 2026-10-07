@@ -942,8 +942,8 @@ def test_events_naming_an_adventurer_carry_their_id(client: TestClient, db_sessi
 def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: Session):
     """A second launch with the same first member simulates the party as it stands now.
 
-    The simulator is process-global. launch_expedition used to reuse the party it had
-    registered at that party's first launch (matched on the first member's id), so every
+    launch_expedition used to reuse the party it had registered with a shared simulator
+    at that party's first launch (matched on the first member's id), so every
     later expedition fought with the dead at their original HP and level — expeditions
     891 and 892 in the 2026-09-09 save."""
     from app.models import Expedition
@@ -984,6 +984,27 @@ def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: S
     second_exp = db_session.get(Expedition, second.json()["expedition_id"])
     assert second_exp.simulation_data["party_status"]["members_total"] == 3
     assert set(second_exp.simulation_data["starting_hp"]) == {"Aldric", "Borin", "Yorick"}
+
+
+def test_auto_delve_simulates_the_party_as_it_stands(client: TestClient, db_session: Session):
+    """A healed party on a standing order sets out at day's end, simulated with its own roster."""
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Standing Order", keep_id=keep.id, auto_delve_healed=True)
+    db_session.add(party)
+    db_session.commit()
+    party.members.extend(create_adventurer_db(db_session, keep.id, name=n, xp=0, gold=100) for n in ("Hale", "Ivo", "Jory"))
+    db_session.commit()
+
+    resp = client.post("/time/advance-day", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    launched = [e for e in resp.json()["events"] if "auto-launched" in e["message"]]
+    assert len(launched) == 1
+
+    db_session.expire_all()
+    expedition = db_session.get(Expedition, launched[0]["expedition_id"])
+    assert expedition.party_id == party.id
+    assert expedition.simulation_data["party_status"]["members_total"] == 3
+    assert set(expedition.simulation_data["starting_hp"]) == {"Hale", "Ivo", "Jory"}
 
 
 # --- player_events: one row per thing a player did (buildplans/player-events-spec.md) ---
