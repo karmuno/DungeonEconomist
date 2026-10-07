@@ -3,6 +3,7 @@ import type { ExpeditionSummary } from '../../types'
 import StatusBadge from '../shared/StatusBadge.vue'
 import EmptyState from '../shared/EmptyState.vue'
 import { expeditionEnd, formatGameDayShort } from '../../utils/calendar'
+import { formatCurrency } from '../../utils/currency'
 
 defineProps<{
   expeditions: ExpeditionSummary[]
@@ -57,7 +58,7 @@ function plannedTitle(exp: ExpeditionSummary): string | undefined {
           <td :title="plannedTitle(exp)">{{ ended(exp).days }}</td>
           <td>{{ formatGameDayShort(exp.start_day) }}</td>
           <td :title="plannedTitle(exp)">{{ formatGameDayShort(ended(exp).day) }}</td>
-          <td class="text-gold">{{ exp.treasure_total }}gp</td>
+          <td class="text-gold">{{ formatCurrency(exp.treasure_total, exp.treasure_silver ?? 0, exp.treasure_copper ?? 0) }}</td>
           <td>{{ exp.xp_earned }}</td>
           <td>
             <StatusBadge :status="statusLabel(exp.result)" />

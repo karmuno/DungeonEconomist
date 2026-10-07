@@ -99,15 +99,6 @@ async function makeChoice(choice: string) {
   }
 }
 
-function lootCopper(total: number): { gold: number; silver: number; copper: number } {
-  const copper_total = total * 100
-  return {
-    gold: Math.floor(copper_total / 100),
-    silver: Math.floor((copper_total % 100) / 10),
-    copper: copper_total % 10,
-  }
-}
-
 const turnsWithActivity = computed(() => {
   if (!summary.value) return []
   return (summary.value.events_log as TurnLog[]).filter(
@@ -173,7 +164,7 @@ const actualDurationDays = computed(() => {
           ({{ summary.duration_days }} days)
         </p>
         <div class="summary-stats">
-          <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
+          <span class="text-gold">Loot: {{ formatCurrency(summary.total_loot, summary.total_silver ?? 0, summary.total_copper ?? 0) }}</span>
           <span v-for="item in summary.found_items ?? []" :key="item.id" class="found-item">
             {{ itemEmoji(item.item_type) }} {{ item.name }}<template v-if="item.holder_name"> · <span class="adv-link" @click="item.holder_id != null && (sheetAdvId = item.holder_id)">{{ item.holder_name }}</span></template>
           </span>
