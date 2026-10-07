@@ -1633,3 +1633,76 @@ def test_completed_summary_without_recorded_totals_adds_up_its_turns(client: Tes
     summary = client.get(f"/expeditions/{expedition.id}/summary", headers=auth_headers(token, keep.id)).json()
     assert (summary["total_loot"], summary["total_silver"], summary["total_copper"]) == (5, 0, 0)
     assert summary["total_xp"] == 50
+
+
+# --- Expeditions list: a running expedition's row follows the witnessed rule ---
+
+def _listed_and_summarized(client: TestClient, headers: dict, expedition_id: int) -> tuple[tuple, tuple]:
+    """An expedition's (gold, silver, copper, XP) as the Expeditions list reports it, and as
+    its summary does."""
+    row = next(e for e in client.get("/expeditions/", headers=headers).json() if e["id"] == expedition_id)
+    summary = client.get(f"/expeditions/{expedition_id}/summary", headers=headers).json()
+    return (
+        (row["treasure_total"], row["treasure_silver"], row["treasure_copper"], row["xp_earned"]),
+        (summary["total_loot"], summary["total_silver"], summary["total_copper"], summary["total_xp"]),
+    )
+
+
+def test_expedition_list_reports_only_what_a_running_expedition_has_shown(client: TestClient, db_session: Session):
+    """Regression: the list read the totals recorded at launch, which are the end of the
+    pre-simulated run, so the Active tab showed the final loot and XP on launch day while the
+    summary showed none. A running row reports what its summary does."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+    chest = {"type": "big_haul", "message": "A heavy chest", "after_turn": 1}
+    sim = {
+        **_QUIET_SIM,
+        "log": [
+            {"turn": 1, "deaths": [], "events": [
+                {"treasure": {"gold": 5, "silver": 40, "copper": 3, "xp_value": 100, "special_item": None}},
+            ]},
+            {"turn": 2, "deaths": [], "events": [
+                {"treasure": {"gold": 20, "silver": 300, "copper": 0, "xp_value": 400, "special_item": None}},
+            ]},
+        ],
+        "decision_points": [chest],
+        "phases": [
+            {"loot": 5, "silver": 40, "copper": 3, "xp": 100, "deaths": []},
+            {"loot": 20, "silver": 300, "copper": 0, "xp": 400, "deaths": []},
+        ],
+        "treasure_total": 25,
+        "treasure_silver": 340,
+        "treasure_copper": 3,
+        "xp_earned": 500,
+    }
+    party, members, exp = _party_away(db_session, keep, start_day=10, return_day=13, sim=sim)
+    exp.decision_day = 11
+    db_session.commit()
+    headers = auth_headers(token, keep.id)
+    first_phase, whole_run = (5, 40, 3, 100), (25, 340, 3, 500)
+
+    # Launch day: nothing witnessed yet
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == (0, 0, 0, 0)
+
+    # Day 11, the chest is on screen: its phase counts
+    client.post("/time/advance-day", headers=headers)
+    db_session.refresh(exp)
+    assert exp.result == "awaiting_choice"
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == first_phase
+
+    # Pressed on: the rest of the run is still ahead
+    resp = client.post(f"/expeditions/{exp.id}/choose", json={"choice": "press_on"}, headers=headers)
+    assert resp.json()["status"] == "in_progress", resp.text
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == first_phase
+
+    # Home on day 13: the recorded totals
+    for _ in range(2):
+        client.post("/time/advance-day", headers=headers)
+    db_session.refresh(exp)
+    assert exp.result == "completed"
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == whole_run
