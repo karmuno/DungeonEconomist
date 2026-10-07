@@ -599,9 +599,9 @@ shows it matters.
   `DungeonSimulator` for the life of the process, and every launch appends a party list and an
   expedition record to it that nothing removes. The database is unaffected; this is Python
   memory, growing by one small dict-tree per launch. Harmless for a cohort of ten, real for a
-  long-running process. A per-launch simulator removes it, but `get_expedition_results` and
-  `advance_turn` (`:913`, `:1342`) still read the global by *database* expedition id, which
-  the simulator does not key on, so those two legacy endpoints need retiring or rewiring first.
+  long-running process. A per-launch simulator removes it, but `advance_expedition_turn`
+  (`POST /expeditions/{id}/advance`) still reads the global by *database* expedition id, which
+  the simulator does not key on, so that legacy endpoint needs retiring or rewiring first.
 - **Auto-decided stairs never change the party's level.** The day-advance loop
   (`app/routes/game.py:389`, `:433`) tests for a `press_on_next` choice, but `auto_decide`
   (`app/expedition_events.py:32`) only ever returns `press_on` or `retreat`, so the
