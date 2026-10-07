@@ -1073,6 +1073,16 @@ def list_expeditions(keep: Keep = Depends(get_current_keep), db: Session = Depen
     results = []
     for e in expeditions:
         sim = e.simulation_data or {}
+        if e.result in ("in_progress", "awaiting_choice"):
+            # The recorded totals of a running expedition are its pre-simulated ending
+            totals = _witnessed_totals(e)
+        else:
+            totals = {
+                "gold": sim.get("treasure_total", 0),
+                "silver": sim.get("treasure_silver", 0),
+                "copper": sim.get("treasure_copper", 0),
+                "xp": sim.get("xp_earned", 0),
+            }
         results.append({
             "id": e.id,
             "party_id": e.party_id,
@@ -1083,10 +1093,10 @@ def list_expeditions(keep: Keep = Depends(get_current_keep), db: Session = Depen
             "return_day": e.return_day,
             "actual_return_day": sim.get("actual_return_day"),
             "result": e.result,
-            "treasure_total": sim.get("treasure_total", 0),
-            "treasure_silver": sim.get("treasure_silver", 0),
-            "treasure_copper": sim.get("treasure_copper", 0),
-            "xp_earned": sim.get("xp_earned", 0),
+            "treasure_total": totals["gold"],
+            "treasure_silver": totals["silver"],
+            "treasure_copper": totals["copper"],
+            "xp_earned": totals["xp"],
             "started_at": e.started_at.isoformat() if e.started_at else None,
             "finished_at": e.finished_at.isoformat() if e.finished_at else None,
         })
@@ -1225,35 +1235,37 @@ def _replay_members(party_members, events_log: list, deaths: set, starting_hp: d
     }
 
 
+def _witnessed_totals(expedition: Expedition) -> dict:
+    """Coin, XP and deaths a running expedition has shown the player so far.
+
+    Totals and deaths follow the witnessed rule: the pending phase counts
+    only once its event is on screen (awaiting_choice). Including it while
+    the expedition is merely in_progress leaks the pre-simulated future.
+    """
+    sim = expedition.simulation_data or {}
+    visible_phases = expedition.resolved_phases or 0
+    if expedition.result == "awaiting_choice":
+        visible_phases += 1
+
+    phases = sim.get("phases", [])[:visible_phases]
+    return {
+        "gold": sum(phase.get("loot", 0) for phase in phases),
+        "silver": sum(phase.get("silver", 0) for phase in phases),
+        "copper": sum(phase.get("copper", 0) for phase in phases),
+        "xp": sum(phase.get("xp", 0) for phase in phases),
+        "deaths": [name for phase in phases for name in phase.get("deaths", [])],
+    }
+
+
 def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     """Build summary from simulation_data for an in-progress expedition."""
     sim = expedition.simulation_data or {}
     log = sim.get("log", [])
-    phases = sim.get("phases", [])
     decision_points = sim.get("decision_points", [])
     resolved = expedition.resolved_phases or 0
 
-    # Totals and deaths follow the witnessed rule: the pending phase counts
-    # only once its event is on screen (awaiting_choice). Including it while
-    # the expedition is merely in_progress leaks the pre-simulated future.
-    if expedition.result == "awaiting_choice":
-        visible_phases = resolved + 1
-    else:
-        visible_phases = resolved
-
-    total_loot = 0
-    total_silver = 0
-    total_copper = 0
-    total_xp = 0
-    all_deaths = []
-    for i, phase in enumerate(phases):
-        if i >= visible_phases:
-            break
-        total_loot += phase.get("loot", 0)
-        total_silver += phase.get("silver", 0)
-        total_copper += phase.get("copper", 0)
-        total_xp += phase.get("xp", 0)
-        all_deaths.extend(phase.get("deaths", []))
+    totals = _witnessed_totals(expedition)
+    all_deaths = totals["deaths"]
 
     # Events log: show only what the player has WITNESSED. The whole run is
     # pre-simulated at launch, so replaying past the last fired decision point
@@ -1335,10 +1347,10 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         "dungeon_name": keep.dungeon_name,
         "actual_return_day": None,
         "member_results": member_results,
-        "total_loot": total_loot,
-        "total_silver": total_silver,
-        "total_copper": total_copper,
-        "total_xp": total_xp,
+        "total_loot": totals["gold"],
+        "total_silver": totals["silver"],
+        "total_copper": totals["copper"],
+        "total_xp": totals["xp"],
         "events_log": events_log,
         "estimated_readiness_day": None,
         "pending_event": pending_event,
