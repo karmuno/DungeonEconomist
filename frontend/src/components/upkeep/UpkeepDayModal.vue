@@ -65,7 +65,7 @@ function fmtXp(xp: number): string {
           <template v-for="row in data.rows" :key="row.id">
             <div class="cell name-cell">
               <span
-                class="adv-link"
+                class="sheet-link"
                 :class="{ 'text-prison': row.outcome === 'prison' }"
                 @click="emit('openSheet', row.id)"
               >{{ row.name }}</span>
@@ -243,7 +243,7 @@ function fmtXp(xp: number): string {
   gap: 6px;
 }
 
-.adv-link {
+.sheet-link {
   font-size: 13px;
   color: #e5e7eb;
   cursor: pointer;
@@ -252,7 +252,7 @@ function fmtXp(xp: number): string {
   text-underline-offset: 2px;
 }
 
-.adv-link:hover {
+.sheet-link:hover {
   text-decoration-color: #4ade80;
 }
 

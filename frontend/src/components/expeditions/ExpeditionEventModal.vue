@@ -294,7 +294,7 @@ function hpColor(member: ExpeditionMemberResult): string {
             <div class="grid-head num">HP</div>
             <template v-for="row in eventRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
-                <span class="member-name adv-link" :class="{ 'adv-dead': !row.member.alive }" @click.stop="emit('open-sheet', row.member.id)">{{ row.member.name }}</span>
+                <span class="member-name sheet-link" :class="{ 'is-dead': !row.member.alive }" @click.stop="emit('open-sheet', row.member.id)">{{ row.member.name }}</span>
                 <span class="member-class">{{ row.member.adventurer_class }}</span>
               </div>
               <div class="cell num dmg-cell">
@@ -343,7 +343,7 @@ function hpColor(member: ExpeditionMemberResult): string {
             <div class="grid-head num">HP Healed</div>
             <template v-for="row in ledgerRows" :key="row.member.name">
               <div class="cell name-cell" :class="{ 'row-dead': !row.member.alive }">
-                <span class="member-name adv-link" :class="{ 'adv-dead': !row.member.alive }" @click.stop="emit('open-sheet', row.member.id)">{{ row.member.name }}</span>
+                <span class="member-name sheet-link" :class="{ 'is-dead': !row.member.alive }" @click.stop="emit('open-sheet', row.member.id)">{{ row.member.name }}</span>
                 <span class="member-class">{{ row.member.adventurer_class }}</span>
               </div>
               <div class="cell hp-cell">
@@ -593,19 +593,19 @@ function hpColor(member: ExpeditionMemberResult): string {
   opacity: 0.6;
 }
 
-.adv-link {
+.sheet-link {
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: #374151;
   text-underline-offset: 2px;
 }
 
-.adv-link:hover {
+.sheet-link:hover {
   color: #4ade80;
   text-decoration-color: #4ade80;
 }
 
-.adv-dead {
+.is-dead {
   text-decoration: line-through;
   opacity: 0.7;
   color: #ef4444;
