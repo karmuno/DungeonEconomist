@@ -1706,3 +1706,100 @@ def test_expedition_list_reports_only_what_a_running_expedition_has_shown(client
     assert exp.result == "completed"
     listed, summarized = _listed_and_summarized(client, headers, exp.id)
     assert listed == summarized == whole_run
+
+
+# --- The other readers of a finished run's totals: the Metrics panel and the expedition detail ---
+
+# 200 XP and 50gp over three turns: the per-turn rows hold 66 XP and 16gp each
+_UNEVEN_SIM = {
+    **_QUIET_SIM,
+    "log": [
+        {"turn": 1, "deaths": [], "events": []},
+        {"turn": 2, "deaths": [], "events": [{
+            "type": "Monster",
+            "combat": {"outcome": "Victory", "monster_type": "Goblin", "hp_lost": 0, "xp_earned": 200},
+        }]},
+        {"turn": 3, "deaths": [], "events": [{
+            "type": "Unguarded Treasure",
+            "treasure": {"gold": 50, "silver": 600, "copper": 40, "xp_value": 0, "special_item": None},
+        }]},
+    ],
+    "treasure_total": 50,
+    "treasure_silver": 600,
+    "treasure_copper": 40,
+    "xp_earned": 200,
+}
+
+
+def _uneven_run(db: Session, keep: Keep) -> Expedition:
+    """A party out on `_UNEVEN_SIM`, due home tomorrow."""
+    keep.current_day = 10
+    db.commit()
+    party, members, exp = _party_away(db, keep, start_day=10, return_day=11, sim=_UNEVEN_SIM, gold=0)
+    exp.started_at = datetime.now()
+    db.commit()
+    return exp
+
+
+def _bring_home(client: TestClient, keep: Keep, token: str) -> None:
+    events = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
+    assert any(e["type"] == "expedition_complete" for e in events), events
+
+
+def _forget_simulated_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Leave the expedition detail nothing but the database to read, as after a restart.
+
+    The simulator is process-global and numbers its own runs from zero, so one left over
+    from an earlier test can sit under the id a fresh database hands out here.
+    """
+    from app.routes import expeditions as expedition_routes
+    from app.simulator import DungeonSimulator
+
+    monkeypatch.setattr(expedition_routes, "simulator", DungeonSimulator())
+
+
+def test_metrics_average_what_the_runs_recorded(client: TestClient, db_session: Session):
+    """The panel read 198 XP and 48gp for this run: its three per-turn rows added back up."""
+    account, keep, token = create_account_and_keep(db_session)
+    _uneven_run(db_session, keep)
+    _bring_home(client, keep, token)
+
+    metrics = client.get("/metrics", headers=auth_headers(token, keep.id)).json()
+    assert metrics["total_expeditions"] == 1
+    (level,) = metrics["levels"]
+    assert (level["level"], level["expeditions"]) == (1, 1)
+    assert level["avg_xp"] == 200
+    # Gold coins only: the 600sp and 40cp are not part of this figure
+    assert level["avg_gold"] == 50
+
+
+def test_expedition_detail_reads_what_the_run_recorded(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch,
+):
+    """Rebuilt from the database, the detail read 198 XP and 48gp, and no silver or copper."""
+    _forget_simulated_runs(monkeypatch)
+    account, keep, token = create_account_and_keep(db_session)
+    exp = _uneven_run(db_session, keep)
+    _bring_home(client, keep, token)
+
+    resp = client.get(f"/expeditions/{exp.id}", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    detail = resp.json()
+    assert (detail["treasure_total"], detail["treasure_silver"], detail["treasure_copper"]) == (50, 600, 40)
+    assert detail["xp_earned"] == 200
+    assert detail["xp_per_party_member"] == pytest.approx(200 / 3)
+
+
+def test_expedition_detail_of_a_run_still_out_reports_nothing_yet(
+    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch,
+):
+    """A run is simulated to its end at launch. Until it is home those totals are still ahead of it."""
+    _forget_simulated_runs(monkeypatch)
+    account, keep, token = create_account_and_keep(db_session)
+    exp = _uneven_run(db_session, keep)
+
+    resp = client.get(f"/expeditions/{exp.id}", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    detail = resp.json()
+    assert (detail["treasure_total"], detail["treasure_silver"], detail["treasure_copper"]) == (0, 0, 0)
+    assert detail["xp_earned"] == 0

@@ -19,7 +19,7 @@ from app.models import (
 )
 from app.names import generate_adventurer_name
 from app.player_events import EventType, log_player_event
-from app.routes.expeditions import _finalize_expedition, resolve_expedition
+from app.routes.expeditions import _finalize_expedition, _recorded_totals, resolve_expedition
 from app.schemas import AdvanceDayResult, GameEvent, GameTimeInfo
 
 router = APIRouter()
@@ -874,8 +874,10 @@ def get_metrics(keep: Keep = Depends(get_current_keep), db: Session = Depends(ge
         nodes = db.query(ExpeditionNodeResult).filter(
             ExpeditionNodeResult.expedition_id == exp.id
         ).all()
-        by_level[lvl]["gold"] += sum(n.loot for n in nodes)
-        by_level[lvl]["xp"] += sum(n.xp_earned for n in nodes)
+        # Gold coins only: silver and copper are not part of this figure
+        totals = _recorded_totals(exp, nodes)
+        by_level[lvl]["gold"] += totals["gold"]
+        by_level[lvl]["xp"] += totals["xp"]
 
         deaths = db.query(ExpeditionLog).filter(
             ExpeditionLog.expedition_id == exp.id,
