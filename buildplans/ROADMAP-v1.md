@@ -8,12 +8,12 @@ the evidence those 10 people produce.
 
 | | |
 | :--- | :--- |
-| Released (tagged on `rc`, merged to `main`, deployed to demo) | **v0.9.1 — The Safety Release** (2026-10-07) |
-| Previous release | **v0.9 — The Polish Release** (2026-09-07) |
+| Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07) |
+| Previous release | **v0.9.1 — The Safety Release** (2026-10-07) |
 | In progress | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | Firefox and Safari smoke; one playthrough on the deployed build; the invites |
-| Last code commit | 2026-09-19 |
+| Next up | Deploy v0.9.2; Firefox and Safari smoke; one playthrough on the deployed build; the invites |
+| Last code commit | 2026-10-07 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
 
@@ -469,8 +469,22 @@ answer *what just happened?* truthfully.
 `venturekeep.stahlsystems.com` is fine for 10 invited people. Decide the name in an hour on a
 weeknight; move the domain after the cohort if there is still a reason to.
 
-**In parallel, weekday hours, not code:** the announcement and the list of 10 people, ready by
-the time v0.9.1 deploys.
+**In parallel, weekday hours, not code:** the announcement and the list of 10 people.
+
+---
+
+## v0.9.2 — SHIPPED 2026-10-07 (tagged `v0.9.2` on `rc`)
+
+- [x] **Adventurer names survive ad blockers.** Every linked adventurer name was a
+      `<span class="adv-link">`, and EasyList and AdGuard Base both carry the generic cosmetic
+      rule `##.adv-link`, which hides that class on every site. Under uBlock Origin, Adblock
+      Plus, AdGuard or Brave the names were gone from the expedition event modal, the
+      expedition summary and its log, the decision page, the upkeep ledgers and the Village
+      slots. Found on production in a TPK popup that listed six classes and no names; the data
+      and the bundle were correct. The class is `sheet-link`, and the rest of the `adv-` family
+      is renamed with it (`is-dead`, `roster-*`), since that prefix is the filter lists' to
+      extend. `tests/test_frontend_class_names.py` fails on any frontend class, id or selector
+      starting with `ad-`, `ads-`, `adv-`, `advert-` or `sponsor-`
 
 ---
 
