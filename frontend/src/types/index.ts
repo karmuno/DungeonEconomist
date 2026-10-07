@@ -76,7 +76,7 @@ export interface AdventurerOut {
   death_day?: number | null
   death_party_name?: string | null
   bankruptcy_day?: number | null
-  magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+  magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
   next_level_xp?: number | null
   current_level_xp?: number | null
   xp_progress?: number | null
@@ -114,6 +114,7 @@ export interface AdventurerLevelUpInfo {
 
 export interface PartyCreate {
   name: string
+  adventurer_ids: number[]
 }
 
 export interface PartyOut {
@@ -239,6 +240,8 @@ export interface DashboardStats {
     adventurer_class: string
     assigned_count: number
     effects: string[]
+    staffed_effects: string[]
+    standing_effects: string[]
     assigned_adventurers: Array<{
       id: number
       name: string
@@ -251,7 +254,7 @@ export interface DashboardStats {
       gold: number
       silver: number
       copper: number
-      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
     }>
   }>
   parties: Array<{
@@ -277,7 +280,7 @@ export interface DashboardStats {
       gold: number
       silver: number
       copper: number
-      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+      magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
     }>
   }>
   unassigned_adventurers: Array<{
@@ -292,10 +295,9 @@ export interface DashboardStats {
     gold: number
     silver: number
     copper: number
-    magic_items: Array<{ id: number; name: string; item_type: string; bonus: number }>
+    magic_items: Array<{ id: number; name: string; item_type: string; bonus: number; description?: string }>
   }>
   upkeep_forecast: import('./upkeep').UpkeepForecast
-  hint: string | null
   active_expeditions: Array<{
     id: number
     party_name: string
@@ -319,4 +321,29 @@ export interface DashboardStats {
     treasure_copper: number
     xp_earned: number
   }>
+}
+
+// ---- Feedback (buildplans/feedback-form-spec.md) ----
+
+export const FEEDBACK_CATEGORIES = [
+  'Something is broken',
+  "I'm confused or stuck",
+  'Something feels wrong',
+  'I have an idea',
+  'I like something',
+] as const
+
+export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number]
+
+export interface FeedbackCreate {
+  category: FeedbackCategory
+  doing: string
+  feedback: string
+  severity: number | null
+  name: string | null
+  page_url: string
+}
+
+export interface FeedbackOut {
+  id: number
 }

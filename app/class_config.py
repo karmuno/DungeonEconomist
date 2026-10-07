@@ -13,11 +13,16 @@ from pathlib import Path
 
 _DATA_PATH = Path(__file__).parent / "data" / "classes.json"
 
-with open(_DATA_PATH) as f:
+with open(_DATA_PATH, encoding="utf-8") as f:
     _CONFIG = json.load(f)
 
 _CLASSES: dict = _CONFIG["classes"]
 COMBAT_DEFAULTS: dict = _CONFIG["combat_defaults"]
+
+
+def get_class_plural(class_name: str) -> str:
+    """The class name as it reads in a list of adventurers: "Elves", "Dwarves"."""
+    return get_class_config(class_name).get("plural", class_name)
 
 
 def get_class_config(class_name: str) -> dict:

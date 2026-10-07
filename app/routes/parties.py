@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_keep
 from app.database import get_db
 from app.models import Adventurer, Keep, Party
+from app.player_events import EventType, log_player_event
 from app.schemas import PartyCreate, PartyMemberOperation, PartyOut
 
 router = APIRouter()
@@ -21,19 +22,46 @@ def _query_party_with_members(db: Session, party_id: int, keep_id: int) -> Party
     )
 
 
+MAX_PARTY_SIZE = 6
+
+
+def _add_member(db: Session, party: Party, keep: Keep, adventurer_id: int) -> None:
+    """Put an available adventurer into a party, or raise the reason it cannot join."""
+    adventurer = db.query(Adventurer).filter(
+        Adventurer.id == adventurer_id,
+        Adventurer.keep_id == keep.id,
+        Adventurer.is_available == True
+    ).first()
+    if adventurer is None:
+        raise HTTPException(status_code=404, detail="Adventurer not found or not available")
+    if adventurer in party.members:
+        raise HTTPException(status_code=400, detail="Adventurer is already a member of this party")
+    if len(party.members) >= MAX_PARTY_SIZE:
+        raise HTTPException(status_code=400, detail=f"Party is full (max {MAX_PARTY_SIZE} members)")
+    party.members.append(adventurer)
+
+
 @router.post("/parties/", response_model=PartyOut)
 def create_party(
     party_data: PartyCreate,
     keep: Keep = Depends(get_current_keep),
     db: Session = Depends(get_db),
 ):
-    """Create a new party"""
+    """Form a party: the name and its members in one request, so a party is
+    whole or not at all, and party_formed records how many set out."""
     new_party = Party(
         name=party_data.name,
         created_at=datetime.now(),
         keep_id=keep.id,
     )
     db.add(new_party)
+    db.flush()
+    for adventurer_id in party_data.adventurer_ids:
+        _add_member(db, new_party, keep, adventurer_id)
+    log_player_event(db, EventType.PARTY_FORMED, keep.account_id, keep.id, {
+        "party_name": new_party.name,
+        "member_count": len(new_party.members),
+    })
     db.commit()
     db.refresh(new_party)
     _ = new_party.members
@@ -146,22 +174,12 @@ def add_adventurer_to_party(
 ):
     """Add an adventurer to a party."""
     party = _query_party_with_members(db, operation.party_id, keep.id)
-    if party is None:
+    # A disbanded party has left every list; joining it would hide the adventurer
+    if party is None or party.disbanded:
         raise HTTPException(status_code=404, detail="Party not found")
     if party.on_expedition:
         raise HTTPException(status_code=400, detail="Cannot add members to a party currently on expedition")
-    adventurer = db.query(Adventurer).filter(
-        Adventurer.id == operation.adventurer_id,
-        Adventurer.keep_id == keep.id,
-        Adventurer.is_available == True
-    ).first()
-    if adventurer is None:
-        raise HTTPException(status_code=404, detail="Adventurer not found or not available")
-    if adventurer in party.members:
-        raise HTTPException(status_code=400, detail="Adventurer is already a member of this party")
-    if len(party.members) >= 6:
-        raise HTTPException(status_code=400, detail="Party is full (max 6 members)")
-    party.members.append(adventurer)
+    _add_member(db, party, keep, operation.adventurer_id)
     db.commit()
     db.refresh(party)
     _ = party.members

@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class AdventurerClass(str, Enum):
@@ -80,11 +80,13 @@ class AdventurerOut(BaseModel):
             if isinstance(item, dict):
                 result.append(item)
             else:
+                from app.magic_items import describe_item
                 result.append({
                     "id": item.id,
                     "name": item.name,
                     "item_type": item.item_type,
                     "bonus": item.bonus or 0,
+                    "description": describe_item(item.item_type, item.bonus or 0),
                 })
         return result
 
@@ -101,7 +103,7 @@ class PartyBase(BaseModel):
     name: str
 
 class PartyCreate(PartyBase):
-    pass
+    adventurer_ids: list[int] = []
 
 class PartyOut(PartyBase):
     id: int
@@ -222,3 +224,34 @@ class TurnResult(BaseModel):
     events: list[dict[str, Any]] = []
     party_status: PartyStatus
     expedition_ended: bool
+
+
+# ---- Feedback (buildplans/feedback-form-spec.md) ----
+
+FeedbackCategory = Literal[
+    "Something is broken",
+    "I'm confused or stuck",
+    "Something feels wrong",
+    "I have an idea",
+    "I like something",
+]
+
+
+class FeedbackCreate(BaseModel):
+    category: FeedbackCategory
+    doing: str = Field(max_length=500)
+    feedback: str = Field(max_length=10000)
+    severity: int | None = Field(default=None, ge=1, le=4)
+    name: str | None = Field(default=None, max_length=100)
+    page_url: str = Field(max_length=2048)
+
+    @field_validator("doing", "feedback")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must not be blank")
+        return v
+
+
+class FeedbackOut(BaseModel):
+    id: int

@@ -149,6 +149,9 @@ git clone https://github.com/karmuno/DungeonEconomist.git venturekeep
 cd venturekeep
 ```
 
+> **Using Sentry?** Create `~/venturekeep/frontend/.env` *before* building — the frontend DSN
+> is compiled into the bundle at build time. See [SENTRY.md](SENTRY.md).
+
 Build the Docker image:
 
 ```bash
@@ -170,7 +173,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 Create the env file (paste your generated secret key and real DB password):
 
 ```bash
-nano ~/venturekeep/.env.production
+nano ~/venturekeep/.env
 ```
 
 Contents:
@@ -186,6 +189,12 @@ Key points:
 - The `DATABASE_URL` host is `venturekeep-db` — the container name on the shared Docker network. Not `localhost`, not `172.17.0.1`.
 - Update `CORS_ORIGINS` with your actual domain (e.g. `https://yourdomain.com` or `https://game.yourdomain.com` for a subdomain). For initial testing without a domain, set it to `*`.
 - The DB password here must match what you used in Step 3.
+- **Do not quote any value.** `--env-file` keeps quote characters as part of the value.
+
+### Optional: error tracking
+
+Sentry reports backend exceptions and frontend errors. It adds two variables to the file
+above and one to `~/venturekeep/frontend/.env`. Setup is in [SENTRY.md](SENTRY.md).
 
 ---
 
@@ -196,7 +205,7 @@ docker run -d \
   --name venturekeep-app \
   --restart unless-stopped \
   --network venturekeep-net \
-  --env-file ~/venturekeep/.env.production \
+  --env-file ~/venturekeep/.env \
   -p 127.0.0.1:8000:8000 \
   venturekeep:latest
 ```
@@ -388,7 +397,7 @@ docker run -d \
   --name venturekeep-app \
   --restart unless-stopped \
   --network venturekeep-net \
-  --env-file ~/venturekeep/.env.production \
+  --env-file ~/venturekeep/.env \
   -p 127.0.0.1:8000:8000 \
   venturekeep:latest
 ```
@@ -417,6 +426,16 @@ gunzip -c ~/venturekeep-data/backups/venturekeep-20260326.sql.gz | \
   docker exec -i venturekeep-db psql -U venturekeep venturekeep
 ```
 
+If a restore lands on a database that already has tables (rather than a fresh instance), drop
+the schema first so `psql` isn't recreating objects that already exist:
+
+```bash
+docker exec venturekeep-db psql -U venturekeep venturekeep -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+```
+
+Practice this at least once before relying on it: seed a throwaway keep, take a backup, drop
+the schema to simulate total loss, restore, and confirm the data came back exact.
+
 ---
 
 ## Troubleshooting
@@ -431,4 +450,4 @@ gunzip -c ~/venturekeep-data/backups/venturekeep-20260326.sql.gz | \
 
 **Alembic migration fails:** Check `docker logs venturekeep-app` for the specific error. Postgres enum types are stricter than SQLite — migrations that work locally may need fixes for production. To retry migrations after a code fix: rebuild the image and restart the container.
 
-**Empty `docker logs` output:** The container may be restarting too fast. Use `docker logs -f venturekeep-app` to follow in real time, or `docker run --rm -it --network venturekeep-net --env-file ~/venturekeep/.env.production venturekeep:latest bash` to get a shell inside the image and debug manually.
+**Empty `docker logs` output:** The container may be restarting too fast. Use `docker logs -f venturekeep-app` to follow in real time, or `docker run --rm -it --network venturekeep-net --env-file ~/venturekeep/.env venturekeep:latest bash` to get a shell inside the image and debug manually.

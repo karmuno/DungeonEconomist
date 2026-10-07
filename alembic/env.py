@@ -3,6 +3,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
+import app  # noqa: F401  -- importing the package loads .env, before DATABASE_URL is read below
 from alembic import context
 
 # this is the Alembic Config object, which provides

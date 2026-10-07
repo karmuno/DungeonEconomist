@@ -35,13 +35,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const messages = ref<Notification[]>([])
   let currentDay = 0
 
-  function add(text: string, opts: NotificationOptions | NotificationType = 'info') {
+  /** Returns the new notification's id, or undefined when deduplicated away. */
+  function add(text: string, opts: NotificationOptions | NotificationType = 'info'): number | undefined {
     const options: NotificationOptions = typeof opts === 'string' ? { type: opts } : opts
     const id = nextId++
     const type = options.type ?? 'info'
 
     // Deduplicate: don't add if an identical message already exists for this day
-    if (messages.value.some((m) => m.text === text && m.createdDay === currentDay)) return
+    if (messages.value.some((m) => m.text === text && m.createdDay === currentDay)) return undefined
     messages.value.unshift({
       id,
       text,
@@ -50,6 +51,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       action: options.action,
       adventurers: options.adventurers ?? [],
     })
+    return id
   }
 
   function remove(id: number) {

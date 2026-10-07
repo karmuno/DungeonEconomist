@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/vue'
+
 const BASE_URL = ''
 
 export class ApiError extends Error {
@@ -11,6 +13,25 @@ export class ApiError extends Error {
     this.data = data
   }
 }
+
+// Called once the session is unrecoverable (no refresh token, or the refresh
+// itself was refused). main.ts installs a handler that clears the store and
+// routes to login, so an expired session never reaches a full page reload.
+let _sessionExpiredHandler: (() => void) | null = null
+
+export function setSessionExpiredHandler(handler: () => void): void {
+  _sessionExpiredHandler = handler
+}
+
+function clearStoredSession(): void {
+  localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('keepId')
+}
+
+// Requests that must never trigger a refresh: they are how a session begins,
+// so a 401 from them is an answer, not a stale token.
+const NO_REFRESH_URLS = ['/auth/login', '/auth/register', '/auth/refresh']
 
 let _isRefreshing = false
 let _refreshQueue: Array<{ resolve: () => void; reject: (err: unknown) => void }> = []
@@ -76,18 +97,33 @@ async function request<T>(method: string, url: string, body?: unknown, isRetry =
     options.body = JSON.stringify(body)
   }
 
-  const response = await fetch(`${BASE_URL}${url}`, options)
+  // Callers almost always swallow these in a bare `catch {}` and show a friendly
+  // notification, so report here or Sentry never hears about them.
+  let response: Response
+  try {
+    response = await fetch(`${BASE_URL}${url}`, options)
+  } catch (err) {
+    // No response at all: offline, DNS, CORS, server down.
+    Sentry.captureException(err, {
+      tags: { api_status: 'network' },
+      extra: { method, url },
+    })
+    throw err
+  }
 
-  if (response.status === 401 && !isRetry && !url.startsWith('/auth/')) {
+  if (response.status === 401 && !isRetry && !NO_REFRESH_URLS.includes(url)) {
     const refreshed = await tryRefreshToken()
     if (refreshed) {
       return request<T>(method, url, body, true)
     }
-    // Refresh failed — clear auth state and redirect to login
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('keepId')
-    window.location.href = '/login'
+    // Refresh failed: the session is over. Clear it and let the app route to
+    // login; the ApiError below still reaches the caller.
+    clearStoredSession()
+    if (_sessionExpiredHandler) {
+      _sessionExpiredHandler()
+    } else {
+      window.location.href = '/login'
+    }
   }
 
   if (!response.ok) {
@@ -97,11 +133,20 @@ async function request<T>(method: string, url: string, body?: unknown, isRetry =
     } catch {
       data = null
     }
-    throw new ApiError(
+    const error = new ApiError(
       `Request failed: ${method} ${url} (${response.status})`,
       response.status,
       data,
     )
+    // 5xx only. Reporting 4xx would bury the signal under expected validation
+    // failures and 401s, which the refresh flow above already handles.
+    if (response.status >= 500) {
+      Sentry.captureException(error, {
+        tags: { api_status: String(response.status) },
+        extra: { method, url, body: data },
+      })
+    }
+    throw error
   }
 
   return response.json() as Promise<T>

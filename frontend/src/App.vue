@@ -12,6 +12,9 @@ import MetricsPanel from './components/layout/MetricsPanel.vue'
 import ModalDialog from './components/shared/ModalDialog.vue'
 import AdventurerDetail from './components/adventurers/AdventurerDetail.vue'
 import VersionBadge from './components/shared/VersionBadge.vue'
+import FeedbackEntry from './components/feedback/FeedbackEntry.vue'
+import BuyMeACoffee from './components/feedback/BuyMeACoffee.vue'
+import FeedbackModal from './components/feedback/FeedbackModal.vue'
 
 const { showSheet, sheetAdventurer, sheetLoading, closeSheet, levelUp } = useAdventurerSheet()
 
@@ -25,7 +28,9 @@ const isAuthPage = computed(() =>
 )
 
 onMounted(async () => {
-  const restored = await auth.tryRestore()
+  // The router guard has already validated the session before mount; this
+  // shares its result rather than asking the server again.
+  const restored = await auth.ensureSession()
   if (restored && auth.currentKeep) {
     // Load from cached keep data immediately (no API call)
     player.loadFromKeep()
@@ -45,6 +50,11 @@ onMounted(async () => {
   <template v-if="isAuthPage">
     <div class="main-content" style="margin-left: 0">
       <router-view />
+      <!-- No sidebar on the auth pages, so the feedback control has its own home here -->
+      <div class="auth-feedback">
+        <FeedbackEntry />
+        <BuyMeACoffee />
+      </div>
     </div>
   </template>
   <template v-else>
@@ -75,5 +85,17 @@ onMounted(async () => {
       />
     </ModalDialog>
   </template>
+  <!-- Mounted once so feedback can be submitted from every screen, signed in or not -->
+  <FeedbackModal />
   <VersionBadge />
 </template>
+
+<style scoped>
+.auth-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  margin: 24px auto 0;
+}
+</style>

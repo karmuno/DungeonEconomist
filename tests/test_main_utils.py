@@ -1,4 +1,5 @@
 import math
+import os
 from datetime import datetime
 
 import pytest
@@ -10,12 +11,16 @@ from app.auth import create_access_token, hash_password
 from app.database import get_db
 from app.main import app
 from app.models import Account, Adventurer, AdventurerClass, Base, Expedition, Keep, Party
+from app.player_events import seed_event_types
 
-# Use an in-memory SQLite database for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_db.sqlite"
+# Defaults to a local SQLite file; set DATABASE_URL to run the same suite against Postgres
+# (e.g. `docker compose up db`), matching how the app itself picks a database.
+SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./test_db.sqlite")
+_is_sqlite = SQLALCHEMY_DATABASE_URL.startswith("sqlite")
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -33,6 +38,10 @@ app.dependency_overrides[get_db] = override_get_db
 def db_session():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
+    # The migration seeds event_types in production; create_all only makes the table.
+    # SQLite doesn't enforce the FK so this was silently unneeded there — Postgres does.
+    seed_event_types(db)
+    db.commit()
     try:
         yield db
     finally:
@@ -384,6 +393,38 @@ def test_create_party_successful_response(client: TestClient, db_session: Sessio
     assert data["id"] > 0
 
 
+def test_form_party_with_members_is_one_request(client: TestClient, db_session: Session):
+    """Form Party sends the name and the members together; party_formed records the count."""
+    from app.models import PlayerEvent
+    account, keep, token = create_account_and_keep(db_session)
+    advs = [create_adventurer_db(db_session, keep.id, name=f"Member{i}", xp=0, gold=0) for i in range(3)]
+
+    response = client.post(
+        "/parties/",
+        json={"name": "Formed Whole", "adventurer_ids": [a.id for a in advs]},
+        headers=auth_headers(token, keep.id),
+    )
+    assert response.status_code == 200
+    assert sorted(m["id"] for m in response.json()["members"]) == sorted(a.id for a in advs)
+
+    formed = db_session.query(PlayerEvent).filter(PlayerEvent.event_type_id == "party_formed").all()
+    assert len(formed) == 1
+    assert formed[0].payload == {"party_name": "Formed Whole", "member_count": 3}
+
+
+def test_form_party_with_an_unavailable_member_creates_nothing(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    ok = create_adventurer_db(db_session, keep.id, name="Ready", xp=0, gold=0)
+    response = client.post(
+        "/parties/",
+        json={"name": "Half Formed", "adventurer_ids": [ok.id, 999999]},
+        headers=auth_headers(token, keep.id),
+    )
+    assert response.status_code == 404
+    db_session.expire_all()
+    assert db_session.query(Party).filter(Party.name == "Half Formed").count() == 0
+
+
 def test_admin_console_rejects_non_admin(client: TestClient, db_session: Session):
     account, keep, token = create_account_and_keep(db_session)
 
@@ -671,6 +712,36 @@ def test_disbanded_party_keeps_its_expeditions(client: TestClient, db_session: S
     assert [(e["id"], e["party_name"]) for e in expeditions] == [(exp.id, "Old Guard")]
 
 
+
+def test_add_member_to_disbanded_party_is_rejected(client: TestClient, db_session: Session):
+    """A disbanded party has left every list, so joining it would hide the
+    adventurer from the dashboard. The dashboard's drop-revert path relies on
+    this 404 to fall back to Unassigned."""
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Ghost Company", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    last = create_adventurer_db(db_session, keep.id, name="Last One", xp=0, gold=0)
+    party.members.append(last)
+    db_session.commit()
+
+    r = client.post(
+        "/parties/remove-member/",
+        json={"party_id": party.id, "adventurer_id": last.id},
+        headers=auth_headers(token, keep.id),
+    )
+    assert r.json() == {"deleted": True, "party_id": party.id}
+
+    r = client.post(
+        "/parties/add-member/",
+        json={"party_id": party.id, "adventurer_id": last.id},
+        headers=auth_headers(token, keep.id),
+    )
+    assert r.status_code == 404, r.text
+
+    db_session.refresh(party)
+    assert party.members == []
+
 # ── Character sheet: to-hit and class abilities ─────────────────────────────
 
 def _cleric(db: Session, keep_id: int, level: int) -> Adventurer:
@@ -864,3 +935,595 @@ def test_events_naming_an_adventurer_carry_their_id(client: TestClient, db_sessi
         for ref in event["adventurers"]:
             assert isinstance(ref["id"], int)
             assert ref["name"] in event["message"]
+
+
+# --- Ghost adventurers: the simulator must see today's roster, not the first launch's ---
+
+def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: Session):
+    """A second launch with the same first member simulates the party as it stands now.
+
+    The simulator is process-global. launch_expedition used to reuse the party it had
+    registered at that party's first launch (matched on the first member's id), so every
+    later expedition fought with the dead at their original HP and level — expeditions
+    891 and 892 in the 2026-09-09 save."""
+    from app.models import Expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Stat Testers", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    db_session.refresh(party)
+
+    leader = create_adventurer_db(db_session, keep.id, name="Aldric", xp=100, gold=100)
+    doomed = create_adventurer_db(db_session, keep.id, name="Faust", xp=100, gold=100)
+    party.members.extend([leader, doomed])
+    db_session.commit()
+
+    headers = auth_headers(token, keep.id)
+    first = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": 1}, headers=headers)
+    assert first.status_code == 200
+    db_session.expire_all()
+    first_exp = db_session.get(Expedition, first.json()["expedition_id"])
+    assert first_exp.simulation_data["party_status"]["members_total"] == 2
+
+    # Faust dies, the party comes home, two recruits join. Same leader, new roster.
+    first_exp.result = "completed"
+    party.on_expedition = False
+    party.current_expedition_id = None
+    doomed.is_dead = True
+    party.members.remove(doomed)
+    leader.on_expedition = False
+    leader.is_available = True
+    recruits = [create_adventurer_db(db_session, keep.id, name=n, xp=100, gold=100) for n in ("Borin", "Yorick")]
+    party.members.extend(recruits)
+    db_session.commit()
+
+    second = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": 1}, headers=headers)
+    assert second.status_code == 200
+    db_session.expire_all()
+    second_exp = db_session.get(Expedition, second.json()["expedition_id"])
+    assert second_exp.simulation_data["party_status"]["members_total"] == 3
+    assert set(second_exp.simulation_data["starting_hp"]) == {"Aldric", "Borin", "Yorick"}
+
+
+# --- player_events: one row per thing a player did (buildplans/player-events-spec.md) ---
+
+def _events(db: Session, event_type: str) -> list:
+    from app.models import PlayerEvent
+    return db.query(PlayerEvent).filter(PlayerEvent.event_type_id == event_type).order_by(PlayerEvent.id).all()
+
+
+def test_register_and_create_keep_log_events(client: TestClient, db_session: Session):
+    reg = client.post("/auth/register", json={"username": "newcomer", "password": "testpass1"})
+    assert reg.status_code == 200
+    created = _events(db_session, "account_created")
+    assert len(created) == 1 and created[0].keep_id is None
+
+    headers = {"Authorization": f"Bearer {reg.json()['access_token']}"}
+    keep = client.post("/keeps/", json={"name": "First Keep"}, headers=headers)
+    assert keep.status_code == 200
+    keeps = _events(db_session, "keep_created")
+    assert len(keeps) == 1
+    assert keeps[0].user_id == created[0].user_id
+    assert keeps[0].keep_id == keep.json()["id"]
+    assert keeps[0].payload == {"keep_name": "First Keep"}
+
+
+def test_launch_logs_expedition_started(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Loggers", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    party.members.append(create_adventurer_db(db_session, keep.id, name="Logger", xp=100, gold=100))
+    db_session.commit()
+
+    resp = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": 1}, headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200
+    started = _events(db_session, "expedition_started")
+    assert len(started) == 1
+    assert started[0].user_id == account.id and started[0].keep_id == keep.id
+    assert started[0].payload == {"party_name": "Loggers", "dungeon_level": 1, "is_auto_delve": False}
+
+
+def test_tpk_logs_the_wipe_with_what_did_it(client: TestClient, db_session: Session):
+    """A wipe records the killing monster, how many, and the party's average level on the event."""
+    from app.models import Expedition
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Doomed Three", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    members = [create_adventurer_db(db_session, keep.id, name=f"Doomed{i}", xp=0, gold=0) for i in range(3)]
+    members[0].level = 3  # average of 3, 1, 1 is 1.7
+    party.members.extend(members)
+    db_session.commit()
+
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=2, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+
+    sim = {
+        "dead_members": [m.name for m in members],
+        "log": [
+            {"turn": 1, "deaths": [members[0].name], "events": [{"combat": {"monster_type": "Goblin", "monster_count": 4}}]},
+            {"turn": 2, "deaths": [members[1].name, members[2].name], "events": [{"combat": {"monster_type": "Ogre", "monster_count": 2}}]},
+        ],
+        "starting_hp": {},
+        "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 0, "xp_earned": 0, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+
+    wipes = _events(db_session, "tpk")
+    assert len(wipes) == 1
+    assert wipes[0].payload == {
+        "party_name": "Doomed Three", "dungeon_level": 2, "adventurers_lost": 3,
+        "party_avg_level": 1.7, "monster_type": "Ogre", "monster_count": 2,
+    }
+    assert len(_events(db_session, "adventurer_died")) == 3
+    completed = _events(db_session, "expedition_completed")
+    assert len(completed) == 1 and completed[0].payload["deaths"] == 3
+
+
+def test_return_session_logged_only_after_an_hour_away(client: TestClient, db_session: Session):
+    from datetime import timedelta
+    account, keep, token = create_account_and_keep(db_session, username="returner")
+    account.created_at = datetime.now() - timedelta(hours=2)
+    db_session.commit()
+
+    first = client.post("/auth/login", json={"username": "returner", "password": "testpass1"})
+    assert first.status_code == 200
+    returns = _events(db_session, "return_session")
+    assert len(returns) == 1
+    assert returns[0].payload["hours_since_last"] == 2.0
+
+    again = client.post("/auth/login", json={"username": "returner", "password": "testpass1"})
+    assert again.status_code == 200
+    assert len(_events(db_session, "return_session")) == 1
+
+
+def test_level_up_logs_adventurer_levelled(client: TestClient, db_session: Session):
+    from app.progression import apply_level_ups
+    account, keep, token = create_account_and_keep(db_session)
+    adv = create_adventurer_db(db_session, keep.id, name="Climber", xp=2000, gold=0)
+
+    events = apply_level_ups(adv, keep)
+    db_session.commit()
+
+    assert events and adv.level == 2
+    levelled = _events(db_session, "adventurer_levelled")
+    assert len(levelled) == 1
+    assert levelled[0].payload == {"adventurer_name": "Climber", "class": "Fighter", "new_level": 2, "first_time": True}
+
+
+# --- feedback form (buildplans/feedback-form-spec.md) ---
+
+def _feedback_rows(db: Session) -> list:
+    from app.models import Feedback
+    return db.query(Feedback).order_by(Feedback.id).all()
+
+
+def test_feedback_from_a_signed_in_player_is_tied_to_account_and_keep(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    resp = client.post("/feedback/", json={
+        "category": "Something is broken",
+        "doing": "  Sending my party into the dungeon ",
+        "feedback": "The launch button did nothing.",
+        "severity": 3,
+        "name": "ignored when signed in",
+        "page_url": "http://localhost:5173/launch-expedition/1",
+    }, headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200
+    row = _feedback_rows(db_session)[0]
+    assert resp.json() == {"id": row.id}
+    assert (row.user_id, row.keep_id, row.severity) == (account.id, keep.id, 3)
+    assert row.doing == "Sending my party into the dungeon"
+    assert row.name is None
+
+
+def test_feedback_from_a_visitor_keeps_the_name(client: TestClient, db_session: Session):
+    resp = client.post("/feedback/", json={
+        "category": "I like something",
+        "doing": "Just logged in.",
+        "feedback": "The login screen is lovely.",
+        "severity": None,
+        "name": "  Pat  ",
+        "page_url": "http://localhost:5173/login",
+    })
+    assert resp.status_code == 200
+    row = _feedback_rows(db_session)[0]
+    assert (row.user_id, row.keep_id, row.severity, row.name) == (None, None, None, "Pat")
+
+
+def test_feedback_rejects_unknown_category_blank_text_and_severity_out_of_range(client: TestClient, db_session: Session):
+    good = {"category": "I have an idea", "doing": "x", "feedback": "y", "severity": None, "name": None, "page_url": "/"}
+    assert client.post("/feedback/", json={**good, "category": "Other"}).status_code == 422
+    assert client.post("/feedback/", json={**good, "feedback": "   "}).status_code == 422
+    assert client.post("/feedback/", json={**good, "severity": 5}).status_code == 422
+    assert client.post("/feedback/", json={**good, "severity": 0}).status_code == 422
+    assert _feedback_rows(db_session) == []
+
+
+# --- buildings grant XP to their classes; the Village states totals and free slots ---
+
+def _building(db: Session, keep_id: int, building_type: str):
+    from app.models import Building
+    b = Building(keep_id=keep_id, building_type=building_type, level=1)
+    db.add(b)
+    db.commit()
+    db.refresh(b)
+    return b
+
+
+def test_buildings_grant_stacking_xp_to_their_classes(client: TestClient, db_session: Session):
+    """+10% per standing building whose classes include the adventurer's; an Elf with a
+    Training Grounds and a Library gets both."""
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    _building(db_session, keep.id, "training_grounds")
+    _building(db_session, keep.id, "library")
+
+    party = Party(name="Scholars", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    fighter = create_adventurer_db(db_session, keep.id, name="Fighter", xp=0, gold=0)
+    elf = create_adventurer_db(db_session, keep.id, name="Elf", xp=0, gold=0)
+    cleric = create_adventurer_db(db_session, keep.id, name="Cleric", xp=0, gold=0)
+    elf.adventurer_class = AdventurerClass.ELF
+    cleric.adventurer_class = AdventurerClass.CLERIC
+    party.members.extend([fighter, elf, cleric])
+    db_session.commit()
+
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+    sim = {
+        "dead_members": [], "log": [], "starting_hp": {},
+        "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 100, "xp_earned": 300, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+
+    assert (fighter.xp, elf.xp, cleric.xp) == (110, 120, 100)
+
+
+def test_building_response_states_totals_and_free_slots(client: TestClient, db_session: Session):
+    account, keep, token = create_account_and_keep(db_session)
+    grounds = _building(db_session, keep.id, "training_grounds")
+    vet = create_adventurer_db(db_session, keep.id, name="Vet", xp=0, gold=0)
+    vet.level = 2
+    vet.is_assigned = True
+    grounds.assigned_adventurers.append(vet)
+    db_session.commit()
+
+    rows = client.get("/buildings/", headers=auth_headers(token, keep.id)).json()
+    built = next(r for r in rows if r["building_type"] == "training_grounds")
+    assert (built["slots_total"], built["slots_free"]) == (3, 2)
+    assert built["current_stats"] == [
+        {"value": "+1", "phrase": "to-hit in combat", "rate": "+1", "active": True},
+        {"value": "+10%", "phrase": "XP Fighters / Elves / Halflings / Dwarves", "rate": None, "active": True},
+    ]
+    assert built["effects"] == ["+1 to-hit in combat", "+10% XP Fighters / Elves / Halflings / Dwarves"]
+
+    unbuilt = next(r for r in rows if r["building_type"] == "temple")
+    assert unbuilt["current_stats"] == []
+    assert unbuilt["next_stats"] == [
+        {"value": None, "phrase": "HP / day while healing", "rate": "+1", "active": False},
+        {"value": "+10%", "phrase": "XP Clerics", "rate": None, "active": True},
+    ]
+
+
+# --- XP split (Cody, 2026-09-14): everything the run earned, divided among those who come home ---
+
+def test_finalize_pools_all_xp_for_the_survivors(client: TestClient, db_session: Session):
+    """Two fights (300 and 200) and 90 treasure XP make one pool of 590; C died, so A and B
+    take 295 each and C takes nothing."""
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Splitters", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    a = create_adventurer_db(db_session, keep.id, name="A", xp=0, gold=0)
+    b = create_adventurer_db(db_session, keep.id, name="B", xp=0, gold=0)
+    c = create_adventurer_db(db_session, keep.id, name="C", xp=0, gold=0)
+    party.members.extend([a, b, c])
+    db_session.commit()
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+
+    sim = {
+        "dead_members": ["C"],
+        "log": [
+            {"turn": 1, "deaths": [], "events": [{"combat": {"xp_earned": 300}}]},
+            {"turn": 2, "deaths": ["C"], "events": [
+                {"combat": {"xp_earned": 200}},
+                {"treasure": {"gold": 0, "silver": 0, "copper": 0, "xp_value": 90, "special_item": None}},
+            ]},
+        ],
+        "starting_hp": {}, "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 196, "xp_earned": 590, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+
+    assert (a.xp, b.xp, c.xp) == (295, 295, 0)
+    assert c.is_dead
+
+
+def test_finalize_pools_only_the_turns_played_on_a_retreat(client: TestClient, db_session: Session):
+    """A retreat truncates the log; XP beyond the cutoff was never earned."""
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Runners", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    a = create_adventurer_db(db_session, keep.id, name="Runner", xp=0, gold=0)
+    party.members.append(a)
+    db_session.commit()
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+    sim = {
+        "dead_members": [],
+        "log": [
+            {"turn": 1, "deaths": [], "events": [{"combat": {"xp_earned": 100}}]},
+            {"turn": 2, "deaths": [], "events": [{"combat": {"xp_earned": 400}}]},
+        ],
+        "retreat_cutoff_turn": 1,
+        "starting_hp": {}, "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 500, "xp_earned": 500, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+    assert a.xp == 100
+
+
+def test_finalize_pools_xp_for_a_lone_survivor(client: TestClient, db_session: Session):
+    from app.routes.expeditions import _finalize_expedition
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Old Save", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    a = create_adventurer_db(db_session, keep.id, name="Old A", xp=0, gold=0)
+    party.members.append(a)
+    db_session.commit()
+    exp = Expedition(party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="in_progress")
+    db_session.add(exp)
+    db_session.commit()
+    sim = {
+        "dead_members": [], "log": [{"turn": 1, "deaths": [], "events": [{"combat": {"xp_earned": 120}}]}],
+        "starting_hp": {}, "treasure_total": 0, "treasure_silver": 0, "treasure_copper": 0,
+        "xp_per_party_member": 120, "xp_earned": 120, "special_items": [],
+    }
+    _finalize_expedition(exp, sim, db_session, keep)
+    db_session.commit()
+    assert a.xp == 120
+
+
+def test_magic_weapon_is_to_hit_and_damage_only():
+    """Per OSE (Cody, 2026-09-14): a +1 weapon adds +1 to-hit and +1 damage, and touches
+    neither level, hit dice, nor a class's charges. Building bonuses stack with it."""
+    from app.class_config import get_combat_hd, get_thac0
+    from app.expedition import Expedition, starting_resources
+    party = [
+        {"name": "Cleric", "character_class": "Cleric", "level": 1, "weapon_bonus": 1, "hit_points": 6},
+        {"name": "Mage", "character_class": "Magic-User", "level": 1, "weapon_bonus": 1, "hit_points": 4},
+        {"name": "Fighter", "character_class": "Fighter", "level": 1, "weapon_bonus": 2, "hit_points": 8,
+         "building_to_hit_bonus": 1, "building_damage_bonus": 1},
+    ]
+    assert starting_resources(party) == (1, 0)
+    exp = Expedition([dict(m) for m in party], dungeon_level=1)
+    by_name = {m["name"]: m for m in exp.party}
+    assert by_name["Cleric"]["heals_remaining"] == 0
+    assert by_name["Cleric"]["revivals_remaining"] == 0
+    assert by_name["Cleric"]["turn_attempts_remaining"] == 1
+    assert by_name["Mage"]["spells_remaining"] == 1
+    fighter = by_name["Fighter"]
+    assert fighter["thac0"] == get_thac0("Fighter", 1)
+    assert fighter["hd"] == get_combat_hd("Fighter", 1)
+    assert fighter["to_hit_bonus"] == 1 + 1 + 2  # class, Training Grounds, weapon
+    assert fighter["damage_bonus"] == 1 + 2  # Training Grounds, weapon
+
+
+def test_a_fled_fight_pays_for_kills_only():
+    """Cody, 2026-09-15: running away keeps the XP for monsters already killed, nothing more."""
+    from app.expedition import combat_xp
+    wolves = [{"hd": 2.0}] * 5
+    assert combat_xp(wolves, monsters_killed=2, monsters_fled=0, party_fled=True) == 400
+    assert combat_xp(wolves, monsters_killed=0, monsters_fled=0, party_fled=True) == 0
+    assert combat_xp(wolves, monsters_killed=3, monsters_fled=2, party_fled=False) == 1000
+    assert combat_xp([], 0, 0, False) == 0
+
+
+# --- armor is damage reduction; items describe themselves from data ---
+
+def test_armor_reduces_each_hit_to_a_floor_of_zero():
+    import random
+
+    from app.expedition import _do_attack
+    random.seed(1)
+    attacker = {"name": "Orc #1", "thac0": 19, "to_hit_bonus": 0, "damage_bonus": 0}
+    for armor, floor in ((0, 1), (1, 0), (6, 0)):
+        hits = 0
+        for _ in range(200):
+            target = {"name": "Vet", "ac": 9, "current_hp": 100, "armor_reduction": armor}
+            atk = _do_attack(attacker, target)
+            if atk["hit"]:
+                hits += 1
+                assert atk["damage"] >= floor
+                assert atk["damage"] == 100 - target["current_hp"]
+                if armor >= 6:
+                    assert atk["damage"] == 0
+        assert hits > 0
+
+
+def test_item_descriptions_come_from_data():
+    from app.magic_items import describe_item
+    assert describe_item("weapon", 2) == "+2 to-hit and +2 damage."
+    assert describe_item("armor", 1) == "Each hit taken does 1 less damage."
+    assert describe_item("potion", 1) == "When reduced to 0 HP, consume potion to restore 1 HP."
+    assert describe_item("mystery", 1) == ""
+
+
+# --- the replay returns the healing that reconciles a loss with the HP bar ---
+
+class _Member:
+    """The two fields `_replay_members` reads off a party member."""
+
+    def __init__(self, name: str, hp_current: int, hp_max: int):
+        self.name = name
+        self.hp_current = hp_current
+        self.hp_max = hp_max
+
+
+def test_replay_returns_damage_healing_and_revivals_per_member():
+    """A member can take 4 and end at full health; the row needs both numbers to read."""
+    from app.routes.expeditions import _replay_members
+
+    members = [_Member("Vera", 6, 6), _Member("Orin", 6, 6)]
+    log = [{
+        "turn": 1,
+        "deaths": [],
+        "events": [{
+            "combat": {
+                "round_log": [{
+                    "round": 1,
+                    "attacks": [
+                        {"attacker": "Goblin #1", "target": "Vera", "hit": True, "damage": 4},
+                        {"attacker": "Goblin #2", "target": "Orin", "hit": False, "damage": 0},
+                    ],
+                }],
+                "healed_adventurers": [{"name": "Vera", "hp": 4, "healer": "Orin"}],
+            }
+        }],
+    }]
+
+    out = _replay_members(members, log, deaths=set(), starting_hp={"Vera": 6, "Orin": 6})
+    assert out["Vera"] == {"hp": 6, "damage_taken": 4, "hp_healed": 4, "revived": 0}
+    assert out["Orin"] == {"hp": 6, "damage_taken": 0, "hp_healed": 0, "revived": 0}
+
+
+def test_replay_counts_a_revival_and_the_damage_that_caused_it():
+    from app.routes.expeditions import _replay_members
+
+    members = [_Member("Vera", 6, 6)]
+    log = [{
+        "turn": 1,
+        "deaths": [],
+        "events": [{
+            "combat": {
+                "round_log": [{
+                    "round": 1,
+                    "attacks": [{"attacker": "Ogre", "target": "Vera", "hit": True, "damage": 8}],
+                }],
+                "revived_adventurers": ["Vera"],
+                "healed_adventurers": [{"name": "Vera", "hp": 3, "healer": "Edric"}],
+            }
+        }],
+    }]
+
+    out = _replay_members(members, log, deaths=set(), starting_hp={"Vera": 6})
+    # Revived to 1, then healed 3: the HP bar reads 4/6 and the row explains how
+    assert out["Vera"] == {"hp": 4, "damage_taken": 8, "hp_healed": 3, "revived": 1}
+
+
+def test_replay_counts_trap_damage_and_the_no_round_log_fallback():
+    from app.routes.expeditions import _replay_members
+
+    members = [_Member("Vera", 10, 10), _Member("Orin", 10, 10)]
+    log = [
+        {"turn": 1, "deaths": [], "events": [{"trap_damage": 5}]},
+        {"turn": 2, "deaths": [], "events": [{"combat": {"hp_lost": 4}}]},
+    ]
+
+    out = _replay_members(members, log, deaths=set(), starting_hp={"Vera": 10, "Orin": 10})
+    assert out["Vera"]["damage_taken"] == 5  # 3 of the trap, 2 of the fight
+    assert out["Orin"]["damage_taken"] == 4  # 2 of the trap, 2 of the fight
+    assert out["Vera"]["hp"] == 5
+    assert out["Orin"]["hp"] == 6
+
+
+def test_completed_summary_reports_what_the_dead_took(client: TestClient, db_session: Session):
+    """The dead leave their party at finalization, so replaying `party.members`
+    left every casualty out and reported them as having taken no damage."""
+    from app.models import ExpeditionLog
+
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+
+    survivor = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    casualty = create_adventurer_db(db_session, keep.id, name="Ilsa", xp=0, gold=0)
+    survivor.hp_current = 6
+    casualty.hp_current = 0
+    casualty.is_dead = True
+
+    party = Party(keep_id=keep.id, name="Alpha")
+    db_session.add(party)
+    db_session.commit()
+    db_session.refresh(party)
+    # As finalization leaves it: the survivor is still in the party, the dead is not
+    party.members.append(survivor)
+    db_session.commit()
+
+    combat_log = [{
+        "turn": 1,
+        "deaths": ["Ilsa"],
+        "events": [{
+            "combat": {
+                "round_log": [{
+                    "round": 1,
+                    "events": [{
+                        "kind": "attacks",
+                        "side": "monsters",
+                        "attacks": [
+                            {"attacker": "Ogre", "target": "Rurik", "hit": True, "damage": 4},
+                            {"attacker": "Ogre", "target": "Ilsa", "hit": True, "damage": 10},
+                        ],
+                    }],
+                }],
+            }
+        }],
+    }]
+
+    expedition = Expedition(
+        party_id=party.id,
+        start_day=keep.current_day - 3,
+        duration_days=3,
+        return_day=keep.current_day,
+        dungeon_level=1,
+        result="completed",
+        started_at=datetime.now(),
+        finished_at=datetime.now(),
+        simulation_data={
+            "log": combat_log,
+            "dead_members": ["Ilsa"],
+            "starting_hp": {"Rurik": 10, "Ilsa": 10},
+        },
+    )
+    db_session.add(expedition)
+    db_session.commit()
+    db_session.refresh(expedition)
+
+    for adv, status in ((survivor, "alive"), (casualty, "dead")):
+        db_session.add(ExpeditionLog(
+            expedition_id=expedition.id,
+            adventurer_id=adv.id,
+            xp_share=0,
+            hp_change=0,
+            status=status,
+        ))
+    db_session.commit()
+
+    summary = client.get(f"/expeditions/{expedition.id}/summary",
+                         headers=auth_headers(token, keep.id)).json()
+    took = {m["name"]: m["damage_taken"] for m in summary["member_results"]}
+    assert took == {"Rurik": 4, "Ilsa": 10}

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_keep
-from app.buildings import BUILDING_TYPES, get_upgrade_cost
+from app.buildings import BUILDING_TYPES
 from app.database import get_db
 from app.dungeons import DUNGEON_LEVELS
 from app.models import (
@@ -18,6 +18,7 @@ from app.models import (
     party_adventurer,
 )
 from app.names import generate_adventurer_name
+from app.player_events import EventType, log_player_event
 from app.routes.expeditions import _finalize_expedition, resolve_expedition
 from app.schemas import AdvanceDayResult, GameEvent, GameTimeInfo
 
@@ -55,9 +56,6 @@ def create_random_adventurer(adventurer_class: AdventurerClass, keep: Keep, db: 
 
 def run_daily_recruitment(keep: Keep, db: Session) -> list:
     """Run daily recruitment rolls. Returns list of new adventurers created."""
-    from app.buildings import BUILDING_CONFIG, has_recruitment_bonus
-    from app.models import Building
-
     # Tavern count: available + on_expedition only (not dead, bankrupt, or assigned)
     active_count = db.query(Adventurer).filter(
         Adventurer.keep_id == keep.id,
@@ -66,24 +64,12 @@ def run_daily_recruitment(keep: Keep, db: Session) -> list:
         Adventurer.is_assigned == False,
     ).count()
 
-    # Build a set of classes that get doubled recruitment from buildings
-    boosted_classes = set()
-    buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
-    for b in buildings:
-        if has_recruitment_bonus(b.building_type):
-            class_name = BUILDING_CONFIG.get(b.building_type, {}).get("class", "")
-            boosted_classes.add(class_name)
-
     new_adventurers = []
     for adv_class in AdventurerClass:
         if active_count >= MAX_TAVERN_SIZE:
             break
-        # Double chance if building exists for this class
-        chance = RECRUITMENT_CHANCE
-        if adv_class.value in boosted_classes:
-            chance = chance * 2
         # Geometric re-rolls: keep rolling while successful
-        while random.random() < chance:
+        while random.random() < RECRUITMENT_CHANCE:
             if active_count >= MAX_TAVERN_SIZE:
                 break
             adv = create_random_adventurer(adv_class, keep, db)
@@ -228,6 +214,12 @@ def process_upkeep(keep: Keep, db: Session) -> list[GameEvent]:
             row["outcome"] = "prison"
             prison_names.append(adv.name)
             unpaid_cp += cost_copper - row["purse_cp"]
+            log_player_event(db, EventType.ADVENTURER_BANKRUPT, keep.account_id, keep.id, {
+                "adventurer_name": adv.name,
+                "class": adv.adventurer_class.value,
+                "level": adv.level,
+                "debt_cp": cost_copper - row["purse_cp"],
+            })
 
             events.append(GameEvent(
                 type="upkeep",
@@ -658,7 +650,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         Adventurer.is_dead == False,
         Adventurer.is_bankrupt == False,
     ).count()
-    party_count = db.query(Party).filter(Party.keep_id == keep.id, Party.disbanded == False).count()
     expedition_count = db.query(Expedition).join(Party, Expedition.party_id == Party.id).filter(Party.keep_id == keep.id).count()
 
     graveyard_count = db.query(Adventurer).filter(
@@ -676,35 +667,16 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
     ).order_by(Expedition.finished_at.desc()).limit(5).all()
 
     # Buildings summary
-    from app.buildings import (
-        BUILDING_CONFIG,
-        get_building_class,
-        get_building_name,
-        has_recruitment_bonus,
-    )
+    from app.buildings import get_building_class, get_building_name
     from app.models import Building
+    from app.routes.buildings import building_effects, staffed_effects, standing_effects
     buildings = db.query(Building).filter(Building.keep_id == keep.id).all()
     buildings_summary = []
-    built_types = set()
     for b in buildings:
         if b.building_type not in BUILDING_TYPES:
             continue
-        built_types.add(b.building_type)
         assigned_count = len(b.assigned_adventurers)
         cls = get_building_class(b.building_type)
-        # Compute current effects
-        effects = []
-        if has_recruitment_bonus(b.building_type):
-            effects.append(f"2x {cls} recruitment")
-        config = BUILDING_CONFIG.get(b.building_type, {})
-        if assigned_count > 0:
-            bonuses = config.get("level_bonuses", {}).get(str(b.level), {})
-            if "healing_per_assigned" in bonuses:
-                effects.append(f"+{assigned_count * bonuses['healing_per_assigned']} HP/day healing")
-            if "combat_bonus_per_assigned" in bonuses:
-                effects.append(f"+{assigned_count * bonuses['combat_bonus_per_assigned']} combat strength")
-            if "magic_item_chance_per_assigned" in bonuses:
-                effects.append(f"+{assigned_count * bonuses['magic_item_chance_per_assigned']}% magic item chance")
         buildings_summary.append({
             "id": b.id,
             "building_type": b.building_type,
@@ -712,7 +684,9 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
             "level": b.level,
             "adventurer_class": cls,
             "assigned_count": assigned_count,
-            "effects": effects,
+            "effects": building_effects(b),
+            "staffed_effects": staffed_effects(b),
+            "standing_effects": standing_effects(b),
             "assigned_adventurers": [_adv_summary_local(a) for a in b.assigned_adventurers],
         })
 
@@ -795,15 +769,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "rows": forecast_rows,
     }
 
-    # Hint for new players
-    hint = None
-    if party_count > 0 and len(active_expeditions) == 0:
-        hint = "launch_expedition"
-    elif not built_types:
-        cheapest_cost_copper = min(get_upgrade_cost(bt, 1) for bt in BUILDING_TYPES) * 100
-        if keep.treasury_total_copper() >= cheapest_cost_copper:
-            hint = "Visit the Village to build your first structure."
-
     return {
         "adventurer_count": adventurer_count,
         "graveyard_count": graveyard_count,
@@ -821,7 +786,6 @@ def get_dashboard_stats(keep: Keep = Depends(get_current_keep), db: Session = De
         "parties": parties_summary,
         "unassigned_adventurers": unassigned_summary,
         "upkeep_forecast": upkeep_forecast,
-        "hint": hint,
         "active_expeditions": [
             {
                 "id": e.id,

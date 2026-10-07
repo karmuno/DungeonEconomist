@@ -7,7 +7,7 @@ from pathlib import Path
 
 _DATA_PATH = Path(__file__).parent / "data" / "monsters.json"
 
-with open(_DATA_PATH) as f:
+with open(_DATA_PATH, encoding="utf-8") as f:
     MONSTER_CONFIG = json.load(f)
 
 _MONSTERS = MONSTER_CONFIG["monsters"]

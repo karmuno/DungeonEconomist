@@ -1,4 +1,12 @@
 {
+  "descriptions": {
+    "weapon": "+{bonus} to-hit and +{bonus} damage.",
+    "armor": "Each hit taken does {bonus} less damage.",
+    "ring": "Each hit taken does {bonus} less damage.",
+    "potion": "When reduced to 0 HP, consume potion to restore 1 HP.",
+    "scroll": "Casts a devastating spell when consumed.",
+    "artifact": "Doubles spell casts per expedition."
+  },
   "prefixes": [
     "Gleaming", "Ancient", "Enchanted", "Blessed", "Shimmering",
     "Runed", "Eldritch", "Frostbound", "Flameforged", "Shadowforged",

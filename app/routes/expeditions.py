@@ -19,6 +19,7 @@ from app.models import (
     Keep,
     Party,
 )
+from app.player_events import EventType, log_first_auto_delve, log_player_event, wipe_details
 from app.progression import apply_level_ups, check_for_level_up
 from app.schemas import ExpeditionCreate, ExpeditionResult, TurnResult
 from app.simulator import DungeonSimulator
@@ -160,6 +161,21 @@ def resolve_expedition(expedition: Expedition, db: Session, keep: Keep) -> dict:
     return _finalize_expedition(expedition, sim_result, db, keep)
 
 
+def _xp_in_log(replay_log: list[dict]) -> int:
+    """Every XP the party earned in the turns it actually played: fights won (a fled
+    fight is worth nothing) plus treasure found."""
+    total = 0
+    for turn in replay_log:
+        for event in turn.get("events", []):
+            fight = event.get("combat")
+            if fight:
+                total += int(fight.get("xp_earned", 0))
+            treasure = event.get("treasure")
+            if treasure:
+                total += int(treasure.get("xp_value", 0))
+    return total
+
+
 def _finalize_expedition(
     expedition: Expedition,
     sim_result: dict,
@@ -227,28 +243,45 @@ def _finalize_expedition(
 
         # Replay HP from simulation using starting_hp snapshot
         starting_hp = effective_result.get("starting_hp", {})
-        sim_hp = _replay_member_hp(party.members, replay_log, dead_names, starting_hp)
+        sim_members = _replay_members(party.members, replay_log, dead_names, starting_hp)
 
-        xp_per_member = int(effective_result.get("xp_per_party_member", 0))
+        # All XP the run earned is one pool, split evenly among those who come
+        # home (Cody, 2026-09-14). The dead take nothing; a wipe earns nothing.
+        survivors = [m for m in party.members if m.name not in dead_names]
+        pooled_xp = _xp_in_log(replay_log)
+        if pooled_xp == 0 and not any(t.get("events") for t in replay_log):
+            # No turn-by-turn log to sum (older saves, fixtures): the run's recorded total
+            pooled_xp = int(effective_result.get("xp_earned", 0))
+        survivor_share = pooled_xp // len(survivors) if survivors else 0
+
+        # Buildings grant XP to their classes just by standing, stacking across
+        # buildings (an Elf with a Training Grounds and a Library gets both).
+        from app.buildings import xp_bonus_by_class
+        from app.models import Building
+        built = [b.building_type for b in db.query(Building).filter(Building.keep_id == keep.id).all()]
+        xp_bonus = xp_bonus_by_class(built)
 
         # Iterate a snapshot: dead members are detached from the party inside
         # the loop, and mutating party.members while iterating skips entries
-        for member in list(party.members):
+        went_out = list(party.members)
+        for member in went_out:
             is_dead = member.name in dead_names
-            replayed_hp = sim_hp.get(member.name, member.hp_current)
+            earned = 0 if is_dead else survivor_share
+            member_xp = int(earned * (1 + xp_bonus.get(member.adventurer_class.value, 0.0)))
+            replayed_hp = sim_members.get(member.name, {}).get("hp", member.hp_current)
             # Clamp to real hp_max (armor buffer may have inflated starting_hp)
             final_hp = max(1, min(replayed_hp, member.hp_max)) if not is_dead else 0
 
             log = ExpeditionLog(
                 expedition_id=expedition.id,
                 adventurer_id=member.id,
-                xp_share=xp_per_member,
+                xp_share=member_xp,
                 hp_change=final_hp - member.hp_current if not is_dead else -member.hp_current,
                 status="dead" if is_dead else "alive"
             )
             db.add(log)
 
-            member.xp += xp_per_member
+            member.xp += member_xp
 
             if is_dead:
                 member.hp_current = 0
@@ -260,6 +293,13 @@ def _finalize_expedition(
                 # The dead leave their party so its slots free up; an empty
                 # party stands until end of day, then disbands.
                 member.parties = []
+                log_player_event(db, EventType.ADVENTURER_DIED, keep.account_id, keep.id, {
+                    "adventurer_name": member.name,
+                    "class": member.adventurer_class.value,
+                    "level": member.level,
+                    "dungeon_level": expedition.dungeon_level,
+                    "party_name": party.name,
+                })
                 events.append({
                     "type": "death",
                     "message": f"{member.name} died during the expedition",
@@ -270,6 +310,18 @@ def _finalize_expedition(
                 member.on_expedition = False
                 member.is_available = True
                 living_members.append(member)
+
+        # A wipe is recorded with what did it and how outmatched the party was,
+        # here rather than reconstructed later: levels and membership change
+        # once the dust settles.
+        if went_out and not living_members:
+            log_player_event(db, EventType.TPK, keep.account_id, keep.id, {
+                "party_name": party.name,
+                "dungeon_level": expedition.dungeon_level,
+                "adventurers_lost": len(went_out),
+                "party_avg_level": round(sum(m.level for m in went_out) / len(went_out), 1),
+                **wipe_details(replay_log),
+            })
 
         # Level up now, not at end of day: the XP for this expedition is in
         # hand, so anyone who crossed a threshold advances before the player
@@ -516,6 +568,7 @@ def _finalize_expedition(
         new_name = stairs["new_level_name"]
         if new_level > (keep.max_dungeon_level or 0):
             keep.max_dungeon_level = new_level
+            log_player_event(db, EventType.STAIRS_DISCOVERED, keep.account_id, keep.id, {"new_max_level": new_level})
             party_name = party.name if party else "Your party"
             events.append({
                 "type": "stairs_discovered",
@@ -525,6 +578,15 @@ def _finalize_expedition(
     if retreat:
         retreat_label = party.name if party else "The party"
         events.insert(0, {"type": "expedition_complete", "message": f"{retreat_label} retreated from the dungeon"})
+
+    log_player_event(db, EventType.EXPEDITION_COMPLETED, keep.account_id, keep.id, {
+        "party_name": party.name if party else None,
+        "dungeon_level": expedition.dungeon_level,
+        "retreated": retreat,
+        "loot_gp": effective_result.get("treasure_total", 0),
+        "xp_gained": effective_result.get("xp_earned", 0),
+        "deaths": len(dead_names),
+    })
 
     return {"events": events, "simulation_data": effective_result}
 
@@ -556,14 +618,15 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level + weapon_bonus,  # weapon bonus scales effective combat level
-            "base_level": member.level,  # actual level for XP etc.
+            "level": member.level,
+            "base_level": member.level,
+            "weapon_bonus": weapon_bonus,  # OSE: a magic weapon is to-hit and damage, nothing else
             "hit_points": member.hp_max,
-            "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
-            "armor_buffer": armor_bonus,  # track buffer separately
+            "current_hp": member.hp_current,
+            "armor_reduction": armor_bonus,  # each hit taken does this much less damage
             "xp": member.xp,
-            "to_hit_bonus": building_bonuses["to_hit_bonus"],
-            "damage_bonus": building_bonuses["damage_bonus"],
+            "building_to_hit_bonus": building_bonuses["to_hit_bonus"],
+            "building_damage_bonus": building_bonuses["damage_bonus"],
             "morale_penalty": building_bonuses["morale_penalty"],
             "has_potion": has_potion(member),
         }
@@ -618,6 +681,10 @@ def _auto_launch_expedition(party, keep, db, dungeon_level: int | None = None) -
     for member in party.members:
         member.on_expedition = True
         member.is_available = False
+    log_player_event(db, EventType.EXPEDITION_STARTED, keep.account_id, keep.id, {
+        "party_name": party.name, "dungeon_level": dungeon_level, "is_auto_delve": True,
+    })
+    log_first_auto_delve(db, keep, party.name, dungeon_level)
     db.commit()
 
     return {
@@ -682,14 +749,15 @@ def launch_expedition(
             "id": member.id,
             "name": member.name,
             "character_class": member.adventurer_class.value,
-            "level": member.level + weapon_bonus,  # weapon bonus scales effective combat level
-            "base_level": member.level,  # actual level for XP etc.
+            "level": member.level,
+            "base_level": member.level,
+            "weapon_bonus": weapon_bonus,  # OSE: a magic weapon is to-hit and damage, nothing else
             "hit_points": member.hp_max,
-            "current_hp": member.hp_current + armor_bonus,  # armor buffer adds to starting HP
-            "armor_buffer": armor_bonus,  # track buffer separately
+            "current_hp": member.hp_current,
+            "armor_reduction": armor_bonus,  # each hit taken does this much less damage
             "xp": member.xp,
-            "to_hit_bonus": building_bonuses["to_hit_bonus"],
-            "damage_bonus": building_bonuses["damage_bonus"],
+            "building_to_hit_bonus": building_bonuses["to_hit_bonus"],
+            "building_damage_bonus": building_bonuses["damage_bonus"],
             "morale_penalty": building_bonuses["morale_penalty"],
             "has_potion": has_potion(member),
         }
@@ -701,16 +769,11 @@ def launch_expedition(
             member_dict["spell_multiplier"] = multiplier
         party_members.append(member_dict)
 
-    # Add party to simulator
-    simulator_party_idx = None
-    if party_members:
-        for idx, sim_party in enumerate(simulator.parties):
-            if len(sim_party) > 0 and sim_party[0].get("id") == party_members[0].get("id"):
-                simulator_party_idx = idx
-                break
-
-    if simulator_party_idx is None:
-        simulator_party_idx = simulator.add_party(party_members)
+    # Always register the roster as it stands now. Reusing a party cached in the
+    # process-global simulator (matched on its first member) simulated every later
+    # launch against the roster from the first one: the dead, at their original
+    # HP, level and items. The auto-launch path has always registered fresh.
+    simulator_party_idx = simulator.add_party(party_members)
 
     expedition_id_sim = simulator.start_expedition(
         simulator_party_idx,
@@ -766,6 +829,9 @@ def launch_expedition(
         member.on_expedition = True
         member.is_available = False
 
+    log_player_event(db, EventType.EXPEDITION_STARTED, keep.account_id, keep.id, {
+        "party_name": party.name, "dungeon_level": requested_level, "is_auto_delve": False,
+    })
     db.commit()
 
     return {
@@ -816,6 +882,13 @@ def make_expedition_choice(
     resolved = expedition.resolved_phases or 0
 
     was_auto = data.choice == "auto"
+    log_player_event(db, EventType.EXPEDITION_DECISION, keep.account_id, keep.id, {
+        "choice": choice,
+        "was_auto": was_auto,
+        "trigger_type": (expedition.pending_event or {}).get("type", ""),
+        "dungeon_level": expedition.dungeon_level,
+        "party_name": expedition.party.name if expedition.party else None,
+    })
 
     if choice == "retreat":
         result = _finalize_expedition(expedition, sim_result, db, keep, retreat=True)
@@ -1043,8 +1116,20 @@ def get_expedition_summary(
         return _build_completed_summary(expedition, party, keep, db)
 
 
-def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp: dict = None) -> dict:
-    """Replay simulation turns to reconstruct per-member HP.
+def _round_attacks(round_entry: dict) -> list[dict]:
+    """Every attack in a round, new ordered logs and old bucketed ones alike.
+
+    Rounds recorded since the ordered-log change carry one `events` list; older
+    stored expeditions carry `attacks` and `halfling_pre_round` buckets.
+    """
+    events = round_entry.get("events")
+    if events is not None:
+        return [atk for ev in events if ev.get("kind") == "attacks" for atk in ev.get("attacks", [])]
+    return list(round_entry.get("halfling_pre_round") or round_entry.get("attacks") or [])
+
+
+def _replay_members(party_members, events_log: list, deaths: set, starting_hp: dict = None) -> dict:
+    """Replay simulation turns to reconstruct what each member ended the run with.
 
     Uses exact per-attack round_log data when available. Falls back to even
     distribution for old expeditions that lack round_log.
@@ -1053,16 +1138,30 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
         starting_hp: {name: hp} snapshot from expedition launch. Falls back
                      to live DB hp_current if not available (old expeditions).
 
-    Returns {name: current_hp} for each member.
+    Returns {name: {"hp", "damage_taken", "hp_healed", "revived"}}. The three
+    figures beside the HP are what reconciles it on screen: a member can take 4
+    and still end at full health because a Cleric closed the gap, and a row that
+    shows only the damage reads like a bug (see `damage_taken` on member rows).
     """
     hp = {}
     alive = {}
+    taken: dict[str, int] = {}
+    healed: dict[str, int] = {}
+    revived: dict[str, int] = {}
     member_names: set[str] = set()
     for m in party_members:
         name = m.name
         hp[name] = starting_hp[name] if (starting_hp and name in starting_hp) else m.hp_current
         alive[name] = True
+        taken[name] = 0
+        healed[name] = 0
+        revived[name] = 0
         member_names.add(name)
+
+    def _hurt(name: str, amount: int) -> None:
+        """Damage lands on the HP and on the running total alike."""
+        hp[name] = max(0, hp.get(name, 0) - amount)
+        taken[name] = taken.get(name, 0) + amount
 
     for turn in events_log:
         for event in turn.get("events", []):
@@ -1072,19 +1171,22 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
                 if round_log:
                     # Exact replay: apply damage from each attack that targets a PC
                     for round_entry in round_log:
-                        for atk in round_entry.get("attacks", []):
+                        for atk in _round_attacks(round_entry):
                             target = atk.get("target")
                             if target in member_names and atk.get("hit") and atk.get("damage", 0) > 0:
-                                hp[target] = max(0, hp.get(target, 0) - atk["damage"])
-                    # Post-combat revivals (cleric L2+): set to 1 HP
+                                _hurt(target, atk["damage"])
+                    # Post-combat revivals (cleric L2+ or a potion): set to 1 HP
                     for revived_name in combat.get("revived_adventurers", []):
                         if revived_name in member_names:
                             hp[revived_name] = 1
+                            revived[revived_name] = revived.get(revived_name, 0) + 1
                     # Post-combat healing: healed["hp"] is the actual amount healed
-                    for healed in combat.get("healed_adventurers", []):
-                        name = healed.get("name")
+                    for entry in combat.get("healed_adventurers", []):
+                        name = entry.get("name")
                         if name in member_names:
-                            hp[name] = hp.get(name, 0) + healed.get("hp", 0)
+                            amount = entry.get("hp", 0)
+                            hp[name] = hp.get(name, 0) + amount
+                            healed[name] = healed.get(name, 0) + amount
                 else:
                     # Fallback for old expeditions without round_log: distribute evenly
                     hp_lost = combat.get("hp_lost", 0)
@@ -1093,8 +1195,7 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
                         per_member = hp_lost // len(alive_names)
                         remainder = hp_lost % len(alive_names)
                         for i, name in enumerate(alive_names):
-                            loss = per_member + (1 if i < remainder else 0)
-                            hp[name] = max(0, hp[name] - loss)
+                            _hurt(name, per_member + (1 if i < remainder else 0))
 
             # Trap damage: simulator distributes evenly so replay matches exactly
             trap_dmg = event.get("trap_damage")
@@ -1104,15 +1205,22 @@ def _replay_member_hp(party_members, events_log: list, deaths: set, starting_hp:
                     per_member = trap_dmg // len(alive_names)
                     remainder = trap_dmg % len(alive_names)
                     for i, name in enumerate(alive_names):
-                        loss = per_member + (1 if i < remainder else 0)
-                        hp[name] = max(0, hp[name] - loss)
+                        _hurt(name, per_member + (1 if i < remainder else 0))
 
         # Mark deaths from this turn
         for dead_name in turn.get("deaths", []):
             alive[dead_name] = False
             hp[dead_name] = 0
 
-    return hp
+    return {
+        name: {
+            "hp": hp[name],
+            "damage_taken": taken.get(name, 0),
+            "hp_healed": healed.get(name, 0),
+            "revived": revived.get(name, 0),
+        }
+        for name in hp
+    }
 
 
 def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
@@ -1164,22 +1272,27 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
         events_log.append(turn)
 
     # Reconstruct per-member HP from simulation replay
-    member_hp = {}
+    replayed = {}
     if party:
-        member_hp = _replay_member_hp(party.members, events_log, set(all_deaths), sim.get("starting_hp"))
+        replayed = _replay_members(party.members, events_log, set(all_deaths), sim.get("starting_hp"))
 
     member_results = []
     if party:
         for member in party.members:
             is_dead = member.name in all_deaths
-            current_hp = member_hp.get(member.name, member.hp_current)
+            tally = replayed.get(member.name, {})
+            current_hp = tally.get("hp", member.hp_current)
             member_results.append({
+                "id": member.id,
                 "name": member.name,
                 "adventurer_class": member.adventurer_class.value,
                 "level": member.level,
                 "alive": not is_dead,
                 "hp_current": 0 if is_dead else current_hp,
                 "hp_max": member.hp_max,
+                "damage_taken": tally.get("damage_taken", 0),
+                "hp_healed": tally.get("hp_healed", 0),
+                "revived": tally.get("revived", 0),
                 "xp_gained": 0,
                 "gold": member.gold,
                 "silver": member.silver,
@@ -1255,9 +1368,11 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
     if sim.get("retreated"):
         dead_names = set(sim.get("dead_members", []))
 
-    sim_hp = {}
-    if party:
-        sim_hp = _replay_member_hp(party.members, replay_log, dead_names, sim.get("starting_hp"))
+    # Replay who actually went out, not who is still in the party: the dead are
+    # detached from their party at finalization, so `party.members` would leave
+    # every casualty out of the replay and report them as having taken no damage.
+    went_out = [log.adventurer for log in logs if log.adventurer]
+    sim_members = _replay_members(went_out, replay_log, dead_names, sim.get("starting_hp")) if went_out else {}
 
     member_results = []
     max_heal_days = 0
@@ -1265,7 +1380,8 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         adv = log.adventurer
         is_alive = log.status != "dead"
         # Use replayed HP for the "at expedition end" snapshot
-        end_hp = sim_hp.get(adv.name)
+        tally = sim_members.get(adv.name, {})
+        end_hp = tally.get("hp")
         if end_hp is None:
             # Fallback: approximate from hp_change
             end_hp = max(0, adv.hp_max + log.hp_change) if is_alive else 0
@@ -1273,12 +1389,16 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
             heal_days = adv.hp_max - end_hp
             max_heal_days = max(max_heal_days, heal_days)
         member_results.append({
+            "id": adv.id,
             "name": adv.name,
             "adventurer_class": adv.adventurer_class.value,
             "level": adv.level,
             "alive": is_alive,
             "hp_current": 0 if not is_alive else end_hp,
             "hp_max": adv.hp_max,
+            "damage_taken": tally.get("damage_taken", 0),
+            "hp_healed": tally.get("hp_healed", 0),
+            "revived": tally.get("revived", 0),
             "xp_gained": log.xp_share,
             "gold": adv.gold,
             "silver": adv.silver,
@@ -1297,6 +1417,20 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
     for node in node_results:
         with contextlib.suppress(json.JSONDecodeError, TypeError):
             events_log.append(json.loads(node.log))
+
+    # Magic items this delve brought home, and who is carrying them
+    from app.models import MagicItem
+    found_items = [
+        {
+            "id": item.id,
+            "name": item.name,
+            "item_type": item.item_type,
+            "bonus": item.bonus or 0,
+            "holder_id": item.adventurer_id,
+            "holder_name": item.adventurer.name if item.adventurer else None,
+        }
+        for item in db.query(MagicItem).filter(MagicItem.found_expedition_id == expedition.id).order_by(MagicItem.id).all()
+    ]
 
     return {
         "expedition_id": expedition.id,
@@ -1318,6 +1452,7 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "spells_left": sim.get("spells_left", 0),
         "heals_left": sim.get("heals_left", 0),
         "stairs_found": sim.get("stairs_found"),
+        "found_items": found_items,
     }
 
 

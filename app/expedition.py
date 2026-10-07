@@ -19,6 +19,10 @@ get_pc_thac0 = get_thac0
 # ─── PC combat constants ──────────────────────────────────────────────────────
 
 PC_AC = 7  # All PCs in leather-equivalent armor (descending AC system)
+# Party morale for the 2d6 check. Was 11 (fails only on a 12, so 2.8% per check and
+# ~5.5% per lethal combat) which meant parties fought to the death almost always, against
+# a bestiary whose own morale runs 7-9. At 7 a check fails 41.7% of the time.
+PARTY_MORALE = 7
 
 
 def get_monster_thac0(hit_dice: float) -> int:
@@ -140,6 +144,20 @@ def get_spell_name(level: int) -> str:  # noqa: ARG001 — one spell for the MVP
     return "Sleep"
 
 
+def combat_xp(monsters: list[dict], monsters_killed: int, monsters_fled: int, party_fled: bool) -> int:
+    """XP a fight pays: floor(HD) x 100 per monster.
+
+    A won fight pays for every monster killed or routed. A fight the party runs from pays
+    for the kills made before running, and nothing for the rest (Cody, 2026-09-15).
+    """
+    if not monsters:
+        return 0
+    per_monster = max(1, int(monsters[0]["hd"])) * 100
+    if party_fled:
+        return per_monster * monsters_killed
+    return per_monster * (monsters_killed + monsters_fled)
+
+
 # ─── Attack resolution ────────────────────────────────────────────────────────
 
 def _do_attack(attacker: dict, target: dict) -> dict:
@@ -155,6 +173,8 @@ def _do_attack(attacker: dict, target: dict) -> dict:
     if hit:
         damage = random.randint(1, 6) + attacker.get("damage_bonus", 0)
         damage = max(1, damage)  # minimum 1 damage on a hit
+        # Magic armor and rings: each hit taken does that much less damage, to a floor of 0
+        damage = max(0, damage - target.get("armor_reduction", 0))
         target["current_hp"] -= damage
         if target["current_hp"] <= 0:
             target["current_hp"] = 0
@@ -232,7 +252,10 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 if atk["target_died"]:
                     monsters_killed += 1
                     monster_deaths_total += 1
-        round_log.append({"round": 0, "halfling_pre_round": r0_attacks})
+        round_log.append({
+            "round": 0,
+            "events": [{"kind": "attacks", "side": "party", "label": "Sling Volley", "attacks": r0_attacks}],
+        })
         if not living_monsters():
             xp = sum(max(1, int(m["hd"])) * 100 for m in monsters)
             return {
@@ -257,11 +280,18 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
     round_num = 0
     while living_party() and living_monsters() and round_num < 20:
         round_num += 1
+        # One ordered list, appended to as each thing actually resolves. The three
+        # buckets it replaces (attacks / spell_casts / cleric_turns) left the log's
+        # chronology to be reconstructed by the renderer, which got it wrong three
+        # ways: a spell rendered above the monster attacks that preceded it, turn
+        # undead rendered after the spell though it resolves before everything, and
+        # post-combat healing hung off the end of the fight. Append here and the
+        # renderer plays it back; the next addition cannot create a fourth.
         round_entry: dict = {
             "round": round_num,
-            "attacks": [],
-            "morale_checks": [],
+            "events": [],
         }
+        events: list[dict] = round_entry["events"]
 
         # Snapshot alive party at start of round (PCs killed in B still act in C)
         party_snapshot = list(living_party())
@@ -284,7 +314,6 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
         party_deaths_in_round = 0
         turned_clerics: set[str] = set()
         round_spell_casters: set[str] = set()
-        cleric_turns = []
         for pc in party_snapshot:
             if pc["current_hp"] <= 0:
                 continue
@@ -301,7 +330,9 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             destroyed, turn_log = _do_turn_attempt(pc, turnable)
             cleric_turned = True
             turned_clerics.add(pc["name"])
-            cleric_turns.append(turn_log)
+            # Turn undead uses the Cleric's action regardless of initiative, so it
+            # resolves before anything else in the round and is logged there.
+            events.append({"kind": "turn_undead", **turn_log})
             for m in destroyed:
                 if m["current_hp"] > 0:
                     m["current_hp"] = 0
@@ -309,14 +340,13 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     monster_deaths_total += 1
                     monsters_turned += 1
                     monster_deaths_in_round += 1
-        if cleric_turns:
-            round_entry["cleric_turns"] = cleric_turns
 
         monster_snapshot: list[dict] = []
 
         def do_party_attacks(use_snapshot: bool = False) -> None:
             nonlocal monster_deaths_in_round, monsters_killed, monster_deaths_total
             attackers = party_snapshot if use_snapshot else living_party()  # noqa: B023
+            struck: list[dict] = []
             for pc in attackers:
                 if pc["current_hp"] <= 0 and not use_snapshot:
                     continue
@@ -330,15 +360,18 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                         break
                     target = pick_target(alive_m)
                     atk = _do_attack(pc, target)
-                    round_entry["attacks"].append(atk)  # noqa: B023
+                    struck.append(atk)
                     if atk["target_died"]:
                         monster_deaths_in_round += 1
                         monsters_killed += 1
                         monster_deaths_total += 1
+            if struck:
+                events.append({"kind": "attacks", "side": "party", "attacks": struck})  # noqa: B023
 
         def do_monster_attacks(use_snapshot: bool = False) -> None:
             nonlocal party_deaths_in_round, hp_lost_party, party_deaths_total
             attackers = monster_snapshot if use_snapshot else living_monsters()  # noqa: B023
+            struck: list[dict] = []
             for mon in attackers:
                 if mon["current_hp"] <= 0 and not use_snapshot:
                     continue
@@ -352,10 +385,12 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     target = pick_target(alive_p)
                     atk = _do_attack(mon, target)
                     hp_lost_party += atk["damage"]
-                    round_entry["attacks"].append(atk)  # noqa: B023
+                    struck.append(atk)
                     if atk["target_died"]:
                         party_deaths_in_round += 1
                         party_deaths_total += 1
+            if struck:
+                events.append({"kind": "attacks", "side": "monsters", "attacks": struck})  # noqa: B023
 
         # ── B & C. Attacks in initiative order ────────────────────────────────
         # MU/Elf spells fire only on the party's initiative turn.
@@ -391,7 +426,8 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                 monster_deaths_total += _n
                 _caster["spells_remaining"] -= 1
                 round_spell_casters.add(_caster["name"])  # noqa: B023
-                round_entry.setdefault("spell_casts", []).append({  # noqa: B023
+                events.append({  # noqa: B023
+                    "kind": "spell",
                     "caster": _caster["name"],
                     "spell": _spell,
                     "monsters_destroyed": _n,
@@ -423,7 +459,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
             if "first" not in monster_morale_done:
                 monster_morale_done.add("first")
                 check = _morale_check("monsters", monster_morale_val, morale_penalty)
-                round_entry["morale_checks"].append(check)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     monsters_fled_flag = True
                     monsters_fled = len(living_monsters())
@@ -435,7 +471,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     and monster_deaths_total >= len(monsters) / 2):
                 monster_morale_done.add("half")
                 check = _morale_check("monsters", monster_morale_val, morale_penalty)
-                round_entry["morale_checks"].append(check)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     monsters_fled_flag = True
                     monsters_fled = len(living_monsters())
@@ -445,8 +481,8 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
         if party_deaths_in_round > 0 and not party_fled:
             if "first" not in party_morale_done:
                 party_morale_done.add("first")
-                check = _morale_check("party", 11)
-                round_entry["morale_checks"].append(check)
+                check = _morale_check("party", PARTY_MORALE)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     party_fled = True
 
@@ -454,8 +490,8 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
                     and "half" not in party_morale_done
                     and party_deaths_total >= len(party) / 2):
                 party_morale_done.add("half")
-                check = _morale_check("party", 11)
-                round_entry["morale_checks"].append(check)
+                check = _morale_check("party", PARTY_MORALE)
+                events.append({"kind": "morale", **check})
                 if not check["passed"]:
                     party_fled = True
 
@@ -467,63 +503,82 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
     # ── Post-combat: Potion auto-revive ────────────────────────────────────────
     # Every revive is logged so the turn-by-turn can explain a "slain" adventurer
     # who is still standing, and so the healing is credited to whoever provided it.
+    def _recovery_events() -> list[dict]:
+        """Where post-combat recovery is logged: the end of the last round fought.
+
+        It resolves after the round loop, so it has no round of its own; hanging it
+        off the end of the combat instead left the heals and revivals floating free
+        of the chronology they belong to.
+        """
+        if not round_log:
+            round_log.append({"round": round_num, "events": []})
+        return round_log[-1].setdefault("events", [])
+
     revivals: list[dict] = []
     potion_revived = []
-    if not party_fled:
-        for pc in party:
-            if pc["current_hp"] <= 0 and pc.get("has_potion") and pc["name"] not in revived_adventurers:
-                pc["current_hp"] = 1
-                pc["has_potion"] = False
-                pc["potion_consumed"] = True
-                potion_revived.append(pc["name"])
-                revived_adventurers.append(pc["name"])
-                revivals.append({"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"})
+    # Fires even on a rout: a potion you are carrying does not care that you ran.
+    for pc in party:
+        if pc["current_hp"] <= 0 and pc.get("has_potion") and pc["name"] not in revived_adventurers:
+            pc["current_hp"] = 1
+            pc["has_potion"] = False
+            pc["potion_consumed"] = True
+            potion_revived.append(pc["name"])
+            revived_adventurers.append(pc["name"])
+            revival = {"name": pc["name"], "hp": 1, "healer": pc["name"], "source": "potion"}
+            revivals.append(revival)
+            _recovery_events().append({"kind": "revival", **revival})
 
     # ── Post-combat: Cleric revival ───────────────────────────────────────────
-    if not party_fled:
-        for pc in party:
-            if pc.get("character_class") != "Cleric":
-                continue
-            if pc["current_hp"] <= 0:
-                continue
-            if pc.get("level", 1) < 2:
-                continue
-            capacity = pc.get("revivals_remaining", 0)
-            dead_allies = [m for m in party
-                           if m["current_hp"] <= 0 and m["name"] not in revived_adventurers]
-            for dead in dead_allies:
-                if capacity <= 0:
-                    break
-                dead["current_hp"] = 1
-                revived_adventurers.append(dead["name"])
-                revivals.append({"name": dead["name"], "hp": 1, "healer": pc["name"], "source": "cleric"})
-                capacity -= 1
-            pc["revivals_remaining"] = capacity
+    # Fires even on a rout. The revival is an abstraction: it represents the Cleric
+    # reaching the ally *before* they die, not raising a corpse afterwards, even though
+    # the simulation resolves it after the fact. Running away does not undo that.
+    for pc in party:
+        if pc.get("character_class") != "Cleric":
+            continue
+        if pc["current_hp"] <= 0:
+            continue
+        if pc.get("level", 1) < 2:
+            continue
+        capacity = pc.get("revivals_remaining", 0)
+        dead_allies = [m for m in party
+                       if m["current_hp"] <= 0 and m["name"] not in revived_adventurers]
+        for dead in dead_allies:
+            if capacity <= 0:
+                break
+            dead["current_hp"] = 1
+            revived_adventurers.append(dead["name"])
+            revival = {"name": dead["name"], "hp": 1, "healer": pc["name"], "source": "cleric"}
+            revivals.append(revival)
+            _recovery_events().append({"kind": "revival", **revival})
+            capacity -= 1
+        pc["revivals_remaining"] = capacity
 
     # ── Post-combat: Cleric heal ──────────────────────────────────────────────
     healed_adventurers: list[dict] = []
-    if not party_fled:
-        for pc in party:
-            if pc.get("character_class") != "Cleric":
-                continue
-            if pc["current_hp"] <= 0:
-                continue
-            charges = pc.get("heals_remaining", 0)
-            while charges > 0:
-                wounded = [
-                    m for m in party
-                    if m["current_hp"] > 0 and m["current_hp"] < m.get("hit_points", m["current_hp"])
-                ]
-                if not wounded:
-                    break
-                target = min(wounded, key=lambda m: m["current_hp"] / m.get("hit_points", 1))
-                amount = random.randint(1, 6) + 1
-                old_hp = target["current_hp"]
-                target["current_hp"] = min(target.get("hit_points", old_hp + amount), old_hp + amount)
-                healed = target["current_hp"] - old_hp
-                healed_adventurers.append({"name": target["name"], "hp": healed, "healer": pc["name"]})
-                charges -= 1
-            pc["heals_remaining"] = charges
+    # Fires even on a rout: binding wounds after a withdrawal is the whole point.
+    for pc in party:
+        if pc.get("character_class") != "Cleric":
+            continue
+        if pc["current_hp"] <= 0:
+            continue
+        charges = pc.get("heals_remaining", 0)
+        while charges > 0:
+            wounded = [
+                m for m in party
+                if m["current_hp"] > 0 and m["current_hp"] < m.get("hit_points", m["current_hp"])
+            ]
+            if not wounded:
+                break
+            target = min(wounded, key=lambda m: m["current_hp"] / m.get("hit_points", 1))
+            amount = random.randint(1, 6) + 1
+            old_hp = target["current_hp"]
+            target["current_hp"] = min(target.get("hit_points", old_hp + amount), old_hp + amount)
+            healed = target["current_hp"] - old_hp
+            cure = {"name": target["name"], "hp": healed, "healer": pc["name"]}
+            healed_adventurers.append(cure)
+            _recovery_events().append({"kind": "heal", **cure})
+            charges -= 1
+        pc["heals_remaining"] = charges
 
     # ── Determine outcome ─────────────────────────────────────────────────────
     if party_fled:
@@ -535,12 +590,7 @@ def resolve_combat_rounds(party: list[dict], monsters: list[dict], morale_penalt
     else:
         outcome = "Victory"
 
-    # XP: floor(hd)*100 per monster killed or fled; 0 if party fled
-    if party_fled:
-        xp = 0
-    else:
-        per_monster_xp = max(1, int(monsters[0]["hd"])) * 100 if monsters else 0
-        xp = per_monster_xp * (monsters_killed + monsters_fled)
+    xp = combat_xp(monsters, monsters_killed, monsters_fled, party_fled)
 
     return {
         "outcome": outcome,
@@ -600,7 +650,12 @@ class Expedition:
             member["hd"] = get_combat_hd(cls, level)
             member["ac"] = PC_AC
             member["thac0"] = get_thac0(cls, level)
-            member["to_hit_bonus"] = get_to_hit_bonus(cls)
+            # To-hit is the class's own bonus plus the Training Grounds plus the
+            # weapon; damage is the Training Grounds plus the weapon. Per OSE a
+            # magic weapon touches nothing else: not level, hit dice, or charges.
+            weapon = member.get("weapon_bonus", 0)
+            member["to_hit_bonus"] = get_to_hit_bonus(cls) + member.get("building_to_hit_bonus", 0) + weapon
+            member["damage_bonus"] = member.get("building_damage_bonus", 0) + weapon
             if cls == "Cleric":
                 member.setdefault("turn_attempts_remaining", level)
                 member.setdefault("revivals_remaining", level // 2)

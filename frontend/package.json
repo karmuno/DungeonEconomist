@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sentry/vue": "^10.74.0",
     "mitt": "^3.0.1",
     "pinia": "^2.3.1",
     "vue": "^3.5.30",

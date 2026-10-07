@@ -15,16 +15,30 @@ export function launch(data: ExpeditionCreate): Promise<ExpeditionSummary> {
 }
 
 export interface ExpeditionMemberResult {
+  id: number
   name: string
   adventurer_class: string
   level: number
   alive: boolean
   hp_current: number
   hp_max: number
+  /** Totals for the run so far, so a loss beside full health reads as healed rather than broken */
+  damage_taken?: number
+  hp_healed?: number
+  revived?: number
   xp_gained: number
   gold: number
   silver: number
   copper: number
+}
+
+export interface FoundItem {
+  id: number
+  name: string
+  item_type: string
+  bonus: number
+  holder_id: number | null
+  holder_name: string | null
 }
 
 export interface ExpeditionSummaryDetail {
@@ -40,6 +54,7 @@ export interface ExpeditionSummaryDetail {
   actual_return_day?: number | null
   member_results: ExpeditionMemberResult[]
   total_loot: number
+  found_items?: FoundItem[]
   total_silver: number
   total_copper: number
   total_xp: number

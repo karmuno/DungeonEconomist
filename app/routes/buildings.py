@@ -11,52 +11,103 @@ from app.buildings import (
     get_allowed_classes,
     get_building_class,
     get_building_name,
+    get_effect_copy,
     get_max_assigned,
     get_max_building_level,
     get_min_level_for_assignment,
     get_tier_slots,
     get_upgrade_cost,
-    has_recruitment_bonus,
+    get_xp_bonus,
 )
+from app.class_config import get_class_plural
 from app.database import get_db
 from app.models import Adventurer, Building, Keep
+from app.player_events import EventType, log_player_event
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
 
-# Per-unit stat renderers: (bonus key, row label, value formatter). Values are
-# the numbers from config — per assigned adventurer, not aggregates.
-_STAT_RENDERERS = [
-    ("healing_per_assigned", "Healing", lambda v: f"+{v} HP/day per Cleric"),
-    ("to_hit_per_assigned", "To-hit", lambda v: f"+{v} per assigned"),
-    ("damage_per_assigned", "Damage", lambda v: f"+{v} per assigned"),
-    ("monster_morale_penalty", "Monster morale", lambda v: f"−{abs(v)}"),
-    ("healing_potion_chance_per_cleric", "Potion craft", lambda v: f"{v * 100:.0f}% per Cleric"),
-    ("resurrect_highest_dead", "Resurrection", lambda v: "On return"),
-    ("magic_item_discovery_per_assigned", "Item find", lambda v: f"+{v * 100:.0f}% per assigned"),
-    ("scroll_craft_chance_per_mu", "Scroll craft", lambda v: f"{v * 100:.0f}% per assigned"),
-    ("craft_artifact_cost", "Artifacts", lambda v: f"{v}gp"),
-    ("craft_weapon_slot", "Crafting", lambda v: "Weapon/Armor"),
-    ("masterwork_chance", "Masterwork", lambda v: f"{v * 100:.0f}%"),
-]
+def _tier_min_level(btype: str, key: str) -> int:
+    """The adventurer level a staff member needs before `key` counts: the min level of the tier granting it."""
+    config = BUILDING_CONFIG.get(btype, {})
+    levels = config.get("min_adventurer_level", [2, 5, 8])
+    for tier, bonuses in config.get("level_bonuses", {}).items():
+        if key in bonuses:
+            return levels[min(int(tier) - 1, len(levels) - 1)]
+    return 1
 
 
-def _stat_lines(btype: str, level: int) -> list[dict]:
-    """Labelled per-unit stat values for a building at a given level."""
+def _staff_for(building: Building | None, btype: str, key: str) -> int:
+    """How many assigned adventurers qualify for the tier that grants `key`."""
+    if building is None:
+        return 0
+    need = _tier_min_level(btype, key)
+    return sum(1 for a in building.assigned_adventurers if a.level >= need)
+
+
+def _pct(v: float) -> str:
+    return f"{v * 100:.0f}%"
+
+
+def _fmt(v: float | int) -> str:
+    """A bonus value as it reads on screen: fractions are percentages, counts are counts."""
+    return f"+{_pct(v)}" if isinstance(v, float) else f"+{v}"
+
+
+def building_lines(btype: str, level: int, building: Building | None = None) -> list[dict]:
+    """Every effect of a building, in the words the building data carries (`effect_copy`).
+
+    Each line is {value, phrase, rate, active}: `value` is the total the building delivers
+    now from who is assigned (None for a building that is not built), `phrase` the words
+    after it, `rate` what one more assigned adventurer adds (None for the standing XP line),
+    `active` whether anyone currently counts toward it. Used by the Village cards and the
+    Dashboard tags alike, so the two cannot drift.
+    """
     if level <= 0:
         return []
     bonuses = get_all_building_bonuses(btype, level)
-    lines = []
-    for key, label, fmt in _STAT_RENDERERS:
-        if key in bonuses:
-            lines.append({"label": label, "value": fmt(bonuses[key])})
-    tier_slots = get_tier_slots(btype, level)
-    if tier_slots:
-        slot_str = ", ".join(f"{s} · Lv {ml}+" for _, s, ml in tier_slots)
-        lines.append({"label": "Slots", "value": slot_str})
-    if has_recruitment_bonus(btype):
-        lines.append({"label": "Recruitment", "value": f"2x {get_building_class(btype)}"})
+    lines: list[dict] = []
+    for key, phrase in get_effect_copy(btype).items():
+        if key == "xp_bonus":
+            xp = get_xp_bonus(btype)
+            if xp:
+                classes = " / ".join(get_class_plural(c) for c in get_allowed_classes(btype))
+                lines.append({"value": _fmt(xp), "phrase": f"{phrase} {classes}", "rate": None, "active": True})
+            continue
+        if key not in bonuses:
+            continue
+        per_unit = bonuses[key]
+        n = _staff_for(building, btype, key)
+        lines.append({
+            "value": _fmt(per_unit * n) if building is not None else None,
+            "phrase": phrase,
+            "rate": _fmt(per_unit),
+            "active": n > 0,
+        })
     return lines
+
+
+def staffed_effects(building: Building) -> list[str]:
+    """What the assigned staff deliver now. Empty until someone is assigned."""
+    return [
+        f"{line['value']} {line['phrase']}"
+        for line in building_lines(building.building_type, min(building.level, 1), building)
+        if line["rate"] is not None and line["active"]
+    ]
+
+
+def standing_effects(building: Building) -> list[str]:
+    """What the building grants just by standing: its XP line."""
+    return [
+        f"{line['value']} {line['phrase']}"
+        for line in building_lines(building.building_type, min(building.level, 1), building)
+        if line["rate"] is None
+    ]
+
+
+def building_effects(building: Building) -> list[str]:
+    """Everything the building is doing now: staffed effects first, standing last."""
+    return staffed_effects(building) + standing_effects(building)
 
 
 def _building_response(building: Building) -> dict:
@@ -67,35 +118,7 @@ def _building_response(building: Building) -> dict:
     cls = get_building_class(btype)
     allowed = get_allowed_classes(btype)
 
-    # Compute current effects from all unlocked tiers
-    effects = []
-    if has_recruitment_bonus(btype):
-        effects.append(f"2x {cls} recruitment")
-    if assigned_count > 0:
-        bonuses = get_all_building_bonuses(btype, building.level)
-        if "healing_per_assigned" in bonuses:
-            effects.append(f"+{assigned_count * bonuses['healing_per_assigned']} HP/day healing")
-        if "to_hit_per_assigned" in bonuses:
-            effects.append(f"+{assigned_count * bonuses['to_hit_per_assigned']} to-hit")
-        if "damage_per_assigned" in bonuses:
-            effects.append(f"+{assigned_count * bonuses['damage_per_assigned']} damage")
-        if "monster_morale_penalty" in bonuses:
-            effects.append(f"Monster morale {bonuses['monster_morale_penalty']}")
-        if "healing_potion_chance_per_cleric" in bonuses:
-            effects.append("Healing Potion crafting")
-        if "resurrect_highest_dead" in bonuses:
-            effects.append("Resurrection on return")
-        if "magic_item_discovery_per_assigned" in bonuses:
-            pct = assigned_count * bonuses['magic_item_discovery_per_assigned'] * 100
-            effects.append(f"+{pct:.0f}% magic item discovery")
-        if "scroll_craft_chance_per_mu" in bonuses:
-            effects.append("Scroll crafting")
-        if "craft_artifact_cost" in bonuses:
-            effects.append(f"Artifact crafting ({bonuses['craft_artifact_cost']}gp)")
-        if "craft_weapon_slot" in bonuses or "craft_armor_slot" in bonuses:
-            effects.append("Weapon/Armor crafting")
-        if "masterwork_chance" in bonuses:
-            effects.append(f"Masterwork chance ({bonuses['masterwork_chance'] * 100:.0f}%)")
+    effects = building_effects(building)
 
     shown_level = min(building.level, 1)
     return {
@@ -128,7 +151,9 @@ def _building_response(building: Building) -> dict:
         ],
         "upgrade_cost": None,
         "next_name": None,
-        "current_stats": _stat_lines(btype, shown_level),
+        "slots_total": get_max_assigned(btype, shown_level),
+        "slots_free": get_max_assigned(btype, shown_level) - assigned_count,
+        "current_stats": building_lines(btype, shown_level, building),
         "next_stats": None,
     }
 
@@ -167,7 +192,7 @@ def list_buildings(keep: Keep = Depends(get_current_keep), db: Session = Depends
                 "allowed_classes": get_allowed_classes(btype),
                 "tier_slots": [],
                 "current_stats": [],
-                "next_stats": _stat_lines(btype, 1),
+                "next_stats": building_lines(btype, 1),
             })
 
     return result
@@ -207,6 +232,9 @@ def buy_building(
 
     building = Building(keep_id=keep.id, building_type=data.building_type, level=1)
     db.add(building)
+    log_player_event(db, EventType.BUILDING_PURCHASED, keep.account_id, keep.id, {
+        "building_type": data.building_type, "level": 1, "cost_gp": cost,
+    })
     db.commit()
     db.refresh(building)
 
@@ -242,6 +270,9 @@ def upgrade_building(
     keep.treasury_copper = total % 10
 
     building.level += 1
+    log_player_event(db, EventType.BUILDING_PURCHASED, keep.account_id, keep.id, {
+        "building_type": building.building_type, "level": building.level, "cost_gp": cost,
+    })
     db.commit()
     db.refresh(building)
 
@@ -298,6 +329,13 @@ def assign_adventurer(
     adv.is_available = False
     # Remove from any parties
     adv.parties = []
+    log_player_event(db, EventType.ADVENTURER_ASSIGNED_TO_BUILDING, keep.account_id, keep.id, {
+        "adventurer_name": adv.name,
+        "class": adv.adventurer_class.value,
+        "level": adv.level,
+        "building_type": building.building_type,
+        "building_level": building.level,
+    })
     db.commit()
 
     return _building_response(building)

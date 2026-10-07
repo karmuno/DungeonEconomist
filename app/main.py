@@ -1,16 +1,28 @@
 import os
 from pathlib import Path
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import create_tables
+from app.version import get_app_version
+
+if os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        send_default_pii=True,
+        traces_sample_rate=0,
+        release=get_app_version(),
+        environment=os.environ.get("APP_ENV", "development"),
+    )
 from app.routes import admin as admin_routes
 from app.routes import adventurers, expeditions, game, parties
 from app.routes import auth as auth_routes
 from app.routes import buildings as buildings_routes
+from app.routes import feedback as feedback_routes
 from app.routes import keeps as keeps_routes
 
 # Create tables on startup
@@ -20,7 +32,7 @@ create_tables()
 app = FastAPI(
     title="Venturekeep",
     description="Retro RPG Party Management Simulation",
-    version="0.8.1"
+    version=get_app_version(),
 )
 
 # CORS — lock down in production, permissive for local dev
@@ -44,6 +56,7 @@ app.include_router(adventurers.router)
 app.include_router(parties.router)
 app.include_router(expeditions.router)
 app.include_router(game.router)
+app.include_router(feedback_routes.router)
 
 # Serve Vue production build if it exists
 frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

@@ -1,0 +1,33 @@
+/* ==========================================================================
+   Typography — one family (monospace), tight line-heights, uppercase labels.
+   ========================================================================== */
+:root {
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas',
+    'Monaco', 'Courier New', monospace;
+  --font-base: var(--font-mono); /* there is no second family — mono everywhere */
+
+  /* ---- Type scale (rem, 16px root) ---- */
+  --text-h1: 1.5rem;     /* 24px — page title */
+  --text-h2: 1.2rem;     /* ~19px — section */
+  --text-h3: 1.05rem;    /* ~17px — card head */
+  --text-h4: 0.95rem;    /* ~15px */
+  --text-body-size: 0.825rem;  /* ~13px — default UI text */
+  --text-sm: 0.75rem;    /* 12px */
+  --text-xs: 0.7rem;     /* ~11px — meta */
+  --text-2xs: 0.65rem;   /* ~10px — badges, stat labels */
+  --text-stat: 1.5rem;   /* big stat numbers */
+
+  /* ---- Weights ---- */
+  --weight-regular: 400;
+  --weight-medium: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  /* ---- Line heights ---- */
+  --leading-tight: 1.2;   /* headings */
+  --leading-body: 1.6;    /* body copy */
+
+  /* ---- Uppercase label treatment (form labels, table heads, badges) ---- */
+  --label-tracking: 0.06em;
+  --label-transform: uppercase; /* @kind other */
+}

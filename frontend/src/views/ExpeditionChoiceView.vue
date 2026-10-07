@@ -2,10 +2,12 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as expeditionsApi from '../api/expeditions'
-import type { PendingEvent } from '../api/expeditions'
+import type { ExpeditionMemberResult, PendingEvent } from '../api/expeditions'
 import { useNotificationsStore } from '../stores/notifications'
 import { usePlayerStore } from '../stores/player'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
+import LinkedText from '../components/adventurers/LinkedText.vue'
+import AdventurerSheetModal from '../components/adventurers/AdventurerSheetModal.vue'
 import eventBus from '../eventBus'
 
 const router = useRouter()
@@ -18,6 +20,8 @@ const submitting = ref(false)
 const partyName = ref('')
 const pendingEvent = ref<PendingEvent | null>(null)
 const expeditionId = ref(0)
+const members = ref<ExpeditionMemberResult[]>([])
+const sheetAdvId = ref<number | null>(null)
 
 onMounted(async () => {
   expeditionId.value = Number(route.params.id)
@@ -29,6 +33,12 @@ onMounted(async () => {
     }
     partyName.value = data.party_name ?? 'Unknown'
     pendingEvent.value = data.pending_event ?? null
+    // The party, so the decision can be made with their sheets in reach
+    try {
+      members.value = (await expeditionsApi.getSummary(expeditionId.value)).member_results
+    } catch {
+      members.value = []
+    }
   } catch {
     notifications.add('Failed to load expedition event', 'error')
     router.push('/')
@@ -94,7 +104,14 @@ function eventClass(type: string): string {
       <div class="choice-card card" :class="eventClass(pendingEvent.type)">
         <div class="event-icon">{{ eventIcon(pendingEvent.type) }}</div>
         <h2 class="event-party">{{ partyName }}</h2>
-        <p class="event-message">{{ pendingEvent.message }}</p>
+        <p class="event-message"><LinkedText :text="pendingEvent.message" :refs="members" @open="sheetAdvId = $event" /></p>
+
+        <div v-if="members.length" class="event-party">
+          <div v-for="m in members" :key="m.id" class="event-member" :class="{ 'adv-dead': !m.alive }">
+            <span class="adv-link" @click="sheetAdvId = m.id">{{ m.name }}</span>
+            <span class="member-meta">{{ m.adventurer_class }} · Lv {{ m.level }} · {{ m.alive ? `${m.hp_current}/${m.hp_max} HP` : 'Dead' }}</span>
+          </div>
+        </div>
 
         <div v-if="pendingEvent.loot_so_far" class="event-detail">
           Loot secured so far: {{ pendingEvent.loot_so_far }} gp
@@ -144,9 +161,46 @@ function eventClass(type: string): string {
       </div>
     </div>
   </div>
+  <AdventurerSheetModal :adventurer-id="sheetAdvId" @close="sheetAdvId = null" />
 </template>
 
 <style scoped>
+.event-party {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+  text-align: left;
+}
+
+.event-member {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.event-member.adv-dead {
+  color: #6b7280;
+}
+
+.member-meta {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.adv-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #374151;
+  text-underline-offset: 2px;
+}
+
+.adv-link:hover {
+  color: #4ade80;
+  text-decoration-color: #4ade80;
+}
+
 .choice-container {
   display: flex;
   justify-content: center;

@@ -34,53 +34,119 @@ const showDetail = ref(false)
 const selectedPartyId = ref<number | null>(null)
 const confirmingDisband = ref(false)
 
-// Default roster: show Available + Recovering (not On Expedition)
-const DEFAULT_STATUSES = new Set(['Available', 'Recovering', 'On Expedition'])
+// Default roster: every living adventurer. Dead and bankrupt have their own tabs.
+const DEFAULT_STATUSES = new Set(['Available', 'Recovering', 'On Expedition', 'Assigned'])
 
-const filters = ref({
-  classFilter: '',
-  statuses: new Set(DEFAULT_STATUSES),
-  nameSearch: '',
-  sortBy: 'name',
-  sortDir: 'asc' as 'asc' | 'desc',
-})
+function makeFilters(statuses: Set<string> = new Set()) {
+  return {
+    classFilter: '',
+    statuses,
+    nameSearch: '',
+    sortBy: 'name',
+    sortDir: 'asc' as 'asc' | 'desc',
+  }
+}
+type ViewFilters = ReturnType<typeof makeFilters>
 
-const filteredAdventurers = computed(() => {
-  let result = [...adventurers.value]
+const filters = ref(makeFilters(new Set(DEFAULT_STATUSES)))
+const graveyardFilters = ref(makeFilters())
+const debtorFilters = ref(makeFilters())
 
-  // Status filter via multi-select
-  if (filters.value.statuses.size > 0) {
-    result = result.filter((a) => filters.value.statuses.has(displayStatus(a)))
+/**
+ * Shared filter + sort for all three tabs. Status is only meaningful on the Roster;
+ * the other two tabs hold exactly one status, so they opt out.
+ */
+function applyFilters(
+  list: AdventurerOut[],
+  f: ViewFilters,
+  opts: { useStatus?: boolean; partyName?: (a: AdventurerOut) => string } = {},
+): AdventurerOut[] {
+  let result = [...list]
+
+  if (opts.useStatus && f.statuses.size > 0) {
+    result = result.filter((a) => f.statuses.has(displayStatus(a)))
   }
 
-  if (filters.value.classFilter) {
-    result = result.filter((a) => a.adventurer_class === filters.value.classFilter)
+  if (f.classFilter) {
+    result = result.filter((a) => a.adventurer_class === f.classFilter)
   }
 
-  if (filters.value.nameSearch) {
-    const search = filters.value.nameSearch.toLowerCase()
+  if (f.nameSearch) {
+    const search = f.nameSearch.toLowerCase()
     result = result.filter((a) => a.name.toLowerCase().includes(search))
   }
 
-  const dir = filters.value.sortDir === 'asc' ? 1 : -1
-  const sortKey = filters.value.sortBy
+  const dir = f.sortDir === 'asc' ? 1 : -1
+  const sortKey = f.sortBy
+  const partyName = opts.partyName ?? (() => '')
+
+  // Unknown (null) numerics sort to the bottom descending, which is what "newest first" wants.
+  const num = (v: unknown) => (v === null || v === undefined ? Number.NEGATIVE_INFINITY : Number(v))
+  const totalCopper = (a: AdventurerOut) => a.gold * 100 + a.silver * 10 + a.copper
 
   result.sort((a, b) => {
     if (sortKey === 'party') {
-      const aParty = partyNameMap.value[a.id] ?? ''
-      const bParty = partyNameMap.value[b.id] ?? ''
-      return dir * aParty.localeCompare(bParty)
+      return dir * partyName(a).localeCompare(partyName(b))
+    }
+    if (sortKey === 'wealth') {
+      return dir * (totalCopper(a) - totalCopper(b))
     }
     const aVal = a[sortKey as keyof AdventurerOut]
     const bVal = b[sortKey as keyof AdventurerOut]
     if (typeof aVal === 'string' && typeof bVal === 'string') {
       return dir * aVal.localeCompare(bVal)
     }
-    return dir * (Number(aVal) - Number(bVal))
+    return dir * (num(aVal) - num(bVal))
   })
 
   return result
-})
+}
+
+const COMMON_SORTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'level', label: 'Level' },
+  { value: 'adventurer_class', label: 'Class' },
+  { value: 'xp', label: 'XP' },
+  { value: 'wealth', label: 'Wealth' },
+  { value: 'to_hit', label: 'To-Hit' },
+  { value: 'hit_dice', label: 'HD' },
+]
+
+const ROSTER_SORTS = [
+  ...COMMON_SORTS,
+  { value: 'party', label: 'Party' },
+  { value: 'hp_current', label: 'HP' },
+]
+
+// "Party" here is who they died with. HP is omitted: the Graveyard hides it.
+const GRAVEYARD_SORTS = [
+  ...COMMON_SORTS,
+  { value: 'party', label: 'Party (died with)' },
+  { value: 'death_day', label: 'Died' },
+]
+
+// No party column: the bankrupt hold no party, current or remembered.
+const DEBTOR_SORTS = [
+  ...COMMON_SORTS,
+  { value: 'hp_current', label: 'HP' },
+  { value: 'bankruptcy_day', label: 'Bankrupted' },
+]
+
+const filteredAdventurers = computed(() =>
+  applyFilters(adventurers.value, filters.value, {
+    useStatus: true,
+    partyName: (a) => partyNameMap.value[a.id] ?? '',
+  }),
+)
+
+// On the Graveyard, "Party" means the party they died with, not a current one.
+const filteredGraveyard = computed(() =>
+  applyFilters(graveyard.value, graveyardFilters.value, {
+    partyName: (a) => a.death_party_name ?? '',
+  }),
+)
+
+const filteredDebtors = computed(() => applyFilters(debtors.value, debtorFilters.value))
 
 const partyNameMap = computed(() => {
   const map: Record<number, string> = {}
@@ -103,7 +169,7 @@ function adventurerParty(advId: number): PartyOut | undefined {
 async function fetchAll() {
   loading.value = true
   try {
-    adventurers.value = await adventurersApi.list(true)
+    adventurers.value = await adventurersApi.list()
     parties.value = await partiesApi.list()
     if (activeTab.value === 'graveyard') fetchGraveyard()
     if (activeTab.value === 'debtors') fetchDebtors()
@@ -231,7 +297,7 @@ onMounted(fetchAll)
 
     <!-- Roster Tab -->
     <template v-if="activeTab === 'roster'">
-      <AdventurerFilters v-model="filters" class="mb-2" />
+      <AdventurerFilters v-model="filters" :sort-options="ROSTER_SORTS" class="mb-2" />
 
       <LoadingSpinner v-if="loading" />
       <template v-else>
@@ -249,22 +315,30 @@ onMounted(fetchAll)
     <!-- Graveyard Tab -->
     <template v-if="activeTab === 'graveyard'">
       <EmptyState v-if="graveyard.length === 0" message="No fallen adventurers" />
-      <AdventurerList
-        v-else
-        :adventurers="graveyard"
-        :hide-hp="true"
-        @select="onSelect"
-      />
+      <template v-else>
+        <AdventurerFilters v-model="graveyardFilters" hide-status :sort-options="GRAVEYARD_SORTS" class="mb-2" />
+        <AdventurerList
+          v-if="filteredGraveyard.length > 0"
+          :adventurers="filteredGraveyard"
+          :hide-hp="true"
+          @select="onSelect"
+        />
+        <EmptyState v-else message="No adventurers match your filters" />
+      </template>
     </template>
 
     <!-- Debtor's Prison Tab -->
     <template v-if="activeTab === 'debtors'">
       <EmptyState v-if="debtors.length === 0" message="No bankrupt adventurers" />
-      <AdventurerList
-        v-else
-        :adventurers="debtors"
-        @select="onSelect"
-      />
+      <template v-else>
+        <AdventurerFilters v-model="debtorFilters" hide-status :sort-options="DEBTOR_SORTS" class="mb-2" />
+        <AdventurerList
+          v-if="filteredDebtors.length > 0"
+          :adventurers="filteredDebtors"
+          @select="onSelect"
+        />
+        <EmptyState v-else message="No adventurers match your filters" />
+      </template>
     </template>
 
     <!-- Adventurer Detail Modal -->

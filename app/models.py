@@ -172,7 +172,14 @@ class Party(Base):
     name = Column(String, default='New Party')
     created_at = Column(DateTime)
     on_expedition = Column(Boolean, default=False)
-    current_expedition_id = Column(Integer, ForeignKey('expeditions.id', ondelete='SET NULL'), nullable=True)
+    # use_alter: parties <-> expeditions is a two-way FK cycle (expeditions.party_id back). Inline
+    # DDL can't create either table first; ALTER-ing this one in after both exist lets
+    # Base.metadata.create_all/drop_all (app startup, tests) order it, on any backend.
+    current_expedition_id = Column(
+        Integer,
+        ForeignKey('expeditions.id', ondelete='SET NULL', use_alter=True, name='fk_parties_current_expedition_id'),
+        nullable=True,
+    )
     keep_id = Column(Integer, ForeignKey('keeps.id'), nullable=False)
     auto_delve_healed = Column(Boolean, default=False, nullable=False)
     auto_delve_full = Column(Boolean, default=False, nullable=False)
@@ -252,3 +259,39 @@ class MagicItem(Base):
     found_expedition_id = Column(Integer, nullable=True)
 
     adventurer = relationship('Adventurer', back_populates='magic_items')
+
+
+class PlayerEventType(Base):
+    """Lookup of player event ids. Seeded from app.player_events.EventType so the two cannot drift."""
+    __tablename__ = 'event_types'
+
+    id = Column(String, primary_key=True)
+    description = Column(String, nullable=False)
+
+
+class PlayerEvent(Base):
+    """One row per thing a player did or reached. See buildplans/player-events-spec.md."""
+    __tablename__ = 'player_events'
+
+    id = Column(Integer, primary_key=True)
+    event_type_id = Column(String, ForeignKey('event_types.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('accounts.id'), nullable=False, index=True)
+    keep_id = Column(Integer, ForeignKey('keeps.id', ondelete='SET NULL'), nullable=True, index=True)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+
+class Feedback(Base):
+    """One submission of the playtest feedback form. See buildplans/feedback-form-spec.md."""
+    __tablename__ = 'feedback'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('accounts.id'), nullable=True, index=True)
+    keep_id = Column(Integer, ForeignKey('keeps.id', ondelete='SET NULL'), nullable=True)
+    category = Column(String, nullable=False)
+    doing = Column(String, nullable=False)
+    feedback = Column(Text, nullable=False)
+    severity = Column(Integer, nullable=True)  # 1-4, null if skipped
+    name = Column(String, nullable=True)  # visitors only; players are identified by user_id
+    page_url = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)

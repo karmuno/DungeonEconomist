@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { AdventurerClass } from '../../types'
 
 export interface FilterState {
@@ -10,11 +10,36 @@ export interface FilterState {
   sortDir: 'asc' | 'desc'
 }
 
-const ALL_STATUSES = ['Available', 'Recovering', 'On Expedition', 'Assigned', 'Dead', 'Bankrupt'] as const
+const ALL_STATUSES = ['Available', 'Recovering', 'On Expedition', 'Assigned'] as const
+
+export interface SortOption {
+  value: string
+  label: string
+}
+
+const DEFAULT_SORT_OPTIONS: readonly SortOption[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'level', label: 'Level' },
+  { value: 'adventurer_class', label: 'Class' },
+  { value: 'party', label: 'Party' },
+  { value: 'hp_current', label: 'HP' },
+  { value: 'xp', label: 'XP' },
+  { value: 'wealth', label: 'Wealth' },
+  { value: 'to_hit', label: 'To-Hit' },
+  { value: 'hit_dice', label: 'HD' },
+]
 
 const props = defineProps<{
   modelValue: FilterState
+  /** Graveyard and Debtor's Prison have exactly one status, so they hide the control. */
+  hideStatus?: boolean
+  /** Each tab sorts on the fields its own data actually carries. */
+  sortOptions?: readonly SortOption[]
 }>()
+
+// Not a withDefaults factory: those are hoisted out of the setup scope and cannot
+// reference DEFAULT_SORT_OPTIONS, which fails the SFC compiler but not vue-tsc.
+const resolvedSortOptions = computed(() => props.sortOptions ?? DEFAULT_SORT_OPTIONS)
 
 const emit = defineEmits<{
   'update:modelValue': [value: FilterState]
@@ -85,7 +110,7 @@ const classOptions = Object.values(AdventurerClass)
         <option v-for="cls in classOptions" :key="cls" :value="cls">{{ cls }}</option>
       </select>
     </div>
-    <div class="form-group" ref="dropdownRef">
+    <div v-if="!hideStatus" class="form-group" ref="dropdownRef">
       <label class="form-label">Status</label>
       <button
         class="form-select status-trigger"
@@ -113,12 +138,9 @@ const classOptions = Object.values(AdventurerClass)
         :value="modelValue.sortBy"
         @change="update('sortBy', ($event.target as HTMLSelectElement).value)"
       >
-        <option value="name">Name</option>
-        <option value="level">Level</option>
-        <option value="adventurer_class">Class</option>
-        <option value="party">Party</option>
-        <option value="hp_current">HP</option>
-        <option value="xp">XP</option>
+        <option v-for="opt in resolvedSortOptions" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </option>
       </select>
     </div>
     <div class="form-group">

@@ -1,0 +1,16 @@
+/* ==========================================================================
+   Fonts — Venturekeep is a monospace-only system.
+   The brand family is Cascadia Code (SIL OFL, github.com/microsoft/cascadia-code).
+   It is declared below as a literal @font-face served from the Fontsource CDN
+   (the real font, not a substitute) so it loads anywhere with a network.
+   The full stack in --font-mono still degrades to locally-installed
+   Cascadia Code / Fira Code / Consolas / Monaco when offline.
+   To self-host instead, drop the woff2 in assets/fonts/ and swap the src url.
+   ========================================================================== */
+@font-face {
+  font-family: 'Cascadia Code';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 700; /* variable axis — covers every weight the system uses */
+  src: url("https://cdn.jsdelivr.net/fontsource/fonts/cascadia-code:vf@latest/latin-wght-normal.woff2") format("woff2-variations");
+}

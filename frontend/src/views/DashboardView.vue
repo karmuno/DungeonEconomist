@@ -8,7 +8,7 @@ import * as buildingsApi from '../api/buildings'
 import * as adventurersApi from '../api/adventurers'
 import type { DashboardStats, AdventurerOut } from '../types'
 import { useGameTimeStore } from '../stores/gameTime'
-import { useNotificationsStore } from '../stores/notifications'
+import { useNotificationsStore, type NotificationType } from '../stores/notifications'
 import { formatCurrency } from '../utils/currency'
 import { itemEmoji, itemBonusLabel } from '../utils/adventurer'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
@@ -57,13 +57,21 @@ async function fetchStats() {
 // 'refresh-dashboard' once the day's event popup is on screen, so state
 // never updates ahead of its event being shown.
 watch(() => gameTime.expeditionVersion, fetchStats)
+
+function onDashboardData(data: DashboardStats) {
+  stats.value = data
+  loading.value = false
+}
+
 onMounted(() => {
   fetchStats()
   eventBus.on('refresh-dashboard', fetchStats)
+  eventBus.on('dashboard-data', onDashboardData)
 })
 
 onUnmounted(() => {
   eventBus.off('refresh-dashboard', fetchStats)
+  eventBus.off('dashboard-data', onDashboardData)
 })
 
 function progressPct(exp: DashboardStats['active_expeditions'][0]): number {
@@ -128,13 +136,17 @@ function toggleBuilding(type: string) {
   expandedBuilding.value = expandedBuilding.value === type ? null : type
 }
 
-// Drag source tracking: "unassigned", "party:ID", or "building:ID"
+// A slot an adventurer can occupy: "unassigned", "party:ID", or "building:ID"
+type Slot = string
+
 const dragOverUnassigned = ref(false)
-let dragSource = ''
+let dragSource: Slot = ''
 let dragAdvId = 0
 let dragAdvName = ''
 
-function onDragStart(e: DragEvent, advId: number, advName: string, source: string) {
+type AdvEntry = DashboardStats['unassigned_adventurers'][number]
+
+function onDragStart(e: DragEvent, advId: number, advName: string, source: Slot) {
   dragAdvId = advId
   dragAdvName = advName
   dragSource = source
@@ -142,16 +154,148 @@ function onDragStart(e: DragEvent, advId: number, advName: string, source: strin
   e.dataTransfer?.setData('text/plain', String(advId))
 }
 
-// Helper: remove adventurer from their current source
-async function removeFromSource() {
-  if (dragSource.startsWith('party:')) {
-    const partyId = Number(dragSource.split(':')[1])
-    await partiesApi.removeMember({ party_id: partyId, adventurer_id: dragAdvId })
-  } else if (dragSource.startsWith('building:')) {
-    const buildingId = Number(dragSource.split(':')[1])
-    await buildingsApi.unassign(buildingId, dragAdvId)
+function slotId(slot: Slot): number {
+  return Number(slot.split(':')[1])
+}
+
+function findAndSpliceAdventurer(advId: number, slot: Slot): AdvEntry | null {
+  if (!stats.value) return null
+  if (slot === 'unassigned') {
+    const idx = stats.value.unassigned_adventurers.findIndex(a => a.id === advId)
+    if (idx === -1) return null
+    return stats.value.unassigned_adventurers.splice(idx, 1)[0]
   }
-  // "unassigned" — nothing to remove from
+  if (slot.startsWith('party:')) {
+    const party = stats.value.parties.find(p => p.id === slotId(slot))
+    if (!party) return null
+    const idx = party.members.findIndex(m => m.id === advId)
+    if (idx === -1) return null
+    const adv = party.members.splice(idx, 1)[0]
+    party.member_count = party.members.length
+    return adv
+  }
+  if (slot.startsWith('building:')) {
+    const building = stats.value.buildings.find(b => b.id === slotId(slot))
+    if (!building) return null
+    const idx = building.assigned_adventurers.findIndex(a => a.id === advId)
+    if (idx === -1) return null
+    const adv = building.assigned_adventurers.splice(idx, 1)[0]
+    building.assigned_count = building.assigned_adventurers.length
+    return adv
+  }
+  return null
+}
+
+// Local mirror of a server slot. False when the slot is gone from local state.
+function insertLocal(slot: Slot, adv: AdvEntry): boolean {
+  if (!stats.value) return false
+  if (slot === 'unassigned') {
+    stats.value.unassigned_adventurers.push(adv)
+    return true
+  }
+  if (slot.startsWith('party:')) {
+    const party = stats.value.parties.find(p => p.id === slotId(slot))
+    if (!party) return false
+    party.members.push(adv)
+    party.member_count = party.members.length
+    return true
+  }
+  if (slot.startsWith('building:')) {
+    const building = stats.value.buildings.find(b => b.id === slotId(slot))
+    if (!building) return false
+    building.assigned_adventurers.push(adv)
+    building.assigned_count = building.assigned_adventurers.length
+    return true
+  }
+  return false
+}
+
+// Server call that vacates a slot. "unassigned" needs none.
+function vacateSlotApi(slot: Slot, advId: number): Promise<unknown> | undefined {
+  if (slot.startsWith('party:')) {
+    return partiesApi.removeMember({ party_id: slotId(slot), adventurer_id: advId })
+  }
+  if (slot.startsWith('building:')) {
+    return buildingsApi.unassign(slotId(slot), advId)
+  }
+}
+
+// Server call that fills a slot. "unassigned" needs none: vacating the
+// source already leaves the adventurer there.
+function fillSlotApi(slot: Slot, advId: number): Promise<unknown> | undefined {
+  if (slot.startsWith('party:')) {
+    return partiesApi.addMember({ party_id: slotId(slot), adventurer_id: advId })
+  }
+  if (slot.startsWith('building:')) {
+    return buildingsApi.assign(slotId(slot), advId)
+  }
+}
+
+function errorDetail(err: unknown, fallback: string): string {
+  return (err as { data?: { detail?: string } } | null)?.data?.detail ?? fallback
+}
+
+/**
+ * Move an adventurer between slots, showing the move immediately.
+ *
+ * On failure they go back to their original slot. Only if the original slot
+ * refuses them (e.g. the party disbanded the moment they left it) do they
+ * land in Unassigned. Server truth is re-fetched afterwards either way.
+ */
+async function moveAdventurer(
+  advId: number,
+  advName: string,
+  source: Slot,
+  dest: Slot,
+  successMsg: string,
+  successType: NotificationType,
+  failMsg: string,
+) {
+  if (!stats.value || source === dest) return
+  const adv = findAndSpliceAdventurer(advId, source)
+  if (!adv) return
+  if (!insertLocal(dest, adv)) {
+    insertLocal(source, adv)
+    return
+  }
+  const successNoteId = notifications.add(successMsg, successType)
+
+  // Vacating the last seat disbands the party, so there is no slot to return to
+  let sourceGone: boolean
+  try {
+    const vacated = await vacateSlotApi(source, advId)
+    sourceGone = Boolean((vacated as { deleted?: boolean } | undefined)?.deleted)
+  } catch (err) {
+    // Nothing changed on the server: the original slot still holds them
+    if (successNoteId !== undefined) notifications.remove(successNoteId)
+    notifications.add(errorDetail(err, failMsg), 'error')
+    findAndSpliceAdventurer(advId, dest)
+    insertLocal(source, adv)
+    fetchStats()
+    return
+  }
+
+  try {
+    await fillSlotApi(dest, advId)
+  } catch (err) {
+    if (successNoteId !== undefined) notifications.remove(successNoteId)
+    notifications.add(errorDetail(err, failMsg), 'error')
+    findAndSpliceAdventurer(advId, dest)
+    let restored = source === 'unassigned'
+    if (!restored && !sourceGone) {
+      try {
+        await fillSlotApi(source, advId)
+        restored = true
+      } catch {
+        // Original slot refused them; they stay unassigned on the server
+      }
+    }
+    if (!restored || !insertLocal(source, adv)) {
+      insertLocal('unassigned', adv)
+      notifications.add(`${advName} returned to tavern`, 'info')
+    }
+  }
+  fetchStats()
 }
 
 // Drop on party
@@ -166,14 +310,11 @@ async function onPartyDrop(e: DragEvent, partyId: number) {
   dragOverPartyId.value = null
   if (!dragAdvId) return
   const party = stats.value?.parties.find(p => p.id === partyId)
-  try {
-    await removeFromSource()
-    await partiesApi.addMember({ party_id: partyId, adventurer_id: dragAdvId })
-    notifications.add(`${dragAdvName} joined ${party?.name ?? 'party'}`, 'success')
-    await fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to add to party', 'error')
-  }
+  if (!party) return
+  await moveAdventurer(
+    dragAdvId, dragAdvName, dragSource, `party:${partyId}`,
+    `${dragAdvName} joined ${party.name}`, 'success', 'Failed to add to party',
+  )
 }
 
 // Drop on building
@@ -187,14 +328,10 @@ async function onBuildingDrop(e: DragEvent, building: DashboardStats['buildings'
   e.preventDefault()
   dragOverBuilding.value = null
   if (!building.id || !dragAdvId) return
-  try {
-    await removeFromSource()
-    await buildingsApi.assign(building.id, dragAdvId)
-    notifications.add(`${dragAdvName} assigned to ${building.name}`, 'success')
-    await fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to assign', 'error')
-  }
+  await moveAdventurer(
+    dragAdvId, dragAdvName, dragSource, `building:${building.id}`,
+    `${dragAdvName} assigned to ${building.name}`, 'success', 'Failed to assign',
+  )
 }
 
 // Drop on unassigned zone (to unassign from party or building)
@@ -209,46 +346,38 @@ function onUnassignedDragLeave() { dragOverUnassigned.value = false }
 async function onUnassignedDrop(e: DragEvent) {
   e.preventDefault()
   dragOverUnassigned.value = false
-  if (!dragAdvId || dragSource === 'unassigned') return
-  try {
-    await removeFromSource()
-    notifications.add(`${dragAdvName} returned to tavern`, 'info')
-    await fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
-  }
+  if (!dragAdvId) return
+  await moveAdventurer(
+    dragAdvId, dragAdvName, dragSource, 'unassigned',
+    `${dragAdvName} returned to tavern`, 'info', 'Failed to unassign',
+  )
 }
 
 // Direct unassign buttons
 async function removeFromParty(partyId: number, advId: number, advName: string) {
-  try {
-    await partiesApi.removeMember({ party_id: partyId, adventurer_id: advId })
-    notifications.add(`${advName} removed from party`, 'info')
-    await fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to remove', 'error')
-  }
+  await moveAdventurer(
+    advId, advName, `party:${partyId}`, 'unassigned',
+    `${advName} removed from party`, 'info', 'Failed to remove',
+  )
 }
 
 async function unassignFromBuilding(buildingId: number, advId: number, advName: string) {
-  try {
-    await buildingsApi.unassign(buildingId, advId)
-    notifications.add(`${advName} returned to tavern`, 'info')
-    await fetchStats()
-  } catch (err: any) {
-    notifications.add(err?.data?.detail ?? 'Failed to unassign', 'error')
-  }
+  await moveAdventurer(
+    advId, advName, `building:${buildingId}`, 'unassigned',
+    `${advName} returned to tavern`, 'info', 'Failed to unassign',
+  )
 }
 
 // Auto-delve / auto-decide toggle
-async function togglePartySetting(partyId: number, field: 'healed' | 'full' | 'auto_decide') {
+// One checkbox drives both auto-delve flags (kept separate in the backend)
+async function togglePartySetting(partyId: number, field: 'auto_delve' | 'auto_decide') {
   const party = stats.value?.parties.find(p => p.id === partyId)
   if (!party) return
-  const healed = field === 'healed' ? !party.auto_delve_healed : party.auto_delve_healed
-  const full = field === 'full' ? !party.auto_delve_full : party.auto_delve_full
+  const autoDelveOn = party.auto_delve_healed || party.auto_delve_full
+  const auto = field === 'auto_delve' ? !autoDelveOn : autoDelveOn
   const autoDecide = field === 'auto_decide' ? !party.auto_decide_events : party.auto_decide_events
   try {
-    await partiesApi.updateAutoDelve(partyId, healed, full, autoDecide, party.auto_delve_level)
+    await partiesApi.updateAutoDelve(partyId, auto, auto, autoDecide, party.auto_delve_level)
     await fetchStats()
   } catch {
     notifications.add('Failed to update settings', 'error')
@@ -284,9 +413,6 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
       </div>
       <h1 v-else>Dashboard</h1>
 
-      <!-- Hint -->
-      <div v-if="stats.hint && stats.hint !== 'launch_expedition'" class="hint-bar mb-2">{{ stats.hint }}</div>
-
 
       <!-- Active Expeditions -->
       <div v-if="stats.active_expeditions.length > 0" class="card dash-card mb-2">
@@ -318,12 +444,16 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         </div>
       </div>
 
-      <!-- Parties + Unassigned side-by-side -->
+      <!-- Left: Unassigned with the Village directly beneath, so a building assignment
+           is a drag between neighbours, never a drag while scrolling. Right: Parties,
+           spanning both rows. The second row absorbs any extra height, so a tall
+           Parties card never opens a gap above the Village. Stacked (narrow screens),
+           the cards fall into DOM order: Unassigned, Parties, Village. -->
       <div class="parties-unassigned-grid mb-2">
 
-      <!-- Unassigned Adventurers (left) -->
+      <!-- Unassigned Adventurers -->
       <div
-        class="card dash-card"
+        class="card dash-card grid-unassigned"
         :class="{ 'drop-hover': dragOverUnassigned }"
         @dragover="onUnassignedDragOver"
         @dragleave="onUnassignedDragLeave"
@@ -333,29 +463,29 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         <div v-if="stats.unassigned_adventurers.length === 0" class="text-muted" style="font-size: 12px">
           Drag adventurers here to unassign them
         </div>
-        <div class="unassigned-list">
+        <div class="unassigned-list no-remove" :class="{ 'no-items': !stats.unassigned_adventurers.some(a => a.magic_items.length) }">
           <div
             v-for="a in stats.unassigned_adventurers"
             :key="a.id"
-            class="unassigned-row draggable"
+            class="unassigned-row adv-grid draggable"
             draggable="true"
             @dragstart="onDragStart($event, a.id, a.name, 'unassigned')"
             @click.stop="openDetail(a.id)"
           >
             <span class="drag-handle">&#x2630;</span>
             <span class="unassigned-name">{{ a.name }}</span>
-            <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
+            <span class="row-items"><span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span></span>
             <span class="badge">{{ a.adventurer_class }}</span>
             <span class="stat">Lv {{ a.level }}</span>
             <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
-            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+            <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp"> / {{ a.next_level_xp }}</template> XP</span>
             <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Parties (right, expandable, drop target) -->
-      <div class="card dash-card">
+      <!-- Parties (expandable, drop target) -->
+      <div class="card dash-card grid-parties">
         <div class="flex flex-between mb-1">
           <h3>Parties</h3>
           <button class="btn btn-sm btn-primary" @click="router.push('/form-party')">+ New Party</button>
@@ -382,22 +512,26 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 @click.stop="goToPartyStatus(p)"
               >{{ p.status }}</span>
             </div>
-            <div v-if="expandedPartyIds.has(p.id)" class="party-members">
+            <div
+              v-if="expandedPartyIds.has(p.id)"
+              class="party-members"
+              :class="{ 'no-items': !p.members.some(m => m.magic_items.length), 'no-remove': p.on_expedition }"
+            >
               <div
                 v-for="m in p.members"
                 :key="m.id"
-                class="party-member-row draggable"
+                class="party-member-row adv-grid draggable"
                 draggable="true"
                 @dragstart="onDragStart($event, m.id, m.name, `party:${p.id}`)"
                 @click.stop="openDetail(m.id)"
               >
                 <span class="drag-handle">&#x2630;</span>
                 <span :class="['member-name', { 'text-dead': m.hp_current <= 0 }]">{{ m.name }}</span>
-                <span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
+                <span class="row-items"><span v-for="item in m.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span></span>
                 <span class="badge">{{ m.adventurer_class }}</span>
                 <span class="stat">Lv {{ m.level }}</span>
                 <span class="stat" :style="{ color: m.hp_current >= m.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ m.hp_current }}/{{ m.hp_max }}</span>
-                <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp">/{{ m.next_level_xp }}</template> XP</span>
+                <span class="stat xp">{{ m.xp }}<template v-if="m.next_level_xp"> / {{ m.next_level_xp }}</template> XP</span>
                 <span class="stat gold">{{ formatCurrency(m.gold, m.silver, m.copper) }}</span>
                 <button v-if="!p.on_expedition" class="remove-btn" @click.stop="removeFromParty(p.id, m.id, m.name)">&times;</button>
               </div>
@@ -416,14 +550,9 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
                 <button class="btn btn-sm btn-secondary" @click.stop="router.push(`/parties/${p.id}`)">Manage</button>
               </div>
               <div class="auto-delve-row">
-                <span class="auto-delve-label">Auto-Delve:</span>
-                <label class="checkbox-label" @click.stop>
-                  <input type="checkbox" :checked="p.auto_delve_healed" @change="togglePartySetting(p.id, 'healed')" />
-                  When Healed
-                </label>
-                <label class="checkbox-label" @click.stop>
-                  <input type="checkbox" :checked="p.auto_delve_full" @change="togglePartySetting(p.id, 'full')" />
-                  When Full
+                <label class="checkbox-label" title="Party will automatically start an expedition when it has 6 fully-healed members." @click.stop>
+                  <input type="checkbox" :checked="p.auto_delve_healed || p.auto_delve_full" @change="togglePartySetting(p.id, 'auto_delve')" />
+                  Auto-Delve
                 </label>
                 <select
                   class="form-select auto-level-select"
@@ -444,10 +573,8 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
         </div>
       </div>
 
-      </div> <!-- end parties-unassigned-grid -->
-
       <!-- Village (expandable, drop target for buildings) -->
-      <div v-if="stats.buildings.length > 0" class="card dash-card mb-2">
+      <div v-if="stats.buildings.length > 0" class="card dash-card grid-village">
         <div class="flex flex-between mb-1">
           <h3>Village</h3>
           <button class="btn btn-sm btn-secondary" @click="router.push('/village')">Manage</button>
@@ -466,28 +593,37 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
               <span class="party-expand">{{ expandedBuilding === b.building_type ? '&#9660;' : '&#9654;' }}</span>
               <span class="building-row-name">{{ b.name }}</span>
               <span class="party-size">{{ b.assigned_count }} assigned</span>
-              <span v-if="b.effects.length > 0" class="building-effect-tag">{{ b.effects[0] }}</span>
+              <span class="building-cell">
+                <span v-for="(fx, i) in b.staffed_effects" :key="i" class="building-effect-tag">{{ fx }}</span>
+              </span>
+              <span class="building-cell">
+                <span v-for="(fx, i) in b.standing_effects" :key="i" class="building-effect-tag">{{ fx }}</span>
+              </span>
             </div>
             <div v-if="expandedBuilding === b.building_type" class="building-expanded">
               <div v-if="b.effects.length > 0" class="building-effects-full mb-1">
                 <span v-for="(fx, i) in b.effects" :key="i" class="effect-tag">{{ fx }}</span>
               </div>
-              <div v-if="b.assigned_adventurers.length > 0" class="building-assigned">
+              <div
+                v-if="b.assigned_adventurers.length > 0"
+                class="building-assigned"
+                :class="{ 'no-items': !b.assigned_adventurers.some(a => a.magic_items.length) }"
+              >
                 <div
                   v-for="a in b.assigned_adventurers"
                   :key="a.id"
-                  class="building-assigned-row draggable"
+                  class="building-assigned-row adv-grid draggable"
                   draggable="true"
                   @dragstart="onDragStart($event, a.id, a.name, `building:${b.id}`)"
                   @click.stop="openDetail(a.id)"
                 >
                   <span class="drag-handle">&#x2630;</span>
                   <span class="member-name">{{ a.name }}</span>
-                  <span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span>
+                  <span class="row-items"><span v-for="item in a.magic_items" :key="item.id" class="item-tag" :title="item.name">{{ itemEmoji(item.item_type) }}{{ itemBonusLabel(item.item_type, item.bonus) }}</span></span>
                   <span class="badge">{{ a.adventurer_class }}</span>
                   <span class="stat">Lv {{ a.level }}</span>
                   <span class="stat" :style="{ color: a.hp_current >= a.hp_max ? 'var(--accent-green)' : '#fbbf24' }">{{ a.hp_current }}/{{ a.hp_max }}</span>
-                  <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp">/{{ a.next_level_xp }}</template> XP</span>
+                  <span class="stat xp">{{ a.xp }}<template v-if="a.next_level_xp"> / {{ a.next_level_xp }}</template> XP</span>
                   <span class="stat gold">{{ formatCurrency(a.gold, a.silver, a.copper) }}</span>
                   <button class="remove-btn" @click.stop="unassignFromBuilding(b.id, a.id, a.name)">&times;</button>
                 </div>
@@ -497,10 +633,13 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
           </div>
         </div>
       </div>
-      <div v-else class="card dash-card mb-2 clickable" @click="router.push('/village')">
+      <div v-else class="card dash-card grid-village clickable" @click="router.push('/village')">
         <h3 class="mb-1">Village</h3>
         <p class="text-muted" style="font-size: 12px">No buildings yet. Visit the Village to build.</p>
       </div>
+
+      </div> <!-- end parties-unassigned-grid -->
+
     </template>
   </div>
 
@@ -524,22 +663,52 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .dungeon-name { font-size: 1.3rem; }
 .dungeon-depth { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
 
-.hint-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; background: rgba(96, 165, 250, 0.08);
-  border: 1px solid rgba(96, 165, 250, 0.2); border-radius: var(--border-radius);
-  color: var(--accent-blue, #60a5fa); font-size: 13px;
-}
 .text-green { color: var(--accent-green); }
 .text-dead { color: var(--accent-red, #e74c3c); }
 
 .dash-card { padding: 12px 16px; }
 .parties-unassigned-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   gap: 12px;
   align-items: start;
 }
+.grid-unassigned { grid-column: 1; grid-row: 1; }
+.grid-village { grid-column: 1; grid-row: 2; }
+.grid-parties { grid-column: 2; grid-row: 1 / span 2; }
+/* Below this the two columns cannot each hold a full adventurer row: one column,
+   cards in DOM order. The number is ~300px above the width the grid actually gets,
+   because the sidebar takes that much and a media query cannot see it: at a 1180px
+   viewport the grid has ~870px and each column ~430px, which leaves the name track
+   98px — two lines for the longest names. Below that the name goes to three lines
+   (84px at 1152, 59px at 1100), which is when the row stops reading as a row. */
+@media (max-width: 1180px) {
+  .parties-unassigned-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .grid-unassigned, .grid-village, .grid-parties { grid-column: auto; grid-row: auto; }
+}
+
+/* One grid per adventurer row with fixed tracks, so every statistic sits in the
+   same column from one adventurer to the next, whatever they carry:
+   handle | name | items | class | level | HP | XP | wealth | remove
+   A list whose rows carry no items, or no remove button, collapses that track so
+   the name gets the room; alignment only has to hold within one list. */
+.adv-grid {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) var(--items-col, 36px) 80px 28px 40px 60px 44px var(--remove-col, 18px);
+  column-gap: 4px;
+  align-items: center;
+}
+/* Statistics wrap at their spaces ("0/2000" over "XP", "12gp" over "5sp") rather than
+   widen their track and squeeze the name */
+.adv-grid .stat { white-space: normal; overflow-wrap: anywhere; text-align: right; line-height: 1.2; }
+.adv-grid .badge { justify-self: start; padding-left: 0.3rem; padding-right: 0.3rem; }
+.adv-grid .remove-btn { justify-self: end; }
+/* Fixed-width item cell; four or more items is rare enough that wrapping onto a
+   second line is the accepted degrading case */
+.row-items { display: flex; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.no-items { --items-col: 0px; }
+.no-remove { --remove-col: 0px; }
 
 /* Active expeditions */
 .active-list { display: flex; flex-direction: column; gap: 6px; }
@@ -557,15 +726,26 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 .party-list { display: flex; flex-direction: column; gap: 2px; }
 .party-block { border-bottom: 1px solid var(--border-color); transition: background 0.15s; }
 .party-block.drop-hover { background: rgba(74, 222, 128, 0.08); border-color: var(--accent-green); }
-.party-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 12px; }
-.party-expand { font-size: 10px; color: var(--text-muted); width: 14px; }
-.party-name { font-weight: 600; font-size: 13px; flex: 1; }
-.party-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
-.party-avg-level { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+/* Fixed tracks so the status badge never pushes size and level around:
+   caret | name | size | average level | status */
+.party-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 36px 72px 104px;
+  column-gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+.party-expand { font-size: 10px; color: var(--text-muted); }
+.party-name { font-weight: 600; font-size: 13px; min-width: 0; line-height: 1.25; }
+.party-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; text-align: right; }
+.party-avg-level { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; text-align: right; }
+.party-row .badge { justify-self: end; }
 
 .party-members { padding: 4px 0 8px 22px; }
-.party-member-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; cursor: pointer; }
-.member-name { font-weight: 600; flex: 1; font-size: 12px; }
+.party-member-row { padding: 3px 0; font-size: 12px; cursor: pointer; }
+.member-name { font-weight: 600; font-size: 12px; min-width: 0; line-height: 1.25; }
 .stat { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); }
 .party-actions { display: flex; gap: 6px; margin-top: 6px; }
 
@@ -590,22 +770,36 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 /* Unassigned */
 .unassigned-list { display: flex; flex-direction: column; gap: 3px; }
 .unassigned-row {
-  display: flex; align-items: center; gap: 8px;
   padding: 3px 0; border-bottom: 1px solid var(--border-color); font-size: 12px;
   cursor: pointer;
 }
 .unassigned-row.draggable { cursor: pointer; }
 .unassigned-row.draggable:active { cursor: pointer; }
 .drag-handle { color: var(--text-muted); font-size: 12px; }
-.unassigned-name { font-weight: 600; flex: 1; font-size: 12px; }
+.unassigned-name { font-weight: 600; font-size: 12px; min-width: 0; line-height: 1.25; }
 
 /* Buildings */
 .buildings-list { display: flex; flex-direction: column; gap: 2px; }
 .building-block { border-bottom: 1px solid var(--border-color); transition: background 0.15s; }
 .building-block.drop-hover { background: rgba(74, 222, 128, 0.08); border-color: var(--accent-green); }
-.building-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; }
-.building-row-name { font-weight: 600; font-size: 13px; flex: 1; }
-.building-effect-tag { font-size: 10px; font-family: var(--font-mono); color: var(--accent-green); }
+/* One grid per row with fixed tracks, so every row's cells line up as a table:
+   caret | name | assigned | what the staff deliver | what the building grants
+   The name track is fixed so the count sits close to it and the two effect cells get
+   the rest of the width; effects wrap rather than truncate. */
+.building-row {
+  display: grid;
+  grid-template-columns: 14px 132px 72px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.building-row-name { font-weight: 600; font-size: 13px; min-width: 0; line-height: 1.25; }
+.building-row .party-size { text-align: left; }
+/* Effects flow as text and wrap at their spaces, separated by a dot */
+.building-cell { min-width: 0; font-size: 10px; line-height: 1.3; }
+.building-effect-tag { font-family: var(--font-mono); color: var(--accent-green); }
+.building-effect-tag + .building-effect-tag::before { content: ' \B7 '; color: var(--text-muted); }
 .building-expanded { padding: 4px 0 8px 22px; }
 .building-effects-full { display: flex; gap: 6px; flex-wrap: wrap; }
 .effect-tag {
@@ -631,7 +825,7 @@ async function setAutoDelveLevel(partyId: number, level: number | null) {
 
 /* Building assigned list */
 .building-assigned { display: flex; flex-direction: column; gap: 2px; }
-.building-assigned-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; cursor: pointer; }
+.building-assigned-row { padding: 2px 0; font-size: 12px; cursor: pointer; }
 
 /* Remove/drag controls */
 .remove-btn {

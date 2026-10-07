@@ -8,13 +8,16 @@ import { useGameTimeStore } from '../stores/gameTime'
 import { usePlayerStore } from '../stores/player'
 import { formatCurrency } from '../utils/currency'
 import { formatGameDayShort } from '../utils/calendar'
+import { itemEmoji } from '../utils/adventurer'
 import ProgressBar from '../components/shared/ProgressBar.vue'
 import LoadingSpinner from '../components/shared/LoadingSpinner.vue'
 import ExpeditionLogTree from '../components/expeditions/ExpeditionLogTree.vue'
+import AdventurerSheetModal from '../components/adventurers/AdventurerSheetModal.vue'
 import type { TurnLog } from '../types/expeditionLog'
 import eventBus from '../eventBus'
 
 const router = useRouter()
+const sheetAdvId = ref<number | null>(null)
 const route = useRoute()
 const notifications = useNotificationsStore()
 const gameTime = useGameTimeStore()
@@ -171,6 +174,9 @@ const actualDurationDays = computed(() => {
         </p>
         <div class="summary-stats">
           <span class="text-gold">Loot: {{ formatCurrency(lootCopper(summary.total_loot).gold, lootCopper(summary.total_loot).silver, lootCopper(summary.total_loot).copper) }}</span>
+          <span v-for="item in summary.found_items ?? []" :key="item.id" class="found-item">
+            {{ itemEmoji(item.item_type) }} {{ item.name }}<template v-if="item.holder_name"> · <span class="adv-link" @click="item.holder_id != null && (sheetAdvId = item.holder_id)">{{ item.holder_name }}</span></template>
+          </span>
           <span>XP: {{ summary.total_xp }}</span>
           <span v-if="summary.spells_left !== undefined" class="text-info">Spells Left: {{ summary.spells_left }}</span>
           <span v-if="summary.heals_left !== undefined" class="text-success">Cures Left: {{ summary.heals_left }}</span>
@@ -224,7 +230,9 @@ const actualDurationDays = computed(() => {
               <th>Class</th>
               <th>Level</th>
               <th>Status</th>
-              <th>HP</th>
+              <th class="col-hurt">Took</th>
+              <th class="col-hurt">Healed</th>
+              <th class="col-hp">HP</th>
               <th v-if="!isActive">XP Gained</th>
               <th v-if="!isActive">Wealth</th>
             </tr>
@@ -235,14 +243,16 @@ const actualDurationDays = computed(() => {
               :key="member.name"
               :class="{ 'text-danger': !member.alive }"
             >
-              <td><span :class="{ 'adv-dead': !member.alive }">{{ member.name }}</span></td>
+              <td><span class="adv-link" :class="{ 'adv-dead': !member.alive }" @click="sheetAdvId = member.id">{{ member.name }}</span></td>
               <td>{{ member.adventurer_class }}</td>
               <td>{{ member.level }}</td>
               <td>
                 <span v-if="member.alive" class="badge badge-alive">{{ isActive ? 'Active' : 'Alive' }}</span>
                 <span v-else class="badge badge-dead">Dead</span>
               </td>
-              <td>
+              <td class="col-hurt text-danger">{{ member.damage_taken ? `−${member.damage_taken}` : '—' }}</td>
+              <td class="col-hurt text-heal">{{ member.hp_healed ? `+${member.hp_healed}` : '—' }}</td>
+              <td class="col-hp">
                 <ProgressBar v-if="member.alive" :value="member.hp_current" :max="member.hp_max" />
                 <span v-else>&mdash;</span>
               </td>
@@ -258,7 +268,8 @@ const actualDurationDays = computed(() => {
         <h3 class="mb-2">Expedition Log</h3>
         <ExpeditionLogTree
           :turns="turnsWithActivity"
-          :member-names="summary.member_results.map(m => m.name)"
+          :members="summary.member_results"
+          @open-sheet="sheetAdvId = $event"
         />
       </div>
 
@@ -270,9 +281,43 @@ const actualDurationDays = computed(() => {
       </div>
     </template>
   </div>
+  <AdventurerSheetModal :adventurer-id="sheetAdvId" @close="sheetAdvId = null" />
 </template>
 
 <style scoped>
+.text-heal {
+  color: var(--accent-green);
+}
+
+/* Took and Healed are two or three glyphs; without this they take their share of
+   the table and squeeze the HP bar down to a stub. */
+.col-hurt {
+  width: 1%;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  white-space: nowrap;
+}
+
+.col-hp {
+  min-width: 7.5rem;
+}
+
+.found-item {
+  color: var(--accent-purple);
+}
+
+.adv-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #374151;
+  text-underline-offset: 2px;
+}
+
+.adv-link:hover {
+  color: #4ade80;
+  text-decoration-color: #4ade80;
+}
+
 .adv-dead {
   text-decoration: line-through;
   opacity: 0.6;

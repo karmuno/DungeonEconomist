@@ -1,18 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { formatCurrency } from '../../utils/currency'
-import { pluralMonster } from '../../types/expeditionLog'
-import type { AttackEntry, RoundEntry, TurnLog } from '../../types/expeditionLog'
+import { pluralMonster, roundAttacks, roundMoraleChecks, roundSpellCasts } from '../../types/expeditionLog'
+import type { AttackEntry, CombatEvent, RoundEntry, RoundEvent, TurnLog, TurnUndeadEntry } from '../../types/expeditionLog'
+import type { AdventurerRef } from '../../types'
+import LinkedText from '../adventurers/LinkedText.vue'
 
 const props = defineProps<{
   turns: TurnLog[]
-  memberNames: string[]
+  members: AdventurerRef[]
   // When true, the last event of the last turn is badged as the event that
   // opened the current modal, with its damage meta highlighted.
   markCurrent?: boolean
 }>()
 
-const pcNames = computed(() => new Set(props.memberNames))
+const emit = defineEmits<{
+  'open-sheet': [id: number]
+}>()
+
+const pcNames = computed(() => new Set(props.members.map(m => m.name)))
+
+function openSheet(id: number) {
+  emit('open-sheet', id)
+}
 
 // Turns are expanded by default; combats and rounds are collapsed.
 const collapsedTurns = ref<Set<number>>(new Set())
@@ -54,9 +64,33 @@ function isRoundExpanded(turnNum: number, eventIdx: number, roundIdx: number): b
   return expandedRounds.value.has(`${turnNum}-${eventIdx}-${roundIdx}`)
 }
 
+// An ordered round tags each attack block with the side that made it. Only logs
+// written before that have to be sorted by looking the attacker up in the roster,
+// which mistakes a monster named after an adventurer for one of the party.
 function sideAttacks(r: RoundEntry, side: 'party' | 'monsters'): AttackEntry[] {
+  if (r.events) {
+    return r.events.flatMap(ev => (ev.kind === 'attacks' && ev.side === side ? ev.attacks : []))
+  }
   const all = r.halfling_pre_round ?? r.attacks ?? []
   return all.filter(a => side === 'party' ? pcNames.value.has(a.attacker) : !pcNames.value.has(a.attacker))
+}
+
+/** The round's events with the morale checks removed — those render as row tags. */
+function roundBody(r: RoundEntry): RoundEvent[] {
+  return (r.events ?? []).filter(ev => ev.kind !== 'morale')
+}
+
+function healLine(ev: RoundEvent): string {
+  if (ev.kind === 'revival') {
+    const how = ev.source === 'potion'
+      ? 'drinks a Cure Light Wounds potion and gets back up'
+      : `is revived by ${ev.healer}`
+    return `${ev.name} ${how} · ${ev.hp} HP`
+  }
+  if (ev.kind === 'heal') {
+    return `${ev.name} healed for ${ev.hp} HP${ev.healer ? ` by ${ev.healer}` : ''}`
+  }
+  return ''
 }
 
 function plural(n: number, word: string): string {
@@ -81,30 +115,50 @@ function attackLine(atk: AttackEntry): string {
   return `${atk.attacker} ${verb} ${atk.target} · ${atk.roll} ${bonus} To-Hit vs ${atk.target_ac} Armor Class${dmg}`
 }
 
-function roundLabel(r: RoundEntry): string {
-  if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
-  if (r.halfling_pre_round) {
-    return `Sling Volley – ${sideSummary(r.halfling_pre_round)}`
+/** The Halfling volley is round 0 and the log labels its one attack block. */
+function volleyLabel(r: RoundEntry): string | null {
+  if (r.halfling_pre_round) return 'Sling Volley'
+  const labelled = (r.events ?? []).find(ev => ev.kind === 'attacks' && ev.label)
+  return labelled && labelled.kind === 'attacks' ? (labelled.label ?? null) : null
+}
+
+interface ClericTurn {
+  cleric: string
+  turn_log: TurnUndeadEntry[]
+}
+
+function clericTurns(r: RoundEntry): ClericTurn[] {
+  if (r.events) {
+    return r.events.filter(ev => ev.kind === 'turn_undead') as ClericTurn[]
   }
+  return r.cleric_turns ?? []
+}
+
+function roundLabel(r: RoundEntry): string {
+  const volley = volleyLabel(r)
+  if (volley) return `${volley} – ${sideSummary(roundAttacks(r))}`
+  if (r.event === 'spell') return `${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`
   const initiative = r.initiative_winner ?? r.initiative
   const label = initiative === 'party' ? 'party first' : initiative === 'monsters' ? 'monsters first' : 'simultaneous'
   const base = `Round ${r.round} (${label})`
-  if (r.spell_casts?.length) {
-    const s = r.spell_casts[0]
-    return `${base} — ${s.caster} casts ${s.spell}`
+  const casts = roundSpellCasts(r)
+  if (casts.length) {
+    return `${base} — ${casts[0].caster} casts ${casts[0].spell}`
   }
   return base
 }
 
 function roundMeta(r: RoundEntry): string {
+  if (volleyLabel(r)) return ''
   if (r.event === 'spell') return ''
-  if (r.cleric_turns?.length) return turnUndeadSummary(r.cleric_turns)
+  const turns = clericTurns(r)
+  if (turns.length) return turnUndeadSummary(turns)
   const party = sideSummary(sideAttacks(r, 'party'))
   const monsters = sideSummary(sideAttacks(r, 'monsters'))
   return `Party – ${party} · Monsters – ${monsters}`
 }
 
-function turnUndeadSummary(ct: RoundEntry['cleric_turns']): string {
+function turnUndeadSummary(ct: ClericTurn[] | undefined): string {
   if (!ct || ct.length === 0) return ''
   return ct.map(c => {
     const destroyed = c.turn_log.filter(e => e.result !== 'resisted').length
@@ -136,6 +190,11 @@ function trapMeta(turn: TurnLog, idx: number): string {
   const ev = turn.events[idx]
   if (!ev?.trap_damage) return ''
   return `−${ev.trap_damage} HP`
+}
+
+/** True once the combat's rounds carry their own ordered event lists. */
+function hasOrderedRounds(combat: CombatEvent | undefined): boolean {
+  return !!combat?.round_log?.some(r => !!r.events)
 }
 
 const lastTurnNum = computed(() => props.turns.length ? props.turns[props.turns.length - 1].turn : -1)
@@ -170,25 +229,45 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                 <template v-for="(r, ri) in event.combat.round_log" :key="ri">
                   <div class="log-row round-row expandable" @click="toggleRound(turn.turn, idx, ri, $event)">
                     <span class="caret">{{ isRoundExpanded(turn.turn, idx, ri) ? '▼' : '▶' }}</span>
-                    <span class="round-label">{{ roundLabel(r) }}</span>
+                    <span class="round-label"><LinkedText :text="roundLabel(r)" :refs="members" @open="openSheet" /></span>
                     <span class="row-meta">{{ roundMeta(r) }}</span>
-                    <template v-if="r.morale_checks?.length">
-                      <span
-                        v-for="(mc, mi) in r.morale_checks"
-                        :key="mi"
-                        :class="['morale-tag', mc.passed ? '' : 'morale-break']"
-                      >
-                        {{ mc.side }} morale {{ mc.passed ? 'holds' : 'breaks' }}
-                      </span>
-                    </template>
+                    <span
+                      v-for="(mc, mi) in roundMoraleChecks(r)"
+                      :key="mi"
+                      :class="['morale-tag', mc.passed ? '' : 'morale-break']"
+                    >
+                      {{ mc.side }} morale {{ mc.passed ? 'holds' : 'breaks' }}
+                    </span>
                   </div>
                   <template v-if="isRoundExpanded(turn.turn, idx, ri)">
-                    <div v-if="r.event === 'spell'" class="log-row attack-row">
-                      {{ r.caster }} casts {{ r.spell }} — {{ r.monsters_destroyed }} destroyed
+                    <!-- Ordered log: play the round back in the order it resolved -->
+                    <template v-if="r.events">
+                      <template v-for="(ev, ei) in roundBody(r)" :key="'e' + ei">
+                        <div v-if="ev.kind === 'spell'" class="log-row attack-row">
+                          <LinkedText :text="`${ev.caster} casts ${ev.spell}${ev.scroll_used ? ' from a scroll' : ''} · ${ev.monsters_destroyed} destroyed`" :refs="members" @open="openSheet" />
+                        </div>
+                        <template v-else-if="ev.kind === 'turn_undead'">
+                          <div v-for="(tl, tli) in ev.turn_log" :key="'tl' + tli" class="log-row attack-row">
+                            <LinkedText :text="`${ev.cleric} → ${tl.monster} · ${tl.result}${tl.roll ? ` · roll ${tl.roll} vs ${tl.needed}` : ''}`" :refs="members" @open="openSheet" />
+                          </div>
+                        </template>
+                        <template v-else-if="ev.kind === 'attacks'">
+                          <div v-for="(atk, ai) in ev.attacks" :key="'a' + ai" class="log-row attack-row">
+                            <LinkedText :text="attackLine(atk)" :refs="members" @open="openSheet" />
+                          </div>
+                        </template>
+                        <div v-else-if="ev.kind === 'revival' || ev.kind === 'heal'" class="log-row attack-row heal-line">
+                          ✚ <LinkedText :text="healLine(ev)" :refs="members" @open="openSheet" />
+                        </div>
+                      </template>
+                    </template>
+                    <!-- Expeditions stored before the ordered log: the old fixed order -->
+                    <div v-else-if="r.event === 'spell'" class="log-row attack-row">
+                      <LinkedText :text="`${r.caster} casts ${r.spell} — ${r.monsters_destroyed} destroyed`" :refs="members" @open="openSheet" />
                     </div>
                     <template v-else>
                       <div v-for="(sc, si) in (r.spell_casts ?? [])" :key="'sc' + si" class="log-row attack-row">
-                        {{ sc.caster }} casts {{ sc.spell }}<template v-if="sc.scroll_used"> from a scroll</template> · {{ sc.monsters_destroyed }} destroyed
+                        <LinkedText :text="`${sc.caster} casts ${sc.spell}${sc.scroll_used ? ' from a scroll' : ''} · ${sc.monsters_destroyed} destroyed`" :refs="members" @open="openSheet" />
                       </div>
                       <template v-for="(ct, cti) in (r.cleric_turns ?? [])" :key="'ct' + cti">
                         <div
@@ -196,7 +275,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                           :key="'tl' + tli"
                           class="log-row attack-row"
                         >
-                          {{ ct.cleric }} → {{ tl.monster }} · {{ tl.result }}<template v-if="tl.roll"> · roll {{ tl.roll }} vs {{ tl.needed }}</template>
+                          <LinkedText :text="`${ct.cleric} → ${tl.monster} · ${tl.result}${tl.roll ? ` · roll ${tl.roll} vs ${tl.needed}` : ''}`" :refs="members" @open="openSheet" />
                         </div>
                       </template>
                       <div
@@ -204,34 +283,36 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
                         :key="'a' + ai"
                         class="log-row attack-row"
                       >
-                        {{ attackLine(atk) }}
+                        <LinkedText :text="attackLine(atk)" :refs="members" @open="openSheet" />
                       </div>
                     </template>
                   </template>
                 </template>
               </template>
               <div v-else class="log-row attack-row">{{ event.combat.rounds_fought ?? 0 }} round(s) fought</div>
-              <div
-                v-for="(h, hi) in (event.combat.healed_adventurers ?? [])"
-                :key="'h' + hi"
-                class="log-row attack-row heal-line"
-              >
-                ✚ {{ h.name }} healed for {{ h.hp }} HP<template v-if="h.healer"> by {{ h.healer }}</template>
-              </div>
-              <div
-                v-for="(rv, rvi) in (event.combat.revivals ?? [])"
-                :key="'rv' + rvi"
-                class="log-row attack-row heal-line"
-              >
-                ✚ {{ rv.name }} {{ rv.source === 'potion' ? 'drinks a Cure Light Wounds potion and gets back up' : `is revived by ${rv.healer}` }} · {{ rv.hp }} HP
-              </div>
+              <template v-if="!hasOrderedRounds(event.combat)">
+                <div
+                  v-for="(h, hi) in (event.combat.healed_adventurers ?? [])"
+                  :key="'h' + hi"
+                  class="log-row attack-row heal-line"
+                >
+                  ✚ <LinkedText :text="`${h.name} healed for ${h.hp} HP${h.healer ? ` by ${h.healer}` : ''}`" :refs="members" @open="openSheet" />
+                </div>
+                <div
+                  v-for="(rv, rvi) in (event.combat.revivals ?? [])"
+                  :key="'rv' + rvi"
+                  class="log-row attack-row heal-line"
+                >
+                  ✚ <LinkedText :text="`${rv.name} ${rv.source === 'potion' ? 'drinks a Cure Light Wounds potion and gets back up' : `is revived by ${rv.healer}`} · ${rv.hp} HP`" :refs="members" @open="openSheet" />
+                </div>
+              </template>
             </template>
           </template>
           <!-- Trap event -->
           <div v-else-if="event.trap_damage" class="log-row event-row">
             <span class="caret">·</span>
             <span class="event-label">
-              Trap — {{ (event.trap_victims ?? []).filter(v => v.damage > 0).map(v => `${v.name} −${v.damage}`).join(', ') || `${event.trap_damage} damage` }}
+              Trap — <LinkedText :text="(event.trap_victims ?? []).filter(v => v.damage > 0).map(v => `${v.name} −${v.damage}`).join(', ') || `${event.trap_damage} damage`" :refs="members" @open="openSheet" />
             </span>
             <span v-if="isCurrentEvent(turn, idx)" class="current-badge">This event</span>
             <span class="row-meta" :class="{ 'meta-danger': isCurrentEvent(turn, idx) }">{{ trapMeta(turn, idx) }}</span>
@@ -254,7 +335,7 @@ function isCurrentEvent(turn: TurnLog, idx: number): boolean {
         </template>
         <div v-for="dead in (turn.deaths ?? [])" :key="dead" class="log-row event-row death-row">
           <span class="caret">·</span>
-          <span class="event-label"><strong>{{ dead }}</strong> has fallen</span>
+          <span class="event-label"><strong><LinkedText :text="dead" :refs="members" @open="openSheet" /></strong> has fallen</span>
         </div>
       </template>
     </div>
