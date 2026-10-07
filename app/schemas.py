@@ -219,12 +219,6 @@ class ExpeditionResult(BaseModel):
     log: list[TurnLog] = []
     party_members_ready_for_level_up: list[AdventurerLevelUpInfo] | None = None
 
-class TurnResult(BaseModel):
-    turn: int
-    events: list[dict[str, Any]] = []
-    party_status: PartyStatus
-    expedition_ended: bool
-
 
 # ---- Feedback (buildplans/feedback-form-spec.md) ----
 

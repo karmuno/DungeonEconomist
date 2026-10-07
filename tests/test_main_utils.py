@@ -942,8 +942,8 @@ def test_events_naming_an_adventurer_carry_their_id(client: TestClient, db_sessi
 def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: Session):
     """A second launch with the same first member simulates the party as it stands now.
 
-    The simulator is process-global. launch_expedition used to reuse the party it had
-    registered at that party's first launch (matched on the first member's id), so every
+    launch_expedition used to reuse the party it had registered with a shared simulator
+    at that party's first launch (matched on the first member's id), so every
     later expedition fought with the dead at their original HP and level — expeditions
     891 and 892 in the 2026-09-09 save."""
     from app.models import Expedition
@@ -984,6 +984,27 @@ def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: S
     second_exp = db_session.get(Expedition, second.json()["expedition_id"])
     assert second_exp.simulation_data["party_status"]["members_total"] == 3
     assert set(second_exp.simulation_data["starting_hp"]) == {"Aldric", "Borin", "Yorick"}
+
+
+def test_auto_delve_simulates_the_party_as_it_stands(client: TestClient, db_session: Session):
+    """A healed party on a standing order sets out at day's end, simulated with its own roster."""
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Standing Order", keep_id=keep.id, auto_delve_healed=True)
+    db_session.add(party)
+    db_session.commit()
+    party.members.extend(create_adventurer_db(db_session, keep.id, name=n, xp=0, gold=100) for n in ("Hale", "Ivo", "Jory"))
+    db_session.commit()
+
+    resp = client.post("/time/advance-day", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    launched = [e for e in resp.json()["events"] if "auto-launched" in e["message"]]
+    assert len(launched) == 1
+
+    db_session.expire_all()
+    expedition = db_session.get(Expedition, launched[0]["expedition_id"])
+    assert expedition.party_id == party.id
+    assert expedition.simulation_data["party_status"]["members_total"] == 3
+    assert set(expedition.simulation_data["starting_hp"]) == {"Hale", "Ivo", "Jory"}
 
 
 # --- player_events: one row per thing a player did (buildplans/player-events-spec.md) ---
@@ -1746,18 +1767,6 @@ def _bring_home(client: TestClient, keep: Keep, token: str) -> None:
     assert any(e["type"] == "expedition_complete" for e in events), events
 
 
-def _forget_simulated_runs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Leave the expedition detail nothing but the database to read, as after a restart.
-
-    The simulator is process-global and numbers its own runs from zero, so one left over
-    from an earlier test can sit under the id a fresh database hands out here.
-    """
-    from app.routes import expeditions as expedition_routes
-    from app.simulator import DungeonSimulator
-
-    monkeypatch.setattr(expedition_routes, "simulator", DungeonSimulator())
-
-
 def test_metrics_average_what_the_runs_recorded(client: TestClient, db_session: Session):
     """The panel read 198 XP and 48gp for this run: its three per-turn rows added back up."""
     account, keep, token = create_account_and_keep(db_session)
@@ -1773,13 +1782,13 @@ def test_metrics_average_what_the_runs_recorded(client: TestClient, db_session: 
     assert level["avg_gold"] == 50
 
 
-def test_expedition_detail_reads_what_the_run_recorded(
-    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch,
-):
-    """Rebuilt from the database, the detail read 198 XP and 48gp, and no silver or copper."""
-    _forget_simulated_runs(monkeypatch)
+def test_expedition_detail_reads_what_the_run_recorded(client: TestClient, db_session: Session):
+    """The detail read 198 XP and 48gp for this run, no silver or copper, and dungeon level 1."""
     account, keep, token = create_account_and_keep(db_session)
+    keep.max_dungeon_level = 2
     exp = _uneven_run(db_session, keep)
+    exp.dungeon_level = 2
+    db_session.commit()
     _bring_home(client, keep, token)
 
     resp = client.get(f"/expeditions/{exp.id}", headers=auth_headers(token, keep.id))
@@ -1788,13 +1797,11 @@ def test_expedition_detail_reads_what_the_run_recorded(
     assert (detail["treasure_total"], detail["treasure_silver"], detail["treasure_copper"]) == (50, 600, 40)
     assert detail["xp_earned"] == 200
     assert detail["xp_per_party_member"] == pytest.approx(200 / 3)
+    assert (detail["dungeon_level"], detail["turns"]) == (2, 3)
 
 
-def test_expedition_detail_of_a_run_still_out_reports_nothing_yet(
-    client: TestClient, db_session: Session, monkeypatch: pytest.MonkeyPatch,
-):
+def test_expedition_detail_of_a_run_still_out_reports_nothing_yet(client: TestClient, db_session: Session):
     """A run is simulated to its end at launch. Until it is home those totals are still ahead of it."""
-    _forget_simulated_runs(monkeypatch)
     account, keep, token = create_account_and_keep(db_session)
     exp = _uneven_run(db_session, keep)
 
@@ -1803,3 +1810,34 @@ def test_expedition_detail_of_a_run_still_out_reports_nothing_yet(
     detail = resp.json()
     assert (detail["treasure_total"], detail["treasure_silver"], detail["treasure_copper"]) == (0, 0, 0)
     assert detail["xp_earned"] == 0
+
+
+def _launched_party(client: TestClient, db: Session, username: str, names: list[str]) -> tuple[int, dict]:
+    """A new keep whose party of `names` has just set out. Returns its expedition id and the keep's headers."""
+    account, keep, token = create_account_and_keep(db, username=username, keep_name=f"{username}'s keep")
+    party = Party(name=f"{username}'s party", keep_id=keep.id)
+    db.add(party)
+    db.commit()
+    party.members.extend(create_adventurer_db(db, keep.id, name=n, xp=0, gold=100) for n in names)
+    db.commit()
+    headers = auth_headers(token, keep.id)
+    resp = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": 1}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["expedition_id"], headers
+
+
+def test_expedition_detail_describes_the_keeps_own_run(client: TestClient, db_session: Session):
+    """Two keeps launch one after the other. Each one's detail is its own party, still out."""
+    first_id, first_headers = _launched_party(client, db_session, "north", ["Ada", "Bryn"])
+    second_id, second_headers = _launched_party(client, db_session, "south", ["Cole", "Dara", "Edda", "Finn", "Gwen"])
+
+    for expedition_id, headers, size in ((first_id, first_headers, 2), (second_id, second_headers, 5)):
+        resp = client.get(f"/expeditions/{expedition_id}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        detail = resp.json()
+        assert detail["party_status"]["members_total"] == size
+        # Nothing of the run is on record until the party is home
+        assert (detail["turns"], detail["log"], detail["dead_members"]) == (0, [], [])
+        assert (detail["treasure_total"], detail["xp_earned"]) == (0, 0)
+
+    assert client.get(f"/expeditions/{second_id}", headers=first_headers).status_code == 404
