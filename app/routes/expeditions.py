@@ -1084,6 +1084,8 @@ def list_expeditions(keep: Keep = Depends(get_current_keep), db: Session = Depen
             "actual_return_day": sim.get("actual_return_day"),
             "result": e.result,
             "treasure_total": sim.get("treasure_total", 0),
+            "treasure_silver": sim.get("treasure_silver", 0),
+            "treasure_copper": sim.get("treasure_copper", 0),
             "xp_earned": sim.get("xp_earned", 0),
             "started_at": e.started_at.isoformat() if e.started_at else None,
             "finished_at": e.finished_at.isoformat() if e.finished_at else None,
@@ -1348,6 +1350,22 @@ def _build_active_summary(expedition: Expedition, party, keep: Keep) -> dict:
     }
 
 
+def _recorded_totals(expedition: Expedition, node_results: list[ExpeditionNodeResult]) -> dict:
+    """Coin and XP a finished expedition came home with, as the run itself recorded them.
+
+    Not its node rows added back up: each holds an even share of the run rounded down,
+    so the remainder is lost (200 XP over 3 turns comes to 198), and they carry gold
+    alone. They stand in only for a run that recorded no totals of its own.
+    """
+    sim = expedition.simulation_data or {}
+    return {
+        "gold": sim.get("treasure_total", sum(n.loot for n in node_results)),
+        "silver": sim.get("treasure_silver", 0),
+        "copper": sim.get("treasure_copper", 0),
+        "xp": sim.get("xp_earned", sum(n.xp_earned for n in node_results)),
+    }
+
+
 def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> dict:
     """Build summary from finalized DB records for a completed expedition."""
     logs = db.query(ExpeditionLog).filter(
@@ -1410,8 +1428,7 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
     node_results = db.query(ExpeditionNodeResult).filter(
         ExpeditionNodeResult.expedition_id == expedition.id
     ).all()
-    total_loot = sum(n.loot for n in node_results)
-    total_xp = sum(n.xp_earned for n in node_results)
+    totals = _recorded_totals(expedition, node_results)
 
     events_log = []
     for node in node_results:
@@ -1444,8 +1461,10 @@ def _build_completed_summary(expedition: Expedition, party, keep: Keep, db) -> d
         "dungeon_name": keep.dungeon_name,
         "actual_return_day": sim.get("actual_return_day"),
         "member_results": member_results,
-        "total_loot": total_loot,
-        "total_xp": total_xp,
+        "total_loot": totals["gold"],
+        "total_silver": totals["silver"],
+        "total_copper": totals["copper"],
+        "total_xp": totals["xp"],
         "events_log": events_log,
         "estimated_readiness_day": estimated_readiness_day,
         "pending_event": None,

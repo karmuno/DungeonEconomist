@@ -579,14 +579,14 @@ _QUIET_SIM = {
 }
 
 
-def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict, gold: int = 100):
-    """Three 2000-XP adventurers (100gp each by default) out on an uneventful expedition."""
+def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict, gold: int = 100, size: int = 3):
+    """2000-XP adventurers (three, with 100gp each, by default) out on an uneventful expedition."""
     from app.models import Expedition
 
     party = Party(name="Away Team", keep_id=keep.id, on_expedition=True)
     db.add(party)
     db.commit()
-    members = [create_adventurer_db(db, keep.id, name=f"Away{i}", xp=2000, gold=gold) for i in range(3)]
+    members = [create_adventurer_db(db, keep.id, name=f"Away{i}", xp=2000, gold=gold) for i in range(size)]
     for m in members:
         m.on_expedition = True
         party.members.append(m)
@@ -1527,3 +1527,109 @@ def test_completed_summary_reports_what_the_dead_took(client: TestClient, db_ses
                          headers=auth_headers(token, keep.id)).json()
     took = {m["name"]: m["damage_taken"] for m in summary["member_results"]}
     assert took == {"Rurik": 4, "Ilsa": 10}
+
+
+# --- Completed-summary totals: what the run recorded, not its per-turn shares added back up ---
+
+def _summary_after_return(
+    client: TestClient, db: Session, keep: Keep, token: str, sim: dict, size: int = 3,
+) -> tuple[list, dict, dict]:
+    """Play `sim` out to its return day through the API. Returns the members, the completed
+    summary, and the expedition's row in the Expeditions list."""
+    keep.current_day = 10
+    db.commit()
+    party, members, exp = _party_away(db, keep, start_day=10, return_day=11, sim=sim, gold=0, size=size)
+    headers = auth_headers(token, keep.id)
+
+    events = client.post("/time/advance-day", headers=headers).json()["events"]
+    assert any(e["type"] == "expedition_complete" for e in events), events
+
+    summary = client.get(f"/expeditions/{exp.id}/summary", headers=headers).json()
+    listed = next(e for e in client.get("/expeditions/", headers=headers).json() if e["id"] == exp.id)
+    for m in members:
+        db.refresh(m)
+    return members, summary, listed
+
+
+def test_completed_summary_xp_is_not_rounded_down_per_turn(client: TestClient, db_session: Session):
+    """One 200 XP fight in a three-turn run, 100 to each of two survivors. The header read 198:
+    three per-turn shares of 66."""
+    account, keep, token = create_account_and_keep(db_session)
+    sim = {
+        **_QUIET_SIM,
+        "log": [
+            {"turn": 1, "deaths": [], "events": []},
+            {"turn": 2, "deaths": [], "events": [{"combat": {"xp_earned": 200}}]},
+            {"turn": 3, "deaths": [], "events": []},
+        ],
+        "xp_earned": 200,
+    }
+    members, summary, listed = _summary_after_return(client, db_session, keep, token, sim, size=2)
+
+    assert [m["xp_gained"] for m in summary["member_results"]] == [100, 100]
+    assert summary["total_xp"] == 200
+    assert listed["xp_earned"] == 200
+
+
+def test_completed_summary_loot_counts_every_coin(client: TestClient, db_session: Session):
+    """30gp, 600sp and 60cp over four turns is 9060cp, 3020cp to each of three. The header read
+    28gp (gold alone, in four shares of 7) and the Expeditions list 30gp."""
+    account, keep, token = create_account_and_keep(db_session)
+    sim = {
+        **_QUIET_SIM,
+        "log": [
+            {"turn": 1, "deaths": [], "events": [
+                {"treasure": {"gold": 0, "silver": 100, "copper": 0, "xp_value": 10, "special_item": None}},
+            ]},
+            {"turn": 2, "deaths": [], "events": []},
+            {"turn": 3, "deaths": [], "events": [
+                {"treasure": {"gold": 30, "silver": 500, "copper": 60, "xp_value": 80, "special_item": None}},
+            ]},
+            {"turn": 4, "deaths": [], "events": []},
+        ],
+        "treasure_total": 30,
+        "treasure_silver": 600,
+        "treasure_copper": 60,
+        "xp_earned": 90,
+    }
+    members, summary, listed = _summary_after_return(client, db_session, keep, token, sim)
+
+    assert [m.total_copper() for m in members] == [3020, 3020, 3020]
+    assert (summary["total_loot"], summary["total_silver"], summary["total_copper"]) == (30, 600, 60)
+    assert (listed["treasure_total"], listed["treasure_silver"], listed["treasure_copper"]) == (30, 600, 60)
+
+
+def test_completed_summary_of_a_retreat_counts_only_what_came_out(client: TestClient, db_session: Session):
+    """A retreat keeps the phases played (10gp, 20 XP), not the whole simulated run (99 of each)."""
+    account, keep, token = create_account_and_keep(db_session)
+    adv = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    expedition = _retreating_expedition(db_session, keep, adv)
+    headers = auth_headers(token, keep.id)
+
+    resp = client.post(f"/expeditions/{expedition.id}/choose", json={"choice": "retreat"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+
+    summary = client.get(f"/expeditions/{expedition.id}/summary", headers=headers).json()
+    assert (summary["total_loot"], summary["total_xp"]) == (10, 20)
+
+
+def test_completed_summary_without_recorded_totals_adds_up_its_turns(client: TestClient, db_session: Session):
+    """A run with no totals of its own has only its per-turn rows to go on."""
+    from app.models import ExpeditionNodeResult
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(keep_id=keep.id, name="Old Guard")
+    db_session.add(party)
+    db_session.commit()
+    expedition = Expedition(
+        party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="completed",
+    )
+    db_session.add(expedition)
+    db_session.commit()
+    for xp, loot in ((30, 5), (20, 0)):
+        db_session.add(ExpeditionNodeResult(expedition_id=expedition.id, success=True, xp_earned=xp, loot=loot, log="{}"))
+    db_session.commit()
+
+    summary = client.get(f"/expeditions/{expedition.id}/summary", headers=auth_headers(token, keep.id)).json()
+    assert (summary["total_loot"], summary["total_silver"], summary["total_copper"]) == (5, 0, 0)
+    assert summary["total_xp"] == 50
