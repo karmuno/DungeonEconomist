@@ -26,6 +26,7 @@ Makes the game safe to put in front of its first invited players: errors are rep
 - **CORS allow-list and login rate limiting verified against the live deployment**: an untrusted origin is refused, and the 11th login attempt in a minute gets a 429
 - **Python deps in a `[project]` table with a real `uv.lock`**; `requirements.txt` removed. Dockerfile on `python:3.13-slim` with `uv sync --frozen --no-dev`
 - `python-multipart` 0.0.31, clearing four DoS advisories
+- Frontend lockfile on vite 6.4.3 and postcss 8.5.28, clearing seven advisories in build tooling
 
 ## Feedback
 

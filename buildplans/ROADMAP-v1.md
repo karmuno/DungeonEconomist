@@ -8,11 +8,11 @@ the evidence those 10 people produce.
 
 | | |
 | :--- | :--- |
-| Latest release (tagged on `rc`) | **v0.9.1 — The Safety Release** (2026-10-07). Not yet merged to `main` or deployed |
-| Deployed to demo | **v0.9 — The Polish Release** (2026-09-07) |
+| Released (tagged on `rc`, merged to `main`, deployed to demo) | **v0.9.1 — The Safety Release** (2026-10-07) |
+| Previous release | **v0.9 — The Polish Release** (2026-09-07) |
 | In progress | **v1.0 — Let Them Delve** (not started) |
-| Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits clean; CORS and rate limiting confirmed in production |
-| Next up | Deploy v0.9.1 and merge `rc` into `main`; Firefox and Safari smoke; one playthrough on the deployed build; the invites |
+| Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
+| Next up | Firefox and Safari smoke; one playthrough on the deployed build; the invites |
 | Last code commit | 2026-09-19 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -91,7 +91,7 @@ Party → Expedition → Heal → Repeat → Upkeep → Build) and tag.
 
 ---
 
-## v0.9.1 — The Safety Release — TAGGED 2026-10-07 (`v0.9.1` on `rc`), not yet deployed
+## v0.9.1 — The Safety Release — SHIPPED 2026-10-07 (tagged `v0.9.1` on `rc`)
 
 Goal: *I can intentionally invite 10 strangers without fearing that their arrival destroys
 the game or their progress, and I can see what they did.*
@@ -348,7 +348,10 @@ this release rather than opening a fourth gate.
       NTLM hash disclosure), `postcss` (unescaped `</style>` in stringify output, source-map
       file reads), `postcss-selector-parser`, `picomatch`, `brace-expansion`, `nanoid` and
       `@humanfs/node`. `npm audit fix` clears all seven inside the existing ranges (vite 6.4.3,
-      postcss 8.5.28); `vue-tsc` and the production build pass on the new lock
+      postcss 8.5.28); `vue-tsc` and the production build pass on the new lock. Three more
+      published since are open as of 2026-10-07: `@vue/server-renderer` and `vue` through it
+      (server-side rendering XSS; the app renders in the browser only) and `source-map-js`
+      (build tooling). `npm audit fix` clears them but bumps `vue`
 - [x] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production (2026-09-19).
       Checked against the live deployment directly rather than the code, since the question is
       whether the env vars are actually set there: a CORS preflight from an untrusted origin
