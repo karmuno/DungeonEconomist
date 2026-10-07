@@ -1,6 +1,37 @@
-# v0.9.1 — Safe to Invite
+# v0.9.1 — The Safety Release
 
-Ready for the first invited players: errors are reported, player actions are recorded, feedback has a form, and the combat and XP bugs found while measuring balance are fixed.
+Makes the game safe to put in front of its first invited players: errors are reported, player actions are recorded, backups are proven to restore, and the combat and XP bugs found while measuring balance are fixed.
+
+## Error Reporting
+
+- **Sentry** on backend and frontend, errors only, tagged with the build string and environment
+- **API failures the UI catches are still reported**: 5xx responses and failed requests go to Sentry before the friendly notification shows
+
+## Player Events
+
+- **`player_events`**: one row per player action across 16 event types, from account creation to party wipe
+- **A party wipe records how it happened**: the monster, how many, and the party's average level at the time
+- `scripts/gate_queries.py` answers the v1.0 gate: per-account core-loop summary, where each player left, every TPK, and one account's timeline. Runs on SQLite or Postgres
+
+## Data Safety
+
+- **The test suite runs against Postgres** through `DATABASE_URL`, and passes identically on SQLite and Postgres
+- Fixed two gaps SQLite had hidden: the `parties` / `expeditions` foreign-key cycle, and `event_types` never being seeded outside the migration
+- **Restore from backup drilled**: dump, drop the schema, restore, confirm the data came back exact. Steps in `docs/DEPLOYMENT.md`
+
+## Security
+
+- **The session is checked before the first paint**: no dashboard flash for a signed-out or expired session, and a mid-session 401 routes to login without a full reload
+- A reload more than 30 minutes after the last request no longer logs out a player whose refresh token is still valid
+- **CORS allow-list and login rate limiting verified against the live deployment**: an untrusted origin is refused, and the 11th login attempt in a minute gets a 429
+- **Python deps in a `[project]` table with a real `uv.lock`**; `requirements.txt` removed. Dockerfile on `python:3.13-slim` with `uv sync --frozen --no-dev`
+- `python-multipart` 0.0.31, clearing four DoS advisories
+
+## Feedback
+
+- **In-game feedback form** from the sidebar footer on every screen and from the login and keep-select pages: a 4-point importance scale, a receipt line and a per-session counter. Signed-in submissions carry the account and keep
+- **Buy Me a Coffee** chip in the sidebar footer and on the auth pages
+- The sidebar footer is pinned; only the notification feed scrolls
 
 ## Combat
 
@@ -16,12 +47,6 @@ Ready for the first invited players: errors are reported, player actions are rec
 - **XP goes to those who come home**: everything a run earned in the turns actually played is one pool, split evenly among the survivors. The dead take nothing; a wipe earns nothing
 - **A fled fight pays for the monsters killed before running**, and nothing for the rest
 - **Buildings grant XP**: each standing building gives +10% expedition XP to the classes it serves, stacking across buildings. Recruitment is now a flat rate for every class
-
-## Feedback
-
-- **In-game feedback form** from the sidebar footer on every screen and from the login and keep-select pages: a 4-point importance scale, a receipt line and a per-session counter. Signed-in submissions carry the account and keep
-- **Buy Me a Coffee** chip in the sidebar footer and on the auth pages
-- The sidebar footer is pinned; only the notification feed scrolls
 
 ## Expedition Views
 
@@ -43,7 +68,7 @@ Ready for the first invited players: errors are reported, player actions are rec
 - **Adventurer rows line up in columns** on the Dashboard, Parties, Party Formation and Delve screens. Names, XP and wealth wrap rather than truncate
 - **Drag-and-drop is optimistic** and dashboard data is prefetched; a failed placement returns the adventurer to its slot
 - **Auto-delve is one checkbox** on Parties and the Dashboard party cards, and "Auto-delve to this level" on the Delve screen
-- Dashboard XP reads "0 / 2000 XP"; Temple reads "HP / day while healing"
+- Dashboard XP reads "0 / 2000 XP"; the Shrine reads "HP / day while healing"
 - The dashboard hint bar is gone; unbuilt Village cards no longer reserve space for stats
 
 ## Tavern
@@ -51,26 +76,11 @@ Ready for the first invited players: errors are reported, player actions are rec
 - **The Roster shows every living adventurer.** It fetched the 100 oldest adventurers of any status and filtered them client-side, which left an older keep's Roster empty. Newest first
 - **Graveyard and Debtor's Prison get search, class filter and sort**, including Died and Bankrupted, newest first
 
-## Sessions
-
-- **The session is checked before the first paint**: no dashboard flash for a signed-out or expired session
-- A reload more than 30 minutes after the last request no longer logs out a player whose refresh token is still valid
-- A mid-session 401 routes to login without a full reload
-
-## Observability
-
-- **Sentry** on backend and frontend, errors only, tagged with the build string and environment. API 5xx responses and failed requests are reported even where the UI catches them
-- **`player_events`**: one row per player action across 16 event types, from account creation to party wipe. A wipe records the monster, how many, and the party's average level
-- `scripts/gate_queries.py` answers the v1.0 gate: per-account core-loop summary, where each player left, every TPK, and one account's timeline. Runs on SQLite or Postgres
-- `scripts/balance_stats.py` (`--keep`, deaths by depth) and `scripts/number_appearing_sweep.py`
-
 ## Technical
 
 - Alembic migrations for `player_events` with its `event_types` lookup (`d5e1f2a3b4c6`) and `feedback` (`e6f2a3b4c5d7`)
-- Python deps in a `[project]` table with a real `uv.lock`; `requirements.txt` removed. Dockerfile on `python:3.13-slim` with `uv sync --frozen --no-dev`
 - New env: `SENTRY_DSN` and `APP_ENV` on the server; `VITE_SENTRY_DSN` wherever the frontend is built
-- `python-multipart` 0.0.31 (four DoS advisories); frontend `npm audit` clean (vite 6.4.3, postcss 8.5.28)
-- Test suite runs against Postgres through `DATABASE_URL`; fixed the FK cycle and unseeded `event_types` that SQLite had hidden. Restore from backup drilled
+- `scripts/balance_stats.py` (`--keep`, deaths by depth) and `scripts/number_appearing_sweep.py`
 - Form Party is one request; game data is read as UTF-8 on every platform
 - 108 tests passing
 

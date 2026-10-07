@@ -4,11 +4,11 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-09-30**
+**Status as of 2026-10-07**
 
 | | |
 | :--- | :--- |
-| Latest release (tagged on `rc`) | **v0.9.1 — Safe to Invite** (2026-09-30). Not yet merged to `main` or deployed |
+| Latest release (tagged on `rc`) | **v0.9.1 — The Safety Release** (2026-10-07). Not yet merged to `main` or deployed |
 | Deployed to demo | **v0.9 — The Polish Release** (2026-09-07) |
 | In progress | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits clean; CORS and rate limiting confirmed in production |
@@ -91,7 +91,7 @@ Party → Expedition → Heal → Repeat → Upkeep → Build) and tag.
 
 ---
 
-## v0.9.1 — Safe to Invite — TAGGED 2026-09-30 (`v0.9.1` on `rc`), not yet deployed
+## v0.9.1 — The Safety Release — TAGGED 2026-10-07 (`v0.9.1` on `rc`), not yet deployed
 
 Goal: *I can intentionally invite 10 strangers without fearing that their arrival destroys
 the game or their progress, and I can see what they did.*
@@ -358,11 +358,12 @@ this release rather than opening a fourth gate.
       to the real domain, not left at the `*` fallback. 12 rapid `POST /auth/login` requests
       returned `401` for the first 10 and `429` for the 11th and 12th, matching
       `auth_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)` exactly
-- [~] 30-minute smoke in Chrome, Firefox, Safari. Chrome done (2026-09-19), against the current
-      `qa` branch: login, Dashboard, Village, Tavern (roster, filters, Graveyard/Debtor's
-      Prison), Parties, Expeditions, an expedition summary, a linked character sheet, and
-      Advance Day — zero console errors, zero failed network requests. Firefox and Safari still
-      need a manual pass; nothing here drives those engines
+- [~] 30-minute smoke in Chrome, Firefox, Safari. Chrome done, last on the tagged `rc` build
+      (2026-10-07): login, Dashboard, Village, Tavern (roster, Graveyard, Debtor's Prison), a
+      character sheet, Parties, Expeditions, form a party, launch, event popups, a retreat and
+      its summary, a feedback submission, Skip to Event and sign-out — zero console errors,
+      zero failed network requests, no server errors. Firefox and Safari still need a manual
+      pass; nothing here drives those engines
 
 ### The two links that are the point
 - [x] In-game feedback form per `buildplans/feedback-form-spec.md` and the
