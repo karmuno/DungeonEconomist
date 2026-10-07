@@ -4,16 +4,16 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-09-15**
+**Status as of 2026-10-07**
 
 | | |
 | :--- | :--- |
-| Released (tagged on `rc`, merged to `main`, deployed to demo) | **v0.9 — The Polish Release** (2026-09-07) |
-| Previous release | **v0.8.1** (2026-03-26) |
-| In progress | **v0.9.1 — Safe to Invite** |
-| Done so far in v0.9 | Core UX Overhaul (event modal, economic loop, Village, character sheet); witnessed-rule fixes from the 2026-08-22 UX audit; class text and jargon rewrite; Tier II+ hidden; upkeep simplified (no deferral); disbanded parties keep their history; early-retreat dates honest on every screen; per-expedition decisions; immediate level-ups with popups and linked names; clickable party status |
-| Next up | The 2026-09-19/20 safety list (admin query, Postgres suite, restore drill, `[project]`/`uv.lock`, audits, rate limiting and CORS, deploy, playthrough, tag). Stretch pushes 1 and 2 are done; Push 3 Polish remains |
-| Last code commit | 2026-09-15 |
+| Latest release (tagged on `rc`) | **v0.9.1 — The Safety Release** (2026-10-07). Not yet merged to `main` or deployed |
+| Deployed to demo | **v0.9 — The Polish Release** (2026-09-07) |
+| In progress | **v1.0 — Let Them Delve** (not started) |
+| Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits clean; CORS and rate limiting confirmed in production |
+| Next up | Deploy v0.9.1 and merge `rc` into `main`; Firefox and Safari smoke; one playthrough on the deployed build; the invites |
+| Last code commit | 2026-09-19 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
 
@@ -91,7 +91,7 @@ Party → Expedition → Heal → Repeat → Upkeep → Build) and tag.
 
 ---
 
-## v0.9.1 — Safe to Invite — IN PROGRESS
+## v0.9.1 — The Safety Release — TAGGED 2026-10-07 (`v0.9.1` on `rc`), not yet deployed
 
 Goal: *I can intentionally invite 10 strangers without fearing that their arrival destroys
 the game or their progress, and I can see what they did.*
@@ -343,10 +343,27 @@ this release rather than opening a fourth gate.
       `python-jose[cryptography]`; the app signs JWTs with HS256 only (`app/auth.py`), never
       touching ecdsa's signing path, and upstream has declared side-channel attacks
       out of scope with no planned fix, so this is accepted as unreachable rather than fixed).
-      `npm audit` couldn't run: npmjs.org's audit endpoint was down for maintenance
-      (503) at the time — worth a re-run once it's back
-- [ ] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production
-- [ ] 30-minute smoke in Chrome, Firefox, Safari
+      `npm audit` (2026-09-30) found 7 in the frontend lock, 5 high, all in build tooling
+      rather than the shipped bundle: `vite` (Windows `server.fs.deny` bypass, `launch-editor`
+      NTLM hash disclosure), `postcss` (unescaped `</style>` in stringify output, source-map
+      file reads), `postcss-selector-parser`, `picomatch`, `brace-expansion`, `nanoid` and
+      `@humanfs/node`. `npm audit fix` clears all seven inside the existing ranges (vite 6.4.3,
+      postcss 8.5.28); `vue-tsc` and the production build pass on the new lock
+- [x] Confirm rate limiting and `CORS_ORIGINS` are actually engaged in production (2026-09-19).
+      Checked against the live deployment directly rather than the code, since the question is
+      whether the env vars are actually set there: a CORS preflight from an untrusted origin
+      gets a flat `400 Disallowed CORS origin` with no `access-control-allow-origin` header,
+      while the same preflight from `https://venturekeep.stahlsystems.com` gets `200` with
+      `access-control-allow-origin` echoing that exact origin — confirms `CORS_ORIGINS` is set
+      to the real domain, not left at the `*` fallback. 12 rapid `POST /auth/login` requests
+      returned `401` for the first 10 and `429` for the 11th and 12th, matching
+      `auth_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)` exactly
+- [~] 30-minute smoke in Chrome, Firefox, Safari. Chrome done, last on the tagged `rc` build
+      (2026-10-07): login, Dashboard, Village, Tavern (roster, Graveyard, Debtor's Prison), a
+      character sheet, Parties, Expeditions, form a party, launch, event popups, a retreat and
+      its summary, a feedback submission, Skip to Event and sign-out — zero console errors,
+      zero failed network requests, no server errors. Firefox and Safari still need a manual
+      pass; nothing here drives those engines
 
 ### The two links that are the point
 - [x] In-game feedback form per `buildplans/feedback-form-spec.md` and the
@@ -418,7 +435,7 @@ answer *what just happened?* truthfully.
   render — `roundAttacks` / `roundSpellCasts` / `roundMoraleChecks` normalise either shape
   for the ledger and the replay
 
-**Push 3 — Polish.** Third because it is just that.
+**Push 3 — Polish.** Not in v0.9.1; both items wait for the decision gate.
 
 - [ ] **Monsters need a plural form and an article.** Singular combat reads "Your party fought
   Goblin."; it should read "a Goblin" / "an Ogre". Plurals are already handled, badly, by a
@@ -449,8 +466,8 @@ answer *what just happened?* truthfully.
 `venturekeep.stahlsystems.com` is fine for 10 invited people. Decide the name in an hour on a
 weeknight; move the domain after the cohort if there is still a reason to.
 
-**In parallel, weekday hours, not code:** the announcement and the list of 10 people. If the
-invite list is not ready when v0.9.1 tags, the roadmap did not matter.
+**In parallel, weekday hours, not code:** the announcement and the list of 10 people, ready by
+the time v0.9.1 deploys.
 
 ---
 
