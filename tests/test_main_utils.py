@@ -861,6 +861,37 @@ def test_early_retreat_reports_the_day_the_party_came_home(client: TestClient, d
     assert detail["actual_return_day"] == 12
 
 
+def test_expedition_detail_answers_only_for_the_expedition_asked(client: TestClient, db_session: Session):
+    """Regression: the detail endpoint looked the database id up in the in-process simulator,
+    which numbers its runs on its own and holds every keep's. It answered with a different
+    run's turns, deaths and totals, another keep's included, while the expedition asked about
+    was still out."""
+    launched = []
+    for owner, level in (("alice", 1), ("bob", 2)):
+        account, keep, token = create_account_and_keep(db_session, username=owner, keep_name=f"{owner}'s keep")
+        keep.max_dungeon_level = level
+        db_session.commit()
+        headers = auth_headers(token, keep.id)
+        for n in range(2):
+            party = Party(name=f"{owner} party {n}", keep_id=keep.id)
+            db_session.add(party)
+            db_session.commit()
+            party.members.append(create_adventurer_db(db_session, keep.id, name=f"{owner}{n}", xp=100, gold=100))
+            db_session.commit()
+            resp = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": level}, headers=headers)
+            assert resp.status_code == 200, resp.text
+            launched.append((resp.json()["expedition_id"], party.id, level, headers))
+
+    for expedition_id, party_id, level, headers in launched:
+        resp = client.get(f"/expeditions/{expedition_id}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        detail = resp.json()
+        assert (detail["expedition_id"], detail["party_id"], detail["dungeon_level"]) == (expedition_id, party_id, level)
+        # Still out: nothing of the simulated run, its own or anyone else's
+        assert (detail["turns"], detail["log"], detail["dead_members"]) == (0, [], [])
+        assert (detail["treasure_total"], detail["xp_earned"]) == (0, 0)
+
+
 def test_expedition_run_to_completion_has_no_actual_return_day(client: TestClient, db_session: Session):
     """A party that presses on to the planned end reports no separate actual date."""
     account, keep, token = create_account_and_keep(db_session)
