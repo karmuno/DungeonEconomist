@@ -12,6 +12,7 @@ from app.auth import (
     create_refresh_token,
     get_current_account,
     hash_password,
+    is_token_revoked,
     revoke_token,
     verify_password,
 )
@@ -47,6 +48,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    refresh_token: str | None = None
+
+
 class AccountOut(BaseModel):
     id: int
     username: str
@@ -65,6 +70,19 @@ def _validate_password(password: str) -> None:
             status_code=400,
             detail="Password must contain at least one letter and one number",
         )
+
+
+def _is_refresh_token_of(token: str, account: Account) -> bool:
+    """True if token is a live refresh token issued to this account.
+
+    Logout only revokes tokens that pass this, so it cannot be used to revoke another account's token
+    or to fill the revocation set with arbitrary strings.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return False
+    return payload.get("type") == "refresh" and payload.get("sub") == str(account.id)
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -134,11 +152,14 @@ def refresh(data: RefreshRequest, request: Request, db: Session = Depends(get_db
     if token_version != account.token_version:
         raise HTTPException(status_code=401, detail="Token invalidated by password change")
 
+    # One-time use: consume the token before any slower work, so a replay or a
+    # concurrent second request with the same token is refused.
+    if is_token_revoked(data.refresh_token):
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
+    revoke_token(data.refresh_token)
+
     log_return_session(db, account)
     db.commit()
-
-    # Revoke the old refresh token (one-time use)
-    revoke_token(data.refresh_token)
 
     return TokenResponse(
         access_token=create_access_token(account.id, account.token_version),
@@ -147,11 +168,17 @@ def refresh(data: RefreshRequest, request: Request, db: Session = Depends(get_db
 
 
 @router.post("/logout")
-def logout(request: Request, account: Account = Depends(get_current_account)):
-    """Revoke the current access token."""
+def logout(
+    request: Request,
+    data: LogoutRequest | None = None,
+    account: Account = Depends(get_current_account),
+):
+    """Revoke the current access token and, when sent, the caller's refresh token."""
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith("Bearer "):
         revoke_token(auth_header[7:])
+    if data and data.refresh_token and _is_refresh_token_of(data.refresh_token, account):
+        revoke_token(data.refresh_token)
     return {"detail": "Logged out"}
 
 
