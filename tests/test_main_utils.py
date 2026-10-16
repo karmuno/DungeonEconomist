@@ -12,6 +12,7 @@ from app.database import get_db
 from app.main import app
 from app.models import Account, Adventurer, AdventurerClass, Base, Expedition, Keep, Party
 from app.player_events import seed_event_types
+from app.rate_limit import auth_rate_limiter
 
 # Defaults to a local SQLite file; set DATABASE_URL to run the same suite against Postgres
 # (e.g. `docker compose up db`), matching how the app itself picks a database.
@@ -324,6 +325,68 @@ def test_login_wrong_password(client: TestClient, db_session: Session):
     client.post("/auth/register", json={"username": "user1", "password": "correct1"})
     response = client.post("/auth/login", json={"username": "user1", "password": "wrongpass1"})
     assert response.status_code == 401
+
+
+@pytest.fixture
+def fresh_auth_rate_limit():
+    """Auth endpoints allow 10 requests/minute per IP, shared across the whole test process."""
+    auth_rate_limiter._requests.clear()
+    yield
+    auth_rate_limiter._requests.clear()
+
+
+def _register(client: TestClient, username: str) -> dict:
+    response = client.post("/auth/register", json={"username": username, "password": "testpass1"})
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_refresh_token_is_single_use(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    tokens = _register(client, "refresher")
+
+    first = client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert first.status_code == 200
+
+    replay = client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert replay.status_code == 401
+
+    # The pair issued by the first refresh still works
+    second = client.post("/auth/refresh", json={"refresh_token": first.json()["refresh_token"]})
+    assert second.status_code == 200
+
+
+def test_logout_revokes_refresh_token(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    tokens = _register(client, "leaver")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    response = client.post("/auth/logout", json={"refresh_token": tokens["refresh_token"]}, headers=headers)
+    assert response.status_code == 200
+
+    # Both tokens are dead
+    assert client.get("/auth/me", headers=headers).status_code == 401
+    assert client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+
+
+def test_logout_without_body_still_works(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    tokens = _register(client, "bodyless")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    assert client.post("/auth/logout", headers=headers).status_code == 200
+    assert client.get("/auth/me", headers=headers).status_code == 401
+
+    # No refresh token was sent, so it is not revoked by this call
+    assert client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 200
+
+
+def test_logout_ignores_other_accounts_refresh_token(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    mine = _register(client, "mine")
+    theirs = _register(client, "theirs")
+    headers = {"Authorization": f"Bearer {mine['access_token']}"}
+
+    response = client.post("/auth/logout", json={"refresh_token": theirs["refresh_token"]}, headers=headers)
+    assert response.status_code == 200
+
+    assert client.post("/auth/refresh", json={"refresh_token": theirs["refresh_token"]}).status_code == 200
 
 
 # --- Keep tests ---
