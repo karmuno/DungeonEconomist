@@ -11,10 +11,10 @@ the evidence those 10 people produce.
 | Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07), deployed 2026-10-07 |
 | Hotfix on `main`, deployed, untagged | **2026-11-03**: the SPA catch-all serves only files inside `frontend/dist` |
 | Previous release | **v0.9.1 — The Safety Release** (2026-10-07) |
-| In progress | **v0.9.3 — Logins**: six fixes already on `qa`; the login push not started |
+| In progress | **v0.9.3 — Logins**: the login push and six fixes on `qa`; not yet cut |
 | Then | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | The v0.9.3 login push; cut and deploy v0.9.3; Firefox and Safari smoke on that build; one playthrough on the deployed build; the invites |
+| Next up | Cut and deploy v0.9.3; Firefox and Safari smoke on that build; one playthrough on the deployed build; the invites |
 | Last code commit | 2026-11-03 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -514,20 +514,28 @@ of the same request and waits for the decision gate; see **Sign-in — queued 20
 under Post-cohort backlog.
 
 ### Logins
-- [ ] **Merge #27 first**: one-time refresh tokens, revoked on logout. Open since 2026-10-16,
-      and it touches the same auth files as everything below
-- [ ] **Confirm password on sign-up.** A second field with an inline "doesn't match" message;
-      Create Account stays disabled until the two match. Frontend only: the API keeps taking
+- [x] **Merge #27 first** (2026-11-03): one-time refresh tokens, revoked on logout. Open since
+      2026-10-16, and it touches the same auth files as everything below
+- [x] **Confirm password on sign-up** (2026-11-03). A second field with an inline "doesn't
+      match" message; Create Account stays disabled until the two match and the password
+      passes the rule. The message waits while the confirmation is still a correct start of
+      the password, and shows once the field loses focus. Frontend only: the API keeps taking
       one password
-- [ ] **An eyeball toggle on every password field.** One shared password input, used on Login
-      and on both sign-up fields. The toggle is a real button with a label and `aria-pressed`,
-      so it works from the keyboard and with a screen reader
-- [ ] **The sign-up hint states the real rule.** The placeholder says "4+ chars", while
-      `_validate_password` (`app/routes/auth.py`) requires 8 or more with at least one letter
-      and one number, so a stranger who follows the hint is rejected on the first try
-- [ ] **`scripts/reset_password.py`**, beside `gate_queries.py`: resets one account's password
-      by username against whatever `DATABASE_URL` points at, ending its sessions the way
-      change-password does. Until accounts have email, this is how a cohort member gets back in
+- [x] **An eyeball toggle on every password field** (2026-11-03). `PasswordInput`
+      (`frontend/src/components/shared/`), used on Login and on both sign-up fields. The
+      toggle is a real button labelled "Show password" with `aria-pressed`, so it works from
+      the keyboard and with a screen reader. Labels are now tied to their fields, and the
+      fields carry `autocomplete` hints, so password managers fill them correctly
+- [x] **The sign-up hint states the real rule** (2026-11-03). The placeholder said "4+ chars",
+      while `_validate_password` (`app/routes/auth.py`) requires 8 or more with at least one
+      letter and one number. The hint under the field now states that rule and turns green
+      once the password meets it
+- [x] **`scripts/reset_password.py`** (2026-11-03), beside `gate_queries.py`: gives one account
+      a new random 16-character password, printed once, and ends its sessions the way
+      change-password does. Reads whatever `DATABASE_URL` points at; the docstring has the
+      `docker run` line for the server, since the image has no `scripts/`. Until accounts have
+      email, this is how a cohort member gets back in. A player can't yet change the password
+      they're given: there's no change-password screen (see **Sign-in — queued 2026-11-03**)
 
 Then cut v0.9.3 from `qa`, deploy it, and run the Firefox and Safari smoke on that build.
 

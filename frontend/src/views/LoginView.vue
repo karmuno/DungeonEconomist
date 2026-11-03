@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import PasswordInput from '../components/shared/PasswordInput.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
@@ -34,23 +35,25 @@ async function handleLogin() {
       <p class="text-muted mb-3">Sign in to your account</p>
       <form @submit.prevent="handleLogin">
         <div class="form-group mb-2">
-          <label class="form-label">Username</label>
+          <label class="form-label" for="login-username">Username</label>
           <input
+            id="login-username"
             v-model="username"
             class="form-input"
             type="text"
             placeholder="Username"
+            autocomplete="username"
             autofocus
             required
           />
         </div>
         <div class="form-group mb-3">
-          <label class="form-label">Password</label>
-          <input
+          <label class="form-label" for="login-password">Password</label>
+          <PasswordInput
+            id="login-password"
             v-model="password"
-            class="form-input"
-            type="password"
             placeholder="Password"
+            autocomplete="current-password"
             required
           />
         </div>

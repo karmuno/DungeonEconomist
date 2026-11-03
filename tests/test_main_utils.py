@@ -1,6 +1,8 @@
+import importlib.util
 import math
 import os
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +15,7 @@ from app.main import app
 from app.models import Account, Adventurer, AdventurerClass, Base, Expedition, Keep, Party
 from app.player_events import seed_event_types
 from app.rate_limit import auth_rate_limiter
+from app.routes.auth import _PASSWORD_RE
 
 # Defaults to a local SQLite file; set DATABASE_URL to run the same suite against Postgres
 # (e.g. `docker compose up db`), matching how the app itself picks a database.
@@ -387,6 +390,40 @@ def test_logout_ignores_other_accounts_refresh_token(client: TestClient, db_sess
     assert response.status_code == 200
 
     assert client.post("/auth/refresh", json={"refresh_token": theirs["refresh_token"]}).status_code == 200
+
+
+def _reset_password_script():
+    """scripts/ is not a package, so load the script by path."""
+    path = Path(__file__).resolve().parent.parent / "scripts" / "reset_password.py"
+    spec = importlib.util.spec_from_file_location("reset_password", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_reset_password_replaces_password_and_ends_sessions(
+    client: TestClient, db_session: Session, fresh_auth_rate_limit
+):
+    tokens = _register(client, "forgetful")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    new_password = _reset_password_script().reset_password(db_session, "forgetful")
+
+    assert client.post("/auth/login", json={"username": "forgetful", "password": "testpass1"}).status_code == 401
+    assert client.post("/auth/login", json={"username": "forgetful", "password": new_password}).status_code == 200
+    # Sessions opened before the reset are over
+    assert client.get("/auth/me", headers=headers).status_code == 401
+    assert client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+
+
+def test_reset_password_unknown_username(db_session: Session):
+    assert _reset_password_script().reset_password(db_session, "nobody") is None
+
+
+def test_reset_password_generates_passwords_that_pass_the_signup_rule():
+    script = _reset_password_script()
+    for _ in range(200):
+        assert _PASSWORD_RE.match(script.new_password())
 
 
 # --- Keep tests ---
