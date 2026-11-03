@@ -79,7 +79,7 @@ async function handleRegister() {
             required
           />
           <p id="register-password-rule" class="field-hint" :class="{ 'is-ok': passwordValid }">
-            At least 8 characters, with a letter and a number
+            Password must contain 8 characters or more, with at least 1 letter and 1 number.
           </p>
         </div>
         <div class="form-group mb-3">
@@ -87,7 +87,7 @@ async function handleRegister() {
           <PasswordInput
             id="register-confirm"
             v-model="confirmPassword"
-            placeholder="Type it again"
+            placeholder="Confirm password"
             autocomplete="new-password"
             :aria-invalid="showMismatch || undefined"
             :aria-describedby="showMismatch ? 'register-confirm-error' : undefined"
