@@ -601,6 +601,48 @@ def test_tpk_finalize_marks_all_members_dead(client: TestClient, db_session: Ses
     assert len(party.members) == 0
 
 
+def test_wipe_reports_no_loot_brought_back(client: TestClient, db_session: Session):
+    """A wiped party read 'brought back 100gp (100gp each)' though nobody came home to be paid."""
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Lost Cause", keep_id=keep.id)
+    db_session.add(party)
+    db_session.commit()
+    members = [create_adventurer_db(db_session, keep.id, name=f"Lost{i}", xp=0, gold=0) for i in range(3)]
+    party.members.extend(members)
+    db_session.commit()
+
+    from app.models import Expedition
+    exp = Expedition(
+        party_id=party.id,
+        start_day=keep.current_day,
+        duration_days=3,
+        return_day=keep.current_day + 2,
+        dungeon_level=1,
+        result="in_progress",
+    )
+    db_session.add(exp)
+    db_session.commit()
+
+    from app.routes.expeditions import _finalize_expedition
+    sim = {
+        "dead_members": [m.name for m in members],
+        "log": [],
+        "starting_hp": {},
+        "treasure_total": 70,
+        "treasure_silver": 300,
+        "treasure_copper": 0,
+        "xp_per_party_member": 0,
+        "special_items": [],
+    }
+    events = _finalize_expedition(exp, sim, db_session, keep)["events"]
+    db_session.commit()
+
+    assert not any(e["type"] == "loot" for e in events), events
+    for m in members:
+        db_session.refresh(m)
+        assert m.total_copper() == 0
+
+
 def test_active_summary_hides_unwitnessed_turns(client: TestClient, db_session: Session):
     """Regression: the pre-simulated run must not leak future turns. Before a
     decision point fires, the active summary shows nothing; once the pending
@@ -1909,8 +1951,8 @@ def test_metrics_average_what_the_runs_recorded(client: TestClient, db_session: 
     (level,) = metrics["levels"]
     assert (level["level"], level["expeditions"]) == (1, 1)
     assert level["avg_xp"] == 200
-    # Gold coins only: the 600sp and 40cp are not part of this figure
-    assert level["avg_gold"] == 50
+    # Every coin, in copper: 50gp + 600sp + 40cp. It read 50gp, the gold alone
+    assert level["avg_loot_cp"] == 50 * 100 + 600 * 10 + 40
 
 
 def test_expedition_detail_reads_what_the_run_recorded(client: TestClient, db_session: Session):

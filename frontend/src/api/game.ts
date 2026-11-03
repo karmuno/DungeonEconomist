@@ -38,7 +38,7 @@ export function getDungeonInfo(): Promise<DungeonInfo> {
 export interface MetricsLevel {
   level: number
   expeditions: number
-  avg_gold: number
+  avg_loot_cp: number
   avg_xp: number
   total_deaths: number
   deaths_per_run: number

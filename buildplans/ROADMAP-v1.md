@@ -550,6 +550,20 @@ Cut to `rc` 2026-11-03, with release notes in `RELEASE_NOTES.md`. Still to do: t
       in memory (#26)
 - [x] `vue-tsc -b` documented as the frontend type check (#21)
 
+### Found in the release playthrough — 2026-11-03
+
+A browser playthrough of the cut found two bugs that were already in v0.9.2. Cody pulled both
+into v0.9.3.
+
+- [x] **A wiped party no longer reports loot it never brought home.** The return notification
+      said "brought back 100gp (100gp each)" when nobody was left to be paid
+- [x] **Metrics show average loot, every coin counted.** Avg Gold became Avg Loot. It counted
+      gold alone, so a run home with 30gp and 600sp averaged 30gp
+
+**Not a bug** (Cody, 2026-11-03): the Dashboard's "avg Lv" divides the party's levels by 6, not
+by the members present, on purpose. It measures party strength against the dungeon, so a
+party of three level-1 adventurers reads 0.5.
+
 ---
 
 ## v1.0 — Let Them Delve — not started

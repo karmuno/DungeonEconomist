@@ -343,15 +343,13 @@ def _finalize_expedition(
             + effective_result.get("treasure_silver", 0) * 10
             + effective_result.get("treasure_copper", 0)
         )
+        # A wipe brings nothing home, so it reports no loot; its own notification says what happened
         living_count = len(living_members)
         if living_count > 0 and total_loot_copper > 0:
             individual_share_copper = total_loot_copper // living_count
             for member in living_members:
                 member.add_currency(individual_share_copper)
-
-        if total_loot_copper > 0:
-            share_copper = total_loot_copper // max(1, living_count)
-            g, s, c = copper_to_parts(share_copper)
+            g, s, c = copper_to_parts(individual_share_copper)
             total_g, total_s, total_c = copper_to_parts(total_loot_copper)
             party_label = party.name if party else "The party"
             events.append({"type": "loot", "message": f"{party_label} brought back {format_currency(total_g, total_s, total_c)} ({format_currency(g, s, c)} each)"})
