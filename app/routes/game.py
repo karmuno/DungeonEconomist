@@ -868,15 +868,15 @@ def get_metrics(keep: Keep = Depends(get_current_keep), db: Session = Depends(ge
     for exp in completed:
         lvl = exp.dungeon_level or 1
         if lvl not in by_level:
-            by_level[lvl] = {"count": 0, "gold": 0, "xp": 0, "deaths": 0}
+            by_level[lvl] = {"count": 0, "loot_cp": 0, "xp": 0, "deaths": 0}
         by_level[lvl]["count"] += 1
 
         nodes = db.query(ExpeditionNodeResult).filter(
             ExpeditionNodeResult.expedition_id == exp.id
         ).all()
-        # Gold coins only: silver and copper are not part of this figure
+        # Every coin the run found, in copper: treasure is mostly silver
         totals = _recorded_totals(exp, nodes)
-        by_level[lvl]["gold"] += totals["gold"]
+        by_level[lvl]["loot_cp"] += totals["gold"] * 100 + totals["silver"] * 10 + totals["copper"]
         by_level[lvl]["xp"] += totals["xp"]
 
         deaths = db.query(ExpeditionLog).filter(
@@ -892,7 +892,7 @@ def get_metrics(keep: Keep = Depends(get_current_keep), db: Session = Depends(ge
         levels.append({
             "level": lvl,
             "expeditions": n,
-            "avg_gold": round(d["gold"] / n) if n else 0,
+            "avg_loot_cp": round(d["loot_cp"] / n) if n else 0,
             "avg_xp": round(d["xp"] / n) if n else 0,
             "total_deaths": d["deaths"],
             "deaths_per_run": round(d["deaths"] / n, 2) if n else 0,
