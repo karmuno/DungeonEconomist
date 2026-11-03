@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { getMetrics, type MetricsData } from '../../api/game'
 import eventBus from '../../eventBus'
+import { formatCp } from '../../utils/currency'
 
 const isOpen = ref(false)
 const loading = ref(false)
@@ -51,7 +52,7 @@ onUnmounted(() => eventBus.off('toggle-metrics', toggle))
                 <tr>
                   <th>Level</th>
                   <th>Runs</th>
-                  <th>Avg Gold</th>
+                  <th>Avg Loot</th>
                   <th>Avg XP</th>
                   <th>Deaths/Run</th>
                   <th>Total Deaths</th>
@@ -61,7 +62,7 @@ onUnmounted(() => eventBus.off('toggle-metrics', toggle))
                 <tr v-for="row in data.levels" :key="row.level">
                   <td class="lvl-cell">{{ row.level }}</td>
                   <td>{{ row.expeditions }}</td>
-                  <td class="gold-cell">{{ row.avg_gold.toLocaleString() }} gp</td>
+                  <td class="gold-cell">{{ formatCp(row.avg_loot_cp) }}</td>
                   <td>{{ row.avg_xp.toLocaleString() }}</td>
                   <td :class="row.deaths_per_run >= 1 ? 'danger' : row.deaths_per_run >= 0.5 ? 'warn' : ''">
                     {{ row.deaths_per_run.toFixed(2) }}

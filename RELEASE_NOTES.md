@@ -19,7 +19,8 @@ Gets a new player through sign-up without locking them out, and gives the admin 
 
 - **Completed summaries show the full XP and loot**: the header added up each turn's share, rounded down, so the remainder was lost (200 XP over 3 turns read 198), and silver and copper never counted
 - **The Expeditions list shows silver and copper**, and a running expedition shows only the loot and XP already witnessed. The list used to show the final totals on launch day
-- **Metrics averages** read each run's recorded totals instead of its rounded per-turn shares
+- **Metrics show average loot, every coin counted**: Avg Gold is now Avg Loot, read from each run's recorded totals. It used to add up the rounded per-turn shares and count gold alone, so a run that brought home 30gp and 600sp averaged 30gp
+- **A wiped party no longer reports loot it never brought home**: the return notification said "brought back 100gp (100gp each)" when nobody was left to be paid
 - **The expedition detail endpoint answers from the database alone**: it looked the id up in the in-process simulator, which numbers its runs differently, so it could return another run's turns, deaths and totals, from another keep included. The unused `POST /expeditions/{id}/advance` route is removed
 - **Each launch runs in a simulator of its own**, so the server no longer keeps every launch in memory
 
@@ -27,7 +28,7 @@ Gets a new player through sign-up without locking them out, and gives the admin 
 
 - `vue-tsc -b` documented as the frontend type check
 - No schema or environment changes
-- 143 tests passing
+- 144 tests passing
 
 ---
 
