@@ -11,10 +11,10 @@ the evidence those 10 people produce.
 | Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07), deployed 2026-10-07 |
 | Hotfix on `main`, deployed, untagged | **2026-11-03**: the SPA catch-all serves only files inside `frontend/dist` |
 | Previous release | **v0.9.1 — The Safety Release** (2026-10-07) |
-| In progress | **v0.9.3 — Logins**: the login push and six fixes on `qa`; not yet cut |
+| In progress | **v0.9.3 — Logins**: cut to `rc` 2026-11-03; tag and deploy wait on Cody's approval |
 | Then | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | Cut and deploy v0.9.3; Firefox and Safari smoke on that build; one playthrough on the deployed build; the invites |
+| Next up | Tag and deploy v0.9.3; Firefox and Safari smoke on that build; one playthrough on the deployed build; the invites |
 | Last code commit | 2026-11-03 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -502,7 +502,7 @@ weeknight; move the domain after the cohort if there is still a reason to.
 
 ---
 
-## v0.9.3 — Logins — planned (added 2026-11-03, Cody)
+## v0.9.3 — Logins — CUT to `rc` 2026-11-03 (planned 2026-11-03, Cody)
 
 A patch release like v0.9.2, not a new gate. It ships the fixes already waiting on `qa` and a
 small login push, before the invites.
@@ -537,7 +537,8 @@ under Post-cohort backlog.
       email, this is how a cohort member gets back in. A player can't yet change the password
       they're given: there's no change-password screen (see **Sign-in — queued 2026-11-03**)
 
-Then cut v0.9.3 from `qa`, deploy it, and run the Firefox and Safari smoke on that build.
+Cut to `rc` 2026-11-03, with release notes in `RELEASE_NOTES.md`. Still to do: tag `v0.9.3` on
+`rc`, merge to `main`, deploy, and run the Firefox and Safari smoke on that build.
 
 ### Already on `qa` — merged 2026-10-07
 
