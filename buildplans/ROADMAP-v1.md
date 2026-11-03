@@ -8,13 +8,11 @@ the evidence those 10 people produce.
 
 | | |
 | :--- | :--- |
-| Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07), deployed 2026-10-07 |
-| Hotfix on `main`, deployed, untagged | **2026-11-03**: the SPA catch-all serves only files inside `frontend/dist` |
-| Previous release | **v0.9.1 — The Safety Release** (2026-10-07) |
-| In progress | **v0.9.3 — Logins**: cut to `rc` 2026-11-03; tag and deploy wait on Cody's approval |
-| Then | **v1.0 — Let Them Delve** (not started) |
+| Latest release (tagged on `rc`, merged to `main`) | **v0.9.3 — Logins** (2026-11-03), deployed 2026-11-03 |
+| Previous release | **v0.9.2** (2026-10-07) |
+| In progress | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | Tag and deploy v0.9.3; Firefox and Safari smoke on that build; one playthrough on the deployed build; the invites |
+| Next up | Firefox and Safari smoke on the v0.9.3 build; one playthrough on the deployed build; the invites |
 | Last code commit | 2026-11-03 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -488,7 +486,7 @@ weeknight; move the domain after the cohort if there is still a reason to.
       extend. `tests/test_frontend_class_names.py` fails on any frontend class, id or selector
       starting with `ad-`, `ads-`, `adv-`, `advert-` or `sponsor-`
 
-### Hotfix — DEPLOYED 2026-11-03 (merged to `main` through #28, untagged)
+### Hotfix — DEPLOYED 2026-11-03 (merged to `main` through #28, then released in v0.9.3)
 
 - [x] **The SPA catch-all serves only files inside `frontend/dist`.** `serve_vue` joined the
       request path onto the build directory unchecked, so a path that climbed out of it, or an
@@ -502,7 +500,7 @@ weeknight; move the domain after the cohort if there is still a reason to.
 
 ---
 
-## v0.9.3 — Logins — CUT to `rc` 2026-11-03 (planned 2026-11-03, Cody)
+## v0.9.3 — Logins — SHIPPED 2026-11-03 (tagged `v0.9.3` on `rc`)
 
 A patch release like v0.9.2, not a new gate. It ships the fixes already waiting on `qa` and a
 small login push, before the invites.
@@ -537,8 +535,20 @@ under Post-cohort backlog.
       email, this is how a cohort member gets back in. A player can't yet change the password
       they're given: there's no change-password screen (see **Sign-in — queued 2026-11-03**)
 
-Cut to `rc` 2026-11-03, with release notes in `RELEASE_NOTES.md`. Still to do: tag `v0.9.3` on
-`rc`, merge to `main`, deploy, and run the Firefox and Safari smoke on that build.
+Planned, cut, tagged and deployed on 2026-11-03, with release notes in `RELEASE_NOTES.md`. It
+ships the catch-all hotfix deployed earlier that day, so `main` no longer carries an untagged
+fix. Before the tag, `rc` passed the suite (144 passed, 5 skipped), lint and the build, plus a
+Chrome playthrough on a fresh keep:
+- sign-up with confirm and show-password
+- two expeditions, one wiped and one retreat
+- the list, summary, detail and Metrics totals
+- upkeep, the Village, the Tavern and a character sheet
+- logout revoking the refresh token
+- the reset script
+- the traversal probes
+
+The live site was confirmed serving `v0.9.3` with the new sign-up. The Firefox and Safari smoke
+is still to do.
 
 ### Already on `qa` — merged 2026-10-07
 
