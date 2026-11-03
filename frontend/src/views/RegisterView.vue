@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import PasswordInput from '../components/shared/PasswordInput.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
@@ -8,11 +9,32 @@ const auth = useAuthStore()
 
 const username = ref('')
 const password = ref('')
+const confirmPassword = ref('')
+const confirmTouched = ref(false)
 const error = ref('')
 const submitting = ref(false)
 
+// Mirrors _PASSWORD_RE in app/routes/auth.py
+const passwordValid = computed(() => /^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(password.value))
+const passwordsMatch = computed(() => confirmPassword.value === password.value)
+// While the confirmation is still a correct start of the password, wait for the field to lose focus
+const showMismatch = computed(
+  () =>
+    confirmPassword.value !== '' &&
+    !passwordsMatch.value &&
+    (confirmTouched.value || !password.value.startsWith(confirmPassword.value)),
+)
+const canSubmit = computed(
+  () =>
+    !submitting.value &&
+    username.value.trim() !== '' &&
+    passwordValid.value &&
+    confirmPassword.value !== '' &&
+    passwordsMatch.value,
+)
+
 async function handleRegister() {
-  if (!username.value.trim() || !password.value) return
+  if (!canSubmit.value) return
   error.value = ''
   submitting.value = true
   try {
@@ -34,31 +56,53 @@ async function handleRegister() {
       <p class="text-muted mb-3">Create an account</p>
       <form @submit.prevent="handleRegister">
         <div class="form-group mb-2">
-          <label class="form-label">Username</label>
+          <label class="form-label" for="register-username">Username</label>
           <input
+            id="register-username"
             v-model="username"
             class="form-input"
             type="text"
             placeholder="Choose a username"
+            autocomplete="username"
             autofocus
             required
           />
         </div>
-        <div class="form-group mb-3">
-          <label class="form-label">Password</label>
-          <input
+        <div class="form-group mb-2">
+          <label class="form-label" for="register-password">Password</label>
+          <PasswordInput
+            id="register-password"
             v-model="password"
-            class="form-input"
-            type="password"
-            placeholder="Choose a password (4+ chars)"
+            placeholder="Choose a password"
+            autocomplete="new-password"
+            aria-describedby="register-password-rule"
             required
           />
+          <p id="register-password-rule" class="field-hint" :class="{ 'is-ok': passwordValid }">
+            Password must contain 8 characters or more, with at least 1 letter and 1 number.
+          </p>
+        </div>
+        <div class="form-group mb-3">
+          <label class="form-label" for="register-confirm">Confirm password</label>
+          <PasswordInput
+            id="register-confirm"
+            v-model="confirmPassword"
+            placeholder="Confirm password"
+            autocomplete="new-password"
+            :aria-invalid="showMismatch || undefined"
+            :aria-describedby="showMismatch ? 'register-confirm-error' : undefined"
+            required
+            @blur="confirmTouched = true"
+          />
+          <p v-if="showMismatch" id="register-confirm-error" class="field-hint is-error" role="alert">
+            Passwords don't match
+          </p>
         </div>
         <p v-if="error" class="error-text mb-2">{{ error }}</p>
         <button
           type="submit"
           class="btn btn-primary"
-          :disabled="submitting || !username.trim() || password.length < 4"
+          :disabled="!canSubmit"
           style="width: 100%"
         >
           {{ submitting ? 'Creating...' : 'Create Account' }}
@@ -92,5 +136,19 @@ async function handleRegister() {
 .error-text {
   color: var(--accent-red, #e74c3c);
   font-size: 13px;
+}
+
+.field-hint {
+  margin-top: 0.25rem;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.field-hint.is-ok {
+  color: var(--accent-green);
+}
+
+.field-hint.is-error {
+  color: var(--accent-red, #e74c3c);
 }
 </style>
