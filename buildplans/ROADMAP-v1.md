@@ -10,11 +10,11 @@ the evidence those 10 people produce.
 | :--- | :--- |
 | Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07), deployed 2026-10-07 |
 | Hotfix on `main`, deployed, untagged | **2026-11-03**: the SPA catch-all serves only files inside `frontend/dist` |
-| On `qa`, unreleased | Expedition totals and detail read from the run and the database; one simulator per launch (see **Unreleased on `qa`**) |
 | Previous release | **v0.9.1 — The Safety Release** (2026-10-07) |
-| In progress | **v1.0 — Let Them Delve** (not started) |
+| In progress | **v0.9.3 — Logins**: six fixes already on `qa`; the login push not started |
+| Then | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | Firefox and Safari smoke; one playthrough on the deployed build; the invites |
+| Next up | The v0.9.3 login push; cut and deploy v0.9.3; Firefox and Safari smoke on that build; one playthrough on the deployed build; the invites |
 | Last code commit | 2026-11-03 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -502,9 +502,36 @@ weeknight; move the domain after the cohort if there is still a reason to.
 
 ---
 
-## Unreleased on `qa` — merged 2026-10-07
+## v0.9.3 — Logins — planned (added 2026-11-03, Cody)
 
-Ships in the next release cut from `qa`. Not yet on `rc` or `main`.
+A patch release like v0.9.2, not a new gate. It ships the fixes already waiting on `qa` and a
+small login push, before the invites.
+
+The login push can't wait for the cohort because a lost password can't be recovered. An
+account is a username and a password hash: no email, no reset flow, no admin tool. A typo at
+sign-up locks a stranger out of their keep for good. Sign in with Google is the bigger half
+of the same request and waits for the decision gate; see **Sign-in — queued 2026-11-03**
+under Post-cohort backlog.
+
+### Logins
+- [ ] **Merge #27 first**: one-time refresh tokens, revoked on logout. Open since 2026-10-16,
+      and it touches the same auth files as everything below
+- [ ] **Confirm password on sign-up.** A second field with an inline "doesn't match" message;
+      Create Account stays disabled until the two match. Frontend only: the API keeps taking
+      one password
+- [ ] **An eyeball toggle on every password field.** One shared password input, used on Login
+      and on both sign-up fields. The toggle is a real button with a label and `aria-pressed`,
+      so it works from the keyboard and with a screen reader
+- [ ] **The sign-up hint states the real rule.** The placeholder says "4+ chars", while
+      `_validate_password` (`app/routes/auth.py`) requires 8 or more with at least one letter
+      and one number, so a stranger who follows the hint is rejected on the first try
+- [ ] **`scripts/reset_password.py`**, beside `gate_queries.py`: resets one account's password
+      by username against whatever `DATABASE_URL` points at, ending its sessions the way
+      change-password does. Until accounts have email, this is how a cohort member gets back in
+
+Then cut v0.9.3 from `qa`, deploy it, and run the Firefox and Safari smoke on that build.
+
+### Already on `qa` — merged 2026-10-07
 
 - [x] Completed-expedition totals read from the run, not from its per-turn shares (#20)
 - [x] The Expeditions list shows only witnessed loot and XP for a running expedition (#22)
@@ -638,6 +665,27 @@ shows it matters.
   every dead or bankrupt row on each load. Neither is a cohort risk — ten strangers start at
   zero adventurers — and both bite a long-lived keep. Re-enters if a cohort player approaches
   100 living adventurers, or when graveyard load time becomes noticeable
+
+### Sign-in — queued 2026-11-03 (Cody)
+The rest of the login request, after the v0.9.3 push. Ten invited people can make a password,
+and v1.0 is a freeze, so this waits for the gate.
+
+- **Sign in with Google.** A server-side OAuth code flow (Authlib). The callback issues the
+  JWT pair the app already uses, so nothing past login changes. It needs:
+  - an `account_identities` table (provider, the provider's id for the person, email) and a
+    nullable `password_hash` for Google-only accounts: an Alembic migration, tested on Postgres
+  - a choose-your-username step on the first Google sign-in, since Google supplies none
+  - linking from a signed-in settings page only, never automatically by matching email
+  - a Google Cloud project, consent screen, and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in
+    the server's `.env`
+  - a privacy policy page: it's the first time Venturekeep would store email addresses
+- **Other providers.** Once the identity table exists, each is mostly configuration and a
+  button. Let the cohort choose. Discord is the likely second for a tabletop audience, GitHub
+  is cheap, and Sign in with Apple needs a paid Apple Developer membership
+- **Self-serve password reset.** Google accounts recover themselves; password accounts still
+  can't. It needs an email address on the account and a way to send mail
+- **A change-password screen.** `/auth/change-password` and the auth store's `changePassword`
+  exist, but no view calls them. It would reuse the v0.9.3 password input
 
 ### Cut from the old v0.9.1 / v0.9.2 / v0.9.3
 - Attachment events beyond death and level-up (high-level death, party wipe, continued after
