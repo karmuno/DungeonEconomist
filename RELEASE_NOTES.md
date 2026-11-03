@@ -1,3 +1,36 @@
+# v0.9.3 — Logins
+
+Gets a new player through sign-up without locking them out, and gives the admin a way to let a locked-out player back in. Also fixes the expedition totals, which under-reported loot and XP, and closes two security gaps.
+
+## Logins
+
+- **Confirm password on sign-up**: Create Account stays disabled until the two passwords match and the password meets the rule. Accounts have no email and no reset flow, so a typo at sign-up used to lock a player out of their keep for good
+- **The sign-up hint states the real rule**: "Password must contain 8 characters or more, with at least 1 letter and 1 number." It used to say "4+ chars", which the server rejected
+- **Show password**: an eye toggle on every password field, usable from the keyboard and with a screen reader
+- Labels are tied to their fields, and the fields carry `autocomplete` hints for password managers
+- `scripts/reset_password.py` gives a locked-out player a new random password and ends their sessions
+
+## Security
+
+- **The app no longer serves files from outside the frontend build** (deployed as a hotfix on 2026-11-03): the catch-all route joined the request path onto `frontend/dist` without checking that the result stayed inside it. Unknown `/api` paths now return 404 instead of the app
+- **Refresh tokens are single-use, and logout revokes them**: a replayed refresh token kept working until it expired, seven days later, and a copied one outlived logout
+
+## Expedition Totals
+
+- **Completed summaries show the full XP and loot**: the header added up each turn's share, rounded down, so the remainder was lost (200 XP over 3 turns read 198), and silver and copper never counted
+- **The Expeditions list shows silver and copper**, and a running expedition shows only the loot and XP already witnessed. The list used to show the final totals on launch day
+- **Metrics averages** read each run's recorded totals instead of its rounded per-turn shares
+- **The expedition detail endpoint answers from the database alone**: it looked the id up in the in-process simulator, which numbers its runs differently, so it could return another run's turns, deaths and totals, from another keep included. The unused `POST /expeditions/{id}/advance` route is removed
+- **Each launch runs in a simulator of its own**, so the server no longer keeps every launch in memory
+
+## Technical
+
+- `vue-tsc -b` documented as the frontend type check
+- No schema or environment changes
+- 143 tests passing
+
+---
+
 # v0.9.2
 
 ## Bug Fixes
