@@ -4,16 +4,18 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-10-07**
+**Status as of 2026-11-03**
 
 | | |
 | :--- | :--- |
-| Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07) |
+| Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07), deployed 2026-10-07 |
+| Hotfix on `main`, deployed, untagged | **2026-11-03**: the SPA catch-all serves only files inside `frontend/dist` |
+| On `qa`, unreleased | Expedition totals and detail read from the run and the database; one simulator per launch (see **Unreleased on `qa`**) |
 | Previous release | **v0.9.1 — The Safety Release** (2026-10-07) |
 | In progress | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | Deploy v0.9.2; Firefox and Safari smoke; one playthrough on the deployed build; the invites |
-| Last code commit | 2026-10-07 |
+| Next up | Firefox and Safari smoke; one playthrough on the deployed build; the invites |
+| Last code commit | 2026-11-03 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
 
@@ -485,6 +487,32 @@ weeknight; move the domain after the cohort if there is still a reason to.
       is renamed with it (`is-dead`, `roster-*`), since that prefix is the filter lists' to
       extend. `tests/test_frontend_class_names.py` fails on any frontend class, id or selector
       starting with `ad-`, `ads-`, `adv-`, `advert-` or `sponsor-`
+
+### Hotfix — DEPLOYED 2026-11-03 (merged to `main` through #28, untagged)
+
+- [x] **The SPA catch-all serves only files inside `frontend/dist`.** `serve_vue` joined the
+      request path onto the build directory unchecked, so a path that climbed out of it, or an
+      absolute path, could read any file in the app container. It now resolves the path and
+      requires it to stay inside `dist`, and unknown `/api` paths return 404 instead of the SPA.
+      The route lives in `app/frontend.py`, tested by `tests/test_frontend_serving.py`. The
+      app log since 2026-10-07 and 90 days of Sentry show no sign it was used, and no secrets
+      were rotated: on the deployed stack `/proc/self/environ` reads back empty, and nothing
+      else in the container holds one. nginx keeps no access log for Venturekeep, so nothing
+      before 2026-10-07 was recorded
+
+---
+
+## Unreleased on `qa` — merged 2026-10-07
+
+Ships in the next release cut from `qa`. Not yet on `rc` or `main`.
+
+- [x] Completed-expedition totals read from the run, not from its per-turn shares (#20)
+- [x] The Expeditions list shows only witnessed loot and XP for a running expedition (#22)
+- [x] Metrics and expedition-detail totals read from the run, not from its turns (#23)
+- [x] The expedition detail endpoint and view are built from the database alone (#25, #26)
+- [x] Each launch runs in a simulator of its own, so the process no longer keeps every launch
+      in memory (#26)
+- [x] `vue-tsc -b` documented as the frontend type check (#21)
 
 ---
 
