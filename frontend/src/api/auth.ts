@@ -13,8 +13,8 @@ export function refresh(refreshToken: string): Promise<TokenResponse> {
   return post<TokenResponse>('/auth/refresh', { refresh_token: refreshToken })
 }
 
-export function logout(): Promise<unknown> {
-  return post('/auth/logout')
+export function logout(refreshToken?: string | null): Promise<unknown> {
+  return post('/auth/logout', refreshToken ? { refresh_token: refreshToken } : undefined)
 }
 
 export function changePassword(currentPassword: string, newPassword: string): Promise<TokenResponse> {

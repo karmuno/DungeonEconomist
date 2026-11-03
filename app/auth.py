@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime, timedelta
 
 import bcrypt
@@ -35,13 +36,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(account_id: int, token_version: int = 0) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": str(account_id), "exp": expire, "type": "access", "tv": token_version}
+    # jti keeps tokens issued in the same second distinct, so revoking one never revokes its successor
+    payload = {"sub": str(account_id), "exp": expire, "type": "access", "tv": token_version, "jti": uuid.uuid4().hex}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def create_refresh_token(account_id: int, token_version: int = 0) -> str:
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {"sub": str(account_id), "exp": expire, "type": "refresh", "tv": token_version}
+    payload = {"sub": str(account_id), "exp": expire, "type": "refresh", "tv": token_version, "jti": uuid.uuid4().hex}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
