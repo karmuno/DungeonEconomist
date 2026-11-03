@@ -4,16 +4,18 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-10-07**
+**Status as of 2026-11-03**
 
 | | |
 | :--- | :--- |
-| Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07) |
+| Latest release (tagged on `rc`, merged to `main`) | **v0.9.2** (2026-10-07), deployed 2026-10-07 |
+| Hotfix on `main`, deployed, untagged | **2026-11-03**: the SPA catch-all serves only files inside `frontend/dist` |
 | Previous release | **v0.9.1 — The Safety Release** (2026-10-07) |
-| In progress | **v1.0 — Let Them Delve** (not started) |
+| In progress | **v0.9.3 — Logins**: cut to `rc` 2026-11-03; tag and deploy wait on Cody's approval |
+| Then | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | Deploy v0.9.2; Firefox and Safari smoke; one playthrough on the deployed build; the invites |
-| Last code commit | 2026-10-07 |
+| Next up | Tag and deploy v0.9.3; Firefox and Safari smoke on that build; one playthrough on the deployed build; the invites |
+| Last code commit | 2026-11-03 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
 
@@ -486,6 +488,68 @@ weeknight; move the domain after the cohort if there is still a reason to.
       extend. `tests/test_frontend_class_names.py` fails on any frontend class, id or selector
       starting with `ad-`, `ads-`, `adv-`, `advert-` or `sponsor-`
 
+### Hotfix — DEPLOYED 2026-11-03 (merged to `main` through #28, untagged)
+
+- [x] **The SPA catch-all serves only files inside `frontend/dist`.** `serve_vue` joined the
+      request path onto the build directory unchecked, so a path that climbed out of it, or an
+      absolute path, could read any file in the app container. It now resolves the path and
+      requires it to stay inside `dist`, and unknown `/api` paths return 404 instead of the SPA.
+      The route lives in `app/frontend.py`, tested by `tests/test_frontend_serving.py`. The
+      app log since 2026-10-07 and 90 days of Sentry show no sign it was used, and no secrets
+      were rotated: on the deployed stack `/proc/self/environ` reads back empty, and nothing
+      else in the container holds one. nginx keeps no access log for Venturekeep, so nothing
+      before 2026-10-07 was recorded
+
+---
+
+## v0.9.3 — Logins — CUT to `rc` 2026-11-03 (planned 2026-11-03, Cody)
+
+A patch release like v0.9.2, not a new gate. It ships the fixes already waiting on `qa` and a
+small login push, before the invites.
+
+The login push can't wait for the cohort because a lost password can't be recovered. An
+account is a username and a password hash: no email, no reset flow, no admin tool. A typo at
+sign-up locks a stranger out of their keep for good. Sign in with Google is the bigger half
+of the same request and waits for the decision gate; see **Sign-in — queued 2026-11-03**
+under Post-cohort backlog.
+
+### Logins
+- [x] **Merge #27 first** (2026-11-03): one-time refresh tokens, revoked on logout. Open since
+      2026-10-16, and it touches the same auth files as everything below
+- [x] **Confirm password on sign-up** (2026-11-03). A second field with an inline "doesn't
+      match" message; Create Account stays disabled until the two match and the password
+      passes the rule. The message waits while the confirmation is still a correct start of
+      the password, and shows once the field loses focus. Frontend only: the API keeps taking
+      one password
+- [x] **An eyeball toggle on every password field** (2026-11-03). `PasswordInput`
+      (`frontend/src/components/shared/`), used on Login and on both sign-up fields. The
+      toggle is a real button labelled "Show password" with `aria-pressed`, so it works from
+      the keyboard and with a screen reader. Labels are now tied to their fields, and the
+      fields carry `autocomplete` hints, so password managers fill them correctly
+- [x] **The sign-up hint states the real rule** (2026-11-03). The placeholder said "4+ chars",
+      while `_validate_password` (`app/routes/auth.py`) requires 8 or more with at least one
+      letter and one number. The hint under the field now states that rule and turns green
+      once the password meets it
+- [x] **`scripts/reset_password.py`** (2026-11-03), beside `gate_queries.py`: gives one account
+      a new random 16-character password, printed once, and ends its sessions the way
+      change-password does. Reads whatever `DATABASE_URL` points at; the docstring has the
+      `docker run` line for the server, since the image has no `scripts/`. Until accounts have
+      email, this is how a cohort member gets back in. A player can't yet change the password
+      they're given: there's no change-password screen (see **Sign-in — queued 2026-11-03**)
+
+Cut to `rc` 2026-11-03, with release notes in `RELEASE_NOTES.md`. Still to do: tag `v0.9.3` on
+`rc`, merge to `main`, deploy, and run the Firefox and Safari smoke on that build.
+
+### Already on `qa` — merged 2026-10-07
+
+- [x] Completed-expedition totals read from the run, not from its per-turn shares (#20)
+- [x] The Expeditions list shows only witnessed loot and XP for a running expedition (#22)
+- [x] Metrics and expedition-detail totals read from the run, not from its turns (#23)
+- [x] The expedition detail endpoint and view are built from the database alone (#25, #26)
+- [x] Each launch runs in a simulator of its own, so the process no longer keeps every launch
+      in memory (#26)
+- [x] `vue-tsc -b` documented as the frontend type check (#21)
+
 ---
 
 ## v1.0 — Let Them Delve — not started
@@ -595,13 +659,6 @@ shows it matters.
   notification, no branch. With morale at 7 this will now happen often, so it needs to be
   visible or the player will not understand why a delve went badly.
 
-- **The in-process simulator never forgets a launch.** `app/routes/expeditions.py:40` holds one
-  `DungeonSimulator` for the life of the process, and every launch appends a party list and an
-  expedition record to it that nothing removes. The database is unaffected; this is Python
-  memory, growing by one small dict-tree per launch. Harmless for a cohort of ten, real for a
-  long-running process. A per-launch simulator removes it, but `get_expedition_results` and
-  `advance_turn` (`:913`, `:1342`) still read the global by *database* expedition id, which
-  the simulator does not key on, so those two legacy endpoints need retiring or rewiring first.
 - **Auto-decided stairs never change the party's level.** The day-advance loop
   (`app/routes/game.py:389`, `:433`) tests for a `press_on_next` choice, but `auto_decide`
   (`app/expedition_events.py:32`) only ever returns `press_on` or `retreat`, so the
@@ -617,6 +674,27 @@ shows it matters.
   every dead or bankrupt row on each load. Neither is a cohort risk — ten strangers start at
   zero adventurers — and both bite a long-lived keep. Re-enters if a cohort player approaches
   100 living adventurers, or when graveyard load time becomes noticeable
+
+### Sign-in — queued 2026-11-03 (Cody)
+The rest of the login request, after the v0.9.3 push. Ten invited people can make a password,
+and v1.0 is a freeze, so this waits for the gate.
+
+- **Sign in with Google.** A server-side OAuth code flow (Authlib). The callback issues the
+  JWT pair the app already uses, so nothing past login changes. It needs:
+  - an `account_identities` table (provider, the provider's id for the person, email) and a
+    nullable `password_hash` for Google-only accounts: an Alembic migration, tested on Postgres
+  - a choose-your-username step on the first Google sign-in, since Google supplies none
+  - linking from a signed-in settings page only, never automatically by matching email
+  - a Google Cloud project, consent screen, and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in
+    the server's `.env`
+  - a privacy policy page: it's the first time Venturekeep would store email addresses
+- **Other providers.** Once the identity table exists, each is mostly configuration and a
+  button. Let the cohort choose. Discord is the likely second for a tabletop audience, GitHub
+  is cheap, and Sign in with Apple needs a paid Apple Developer membership
+- **Self-serve password reset.** Google accounts recover themselves; password accounts still
+  can't. It needs an email address on the account and a way to send mail
+- **A change-password screen.** `/auth/change-password` and the auth store's `changePassword`
+  exist, but no view calls them. It would reuse the v0.9.3 password input
 
 ### Cut from the old v0.9.1 / v0.9.2 / v0.9.3
 - Attachment events beyond death and level-up (high-level death, party wipe, continued after

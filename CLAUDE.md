@@ -41,7 +41,7 @@ cd frontend && npx eslint .
 
 # Type check
 mypy .
-cd frontend && npx vue-tsc --noEmit
+cd frontend && npx vue-tsc -b
 ```
 
 ## Critical Constraints

@@ -65,8 +65,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
+    // Read before clearSession() wipes it, so the server can revoke it too
+    const refreshToken = localStorage.getItem('refreshToken')
     try {
-      await authApi.logout()
+      await authApi.logout(refreshToken)
     } catch {
       // Best-effort server-side revocation
     }

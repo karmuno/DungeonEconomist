@@ -536,7 +536,7 @@ ENV PYTHONPATH="${PYTHONPATH}:/app"
 
 1. **Backend tests:** `pytest tests/` — all existing tests must pass
 2. **Frontend build:** `cd frontend && npm run build` — no import errors
-3. **Type check:** `mypy .` and `npx vue-tsc --noEmit`
+3. **Type check:** `mypy .` and `cd frontend && npx vue-tsc -b`
 4. **Lint:** `ruff check .` and `cd frontend && npx eslint .`
 5. **Run locally:** `python -m app.main` + `cd frontend && npm run dev` — full functionality works
 6. **Docker:** `docker compose up --build` — app starts and serves correctly

@@ -1,6 +1,8 @@
+import importlib.util
 import math
 import os
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,6 +14,8 @@ from app.database import get_db
 from app.main import app
 from app.models import Account, Adventurer, AdventurerClass, Base, Expedition, Keep, Party
 from app.player_events import seed_event_types
+from app.rate_limit import auth_rate_limiter
+from app.routes.auth import _PASSWORD_RE
 
 # Defaults to a local SQLite file; set DATABASE_URL to run the same suite against Postgres
 # (e.g. `docker compose up db`), matching how the app itself picks a database.
@@ -326,6 +330,102 @@ def test_login_wrong_password(client: TestClient, db_session: Session):
     assert response.status_code == 401
 
 
+@pytest.fixture
+def fresh_auth_rate_limit():
+    """Auth endpoints allow 10 requests/minute per IP, shared across the whole test process."""
+    auth_rate_limiter._requests.clear()
+    yield
+    auth_rate_limiter._requests.clear()
+
+
+def _register(client: TestClient, username: str) -> dict:
+    response = client.post("/auth/register", json={"username": username, "password": "testpass1"})
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_refresh_token_is_single_use(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    tokens = _register(client, "refresher")
+
+    first = client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert first.status_code == 200
+
+    replay = client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert replay.status_code == 401
+
+    # The pair issued by the first refresh still works
+    second = client.post("/auth/refresh", json={"refresh_token": first.json()["refresh_token"]})
+    assert second.status_code == 200
+
+
+def test_logout_revokes_refresh_token(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    tokens = _register(client, "leaver")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    response = client.post("/auth/logout", json={"refresh_token": tokens["refresh_token"]}, headers=headers)
+    assert response.status_code == 200
+
+    # Both tokens are dead
+    assert client.get("/auth/me", headers=headers).status_code == 401
+    assert client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+
+
+def test_logout_without_body_still_works(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    tokens = _register(client, "bodyless")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    assert client.post("/auth/logout", headers=headers).status_code == 200
+    assert client.get("/auth/me", headers=headers).status_code == 401
+
+    # No refresh token was sent, so it is not revoked by this call
+    assert client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 200
+
+
+def test_logout_ignores_other_accounts_refresh_token(client: TestClient, db_session: Session, fresh_auth_rate_limit):
+    mine = _register(client, "mine")
+    theirs = _register(client, "theirs")
+    headers = {"Authorization": f"Bearer {mine['access_token']}"}
+
+    response = client.post("/auth/logout", json={"refresh_token": theirs["refresh_token"]}, headers=headers)
+    assert response.status_code == 200
+
+    assert client.post("/auth/refresh", json={"refresh_token": theirs["refresh_token"]}).status_code == 200
+
+
+def _reset_password_script():
+    """scripts/ is not a package, so load the script by path."""
+    path = Path(__file__).resolve().parent.parent / "scripts" / "reset_password.py"
+    spec = importlib.util.spec_from_file_location("reset_password", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_reset_password_replaces_password_and_ends_sessions(
+    client: TestClient, db_session: Session, fresh_auth_rate_limit
+):
+    tokens = _register(client, "forgetful")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    new_password = _reset_password_script().reset_password(db_session, "forgetful")
+
+    assert client.post("/auth/login", json={"username": "forgetful", "password": "testpass1"}).status_code == 401
+    assert client.post("/auth/login", json={"username": "forgetful", "password": new_password}).status_code == 200
+    # Sessions opened before the reset are over
+    assert client.get("/auth/me", headers=headers).status_code == 401
+    assert client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).status_code == 401
+
+
+def test_reset_password_unknown_username(db_session: Session):
+    assert _reset_password_script().reset_password(db_session, "nobody") is None
+
+
+def test_reset_password_generates_passwords_that_pass_the_signup_rule():
+    script = _reset_password_script()
+    for _ in range(200):
+        assert _PASSWORD_RE.match(script.new_password())
+
+
 # --- Keep tests ---
 
 def test_create_keep_seeds_adventurers(client: TestClient, db_session: Session):
@@ -579,14 +679,14 @@ _QUIET_SIM = {
 }
 
 
-def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict, gold: int = 100):
-    """Three 2000-XP adventurers (100gp each by default) out on an uneventful expedition."""
+def _party_away(db: Session, keep, start_day: int, return_day: int, sim: dict, gold: int = 100, size: int = 3):
+    """2000-XP adventurers (three, with 100gp each, by default) out on an uneventful expedition."""
     from app.models import Expedition
 
     party = Party(name="Away Team", keep_id=keep.id, on_expedition=True)
     db.add(party)
     db.commit()
-    members = [create_adventurer_db(db, keep.id, name=f"Away{i}", xp=2000, gold=gold) for i in range(3)]
+    members = [create_adventurer_db(db, keep.id, name=f"Away{i}", xp=2000, gold=gold) for i in range(size)]
     for m in members:
         m.on_expedition = True
         party.members.append(m)
@@ -861,6 +961,37 @@ def test_early_retreat_reports_the_day_the_party_came_home(client: TestClient, d
     assert detail["actual_return_day"] == 12
 
 
+def test_expedition_detail_answers_only_for_the_expedition_asked(client: TestClient, db_session: Session):
+    """Regression: the detail endpoint looked the database id up in the in-process simulator,
+    which numbers its runs on its own and holds every keep's. It answered with a different
+    run's turns, deaths and totals, another keep's included, while the expedition asked about
+    was still out."""
+    launched = []
+    for owner, level in (("alice", 1), ("bob", 2)):
+        account, keep, token = create_account_and_keep(db_session, username=owner, keep_name=f"{owner}'s keep")
+        keep.max_dungeon_level = level
+        db_session.commit()
+        headers = auth_headers(token, keep.id)
+        for n in range(2):
+            party = Party(name=f"{owner} party {n}", keep_id=keep.id)
+            db_session.add(party)
+            db_session.commit()
+            party.members.append(create_adventurer_db(db_session, keep.id, name=f"{owner}{n}", xp=100, gold=100))
+            db_session.commit()
+            resp = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": level}, headers=headers)
+            assert resp.status_code == 200, resp.text
+            launched.append((resp.json()["expedition_id"], party.id, level, headers))
+
+    for expedition_id, party_id, level, headers in launched:
+        resp = client.get(f"/expeditions/{expedition_id}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        detail = resp.json()
+        assert (detail["expedition_id"], detail["party_id"], detail["dungeon_level"]) == (expedition_id, party_id, level)
+        # Still out: nothing of the simulated run, its own or anyone else's
+        assert (detail["turns"], detail["log"], detail["dead_members"]) == (0, [], [])
+        assert (detail["treasure_total"], detail["xp_earned"]) == (0, 0)
+
+
 def test_expedition_run_to_completion_has_no_actual_return_day(client: TestClient, db_session: Session):
     """A party that presses on to the planned end reports no separate actual date."""
     account, keep, token = create_account_and_keep(db_session)
@@ -942,8 +1073,8 @@ def test_events_naming_an_adventurer_carry_their_id(client: TestClient, db_sessi
 def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: Session):
     """A second launch with the same first member simulates the party as it stands now.
 
-    The simulator is process-global. launch_expedition used to reuse the party it had
-    registered at that party's first launch (matched on the first member's id), so every
+    launch_expedition used to reuse the party it had registered with a shared simulator
+    at that party's first launch (matched on the first member's id), so every
     later expedition fought with the dead at their original HP and level — expeditions
     891 and 892 in the 2026-09-09 save."""
     from app.models import Expedition
@@ -984,6 +1115,27 @@ def test_relaunch_simulates_the_current_roster(client: TestClient, db_session: S
     second_exp = db_session.get(Expedition, second.json()["expedition_id"])
     assert second_exp.simulation_data["party_status"]["members_total"] == 3
     assert set(second_exp.simulation_data["starting_hp"]) == {"Aldric", "Borin", "Yorick"}
+
+
+def test_auto_delve_simulates_the_party_as_it_stands(client: TestClient, db_session: Session):
+    """A healed party on a standing order sets out at day's end, simulated with its own roster."""
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(name="Standing Order", keep_id=keep.id, auto_delve_healed=True)
+    db_session.add(party)
+    db_session.commit()
+    party.members.extend(create_adventurer_db(db_session, keep.id, name=n, xp=0, gold=100) for n in ("Hale", "Ivo", "Jory"))
+    db_session.commit()
+
+    resp = client.post("/time/advance-day", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    launched = [e for e in resp.json()["events"] if "auto-launched" in e["message"]]
+    assert len(launched) == 1
+
+    db_session.expire_all()
+    expedition = db_session.get(Expedition, launched[0]["expedition_id"])
+    assert expedition.party_id == party.id
+    assert expedition.simulation_data["party_status"]["members_total"] == 3
+    assert set(expedition.simulation_data["starting_hp"]) == {"Hale", "Ivo", "Jory"}
 
 
 # --- player_events: one row per thing a player did (buildplans/player-events-spec.md) ---
@@ -1527,3 +1679,296 @@ def test_completed_summary_reports_what_the_dead_took(client: TestClient, db_ses
                          headers=auth_headers(token, keep.id)).json()
     took = {m["name"]: m["damage_taken"] for m in summary["member_results"]}
     assert took == {"Rurik": 4, "Ilsa": 10}
+
+
+# --- Completed-summary totals: what the run recorded, not its per-turn shares added back up ---
+
+def _summary_after_return(
+    client: TestClient, db: Session, keep: Keep, token: str, sim: dict, size: int = 3,
+) -> tuple[list, dict, dict]:
+    """Play `sim` out to its return day through the API. Returns the members, the completed
+    summary, and the expedition's row in the Expeditions list."""
+    keep.current_day = 10
+    db.commit()
+    party, members, exp = _party_away(db, keep, start_day=10, return_day=11, sim=sim, gold=0, size=size)
+    headers = auth_headers(token, keep.id)
+
+    events = client.post("/time/advance-day", headers=headers).json()["events"]
+    assert any(e["type"] == "expedition_complete" for e in events), events
+
+    summary = client.get(f"/expeditions/{exp.id}/summary", headers=headers).json()
+    listed = next(e for e in client.get("/expeditions/", headers=headers).json() if e["id"] == exp.id)
+    for m in members:
+        db.refresh(m)
+    return members, summary, listed
+
+
+def test_completed_summary_xp_is_not_rounded_down_per_turn(client: TestClient, db_session: Session):
+    """One 200 XP fight in a three-turn run, 100 to each of two survivors. The header read 198:
+    three per-turn shares of 66."""
+    account, keep, token = create_account_and_keep(db_session)
+    sim = {
+        **_QUIET_SIM,
+        "log": [
+            {"turn": 1, "deaths": [], "events": []},
+            {"turn": 2, "deaths": [], "events": [{"combat": {"xp_earned": 200}}]},
+            {"turn": 3, "deaths": [], "events": []},
+        ],
+        "xp_earned": 200,
+    }
+    members, summary, listed = _summary_after_return(client, db_session, keep, token, sim, size=2)
+
+    assert [m["xp_gained"] for m in summary["member_results"]] == [100, 100]
+    assert summary["total_xp"] == 200
+    assert listed["xp_earned"] == 200
+
+
+def test_completed_summary_loot_counts_every_coin(client: TestClient, db_session: Session):
+    """30gp, 600sp and 60cp over four turns is 9060cp, 3020cp to each of three. The header read
+    28gp (gold alone, in four shares of 7) and the Expeditions list 30gp."""
+    account, keep, token = create_account_and_keep(db_session)
+    sim = {
+        **_QUIET_SIM,
+        "log": [
+            {"turn": 1, "deaths": [], "events": [
+                {"treasure": {"gold": 0, "silver": 100, "copper": 0, "xp_value": 10, "special_item": None}},
+            ]},
+            {"turn": 2, "deaths": [], "events": []},
+            {"turn": 3, "deaths": [], "events": [
+                {"treasure": {"gold": 30, "silver": 500, "copper": 60, "xp_value": 80, "special_item": None}},
+            ]},
+            {"turn": 4, "deaths": [], "events": []},
+        ],
+        "treasure_total": 30,
+        "treasure_silver": 600,
+        "treasure_copper": 60,
+        "xp_earned": 90,
+    }
+    members, summary, listed = _summary_after_return(client, db_session, keep, token, sim)
+
+    assert [m.total_copper() for m in members] == [3020, 3020, 3020]
+    assert (summary["total_loot"], summary["total_silver"], summary["total_copper"]) == (30, 600, 60)
+    assert (listed["treasure_total"], listed["treasure_silver"], listed["treasure_copper"]) == (30, 600, 60)
+
+
+def test_completed_summary_of_a_retreat_counts_only_what_came_out(client: TestClient, db_session: Session):
+    """A retreat keeps the phases played (10gp, 20 XP), not the whole simulated run (99 of each)."""
+    account, keep, token = create_account_and_keep(db_session)
+    adv = create_adventurer_db(db_session, keep.id, name="Rurik", xp=0, gold=0)
+    expedition = _retreating_expedition(db_session, keep, adv)
+    headers = auth_headers(token, keep.id)
+
+    resp = client.post(f"/expeditions/{expedition.id}/choose", json={"choice": "retreat"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+
+    summary = client.get(f"/expeditions/{expedition.id}/summary", headers=headers).json()
+    assert (summary["total_loot"], summary["total_xp"]) == (10, 20)
+
+
+def test_completed_summary_without_recorded_totals_adds_up_its_turns(client: TestClient, db_session: Session):
+    """A run with no totals of its own has only its per-turn rows to go on."""
+    from app.models import ExpeditionNodeResult
+
+    account, keep, token = create_account_and_keep(db_session)
+    party = Party(keep_id=keep.id, name="Old Guard")
+    db_session.add(party)
+    db_session.commit()
+    expedition = Expedition(
+        party_id=party.id, start_day=1, duration_days=3, return_day=3, dungeon_level=1, result="completed",
+    )
+    db_session.add(expedition)
+    db_session.commit()
+    for xp, loot in ((30, 5), (20, 0)):
+        db_session.add(ExpeditionNodeResult(expedition_id=expedition.id, success=True, xp_earned=xp, loot=loot, log="{}"))
+    db_session.commit()
+
+    summary = client.get(f"/expeditions/{expedition.id}/summary", headers=auth_headers(token, keep.id)).json()
+    assert (summary["total_loot"], summary["total_silver"], summary["total_copper"]) == (5, 0, 0)
+    assert summary["total_xp"] == 50
+
+
+# --- Expeditions list: a running expedition's row follows the witnessed rule ---
+
+def _listed_and_summarized(client: TestClient, headers: dict, expedition_id: int) -> tuple[tuple, tuple]:
+    """An expedition's (gold, silver, copper, XP) as the Expeditions list reports it, and as
+    its summary does."""
+    row = next(e for e in client.get("/expeditions/", headers=headers).json() if e["id"] == expedition_id)
+    summary = client.get(f"/expeditions/{expedition_id}/summary", headers=headers).json()
+    return (
+        (row["treasure_total"], row["treasure_silver"], row["treasure_copper"], row["xp_earned"]),
+        (summary["total_loot"], summary["total_silver"], summary["total_copper"], summary["total_xp"]),
+    )
+
+
+def test_expedition_list_reports_only_what_a_running_expedition_has_shown(client: TestClient, db_session: Session):
+    """Regression: the list read the totals recorded at launch, which are the end of the
+    pre-simulated run, so the Active tab showed the final loot and XP on launch day while the
+    summary showed none. A running row reports what its summary does."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.current_day = 10
+    db_session.commit()
+    chest = {"type": "big_haul", "message": "A heavy chest", "after_turn": 1}
+    sim = {
+        **_QUIET_SIM,
+        "log": [
+            {"turn": 1, "deaths": [], "events": [
+                {"treasure": {"gold": 5, "silver": 40, "copper": 3, "xp_value": 100, "special_item": None}},
+            ]},
+            {"turn": 2, "deaths": [], "events": [
+                {"treasure": {"gold": 20, "silver": 300, "copper": 0, "xp_value": 400, "special_item": None}},
+            ]},
+        ],
+        "decision_points": [chest],
+        "phases": [
+            {"loot": 5, "silver": 40, "copper": 3, "xp": 100, "deaths": []},
+            {"loot": 20, "silver": 300, "copper": 0, "xp": 400, "deaths": []},
+        ],
+        "treasure_total": 25,
+        "treasure_silver": 340,
+        "treasure_copper": 3,
+        "xp_earned": 500,
+    }
+    party, members, exp = _party_away(db_session, keep, start_day=10, return_day=13, sim=sim)
+    exp.decision_day = 11
+    db_session.commit()
+    headers = auth_headers(token, keep.id)
+    first_phase, whole_run = (5, 40, 3, 100), (25, 340, 3, 500)
+
+    # Launch day: nothing witnessed yet
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == (0, 0, 0, 0)
+
+    # Day 11, the chest is on screen: its phase counts
+    client.post("/time/advance-day", headers=headers)
+    db_session.refresh(exp)
+    assert exp.result == "awaiting_choice"
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == first_phase
+
+    # Pressed on: the rest of the run is still ahead
+    resp = client.post(f"/expeditions/{exp.id}/choose", json={"choice": "press_on"}, headers=headers)
+    assert resp.json()["status"] == "in_progress", resp.text
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == first_phase
+
+    # Home on day 13: the recorded totals
+    for _ in range(2):
+        client.post("/time/advance-day", headers=headers)
+    db_session.refresh(exp)
+    assert exp.result == "completed"
+    listed, summarized = _listed_and_summarized(client, headers, exp.id)
+    assert listed == summarized == whole_run
+
+
+# --- The other readers of a finished run's totals: the Metrics panel and the expedition detail ---
+
+# 200 XP and 50gp over three turns: the per-turn rows hold 66 XP and 16gp each
+_UNEVEN_SIM = {
+    **_QUIET_SIM,
+    "log": [
+        {"turn": 1, "deaths": [], "events": []},
+        {"turn": 2, "deaths": [], "events": [{
+            "type": "Monster",
+            "combat": {"outcome": "Victory", "monster_type": "Goblin", "hp_lost": 0, "xp_earned": 200},
+        }]},
+        {"turn": 3, "deaths": [], "events": [{
+            "type": "Unguarded Treasure",
+            "treasure": {"gold": 50, "silver": 600, "copper": 40, "xp_value": 0, "special_item": None},
+        }]},
+    ],
+    "treasure_total": 50,
+    "treasure_silver": 600,
+    "treasure_copper": 40,
+    "xp_earned": 200,
+}
+
+
+def _uneven_run(db: Session, keep: Keep) -> Expedition:
+    """A party out on `_UNEVEN_SIM`, due home tomorrow."""
+    keep.current_day = 10
+    db.commit()
+    party, members, exp = _party_away(db, keep, start_day=10, return_day=11, sim=_UNEVEN_SIM, gold=0)
+    exp.started_at = datetime.now()
+    db.commit()
+    return exp
+
+
+def _bring_home(client: TestClient, keep: Keep, token: str) -> None:
+    events = client.post("/time/advance-day", headers=auth_headers(token, keep.id)).json()["events"]
+    assert any(e["type"] == "expedition_complete" for e in events), events
+
+
+def test_metrics_average_what_the_runs_recorded(client: TestClient, db_session: Session):
+    """The panel read 198 XP and 48gp for this run: its three per-turn rows added back up."""
+    account, keep, token = create_account_and_keep(db_session)
+    _uneven_run(db_session, keep)
+    _bring_home(client, keep, token)
+
+    metrics = client.get("/metrics", headers=auth_headers(token, keep.id)).json()
+    assert metrics["total_expeditions"] == 1
+    (level,) = metrics["levels"]
+    assert (level["level"], level["expeditions"]) == (1, 1)
+    assert level["avg_xp"] == 200
+    # Gold coins only: the 600sp and 40cp are not part of this figure
+    assert level["avg_gold"] == 50
+
+
+def test_expedition_detail_reads_what_the_run_recorded(client: TestClient, db_session: Session):
+    """The detail read 198 XP and 48gp for this run, no silver or copper, and dungeon level 1."""
+    account, keep, token = create_account_and_keep(db_session)
+    keep.max_dungeon_level = 2
+    exp = _uneven_run(db_session, keep)
+    exp.dungeon_level = 2
+    db_session.commit()
+    _bring_home(client, keep, token)
+
+    resp = client.get(f"/expeditions/{exp.id}", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    detail = resp.json()
+    assert (detail["treasure_total"], detail["treasure_silver"], detail["treasure_copper"]) == (50, 600, 40)
+    assert detail["xp_earned"] == 200
+    assert detail["xp_per_party_member"] == pytest.approx(200 / 3)
+    assert (detail["dungeon_level"], detail["turns"]) == (2, 3)
+
+
+def test_expedition_detail_of_a_run_still_out_reports_nothing_yet(client: TestClient, db_session: Session):
+    """A run is simulated to its end at launch. Until it is home those totals are still ahead of it."""
+    account, keep, token = create_account_and_keep(db_session)
+    exp = _uneven_run(db_session, keep)
+
+    resp = client.get(f"/expeditions/{exp.id}", headers=auth_headers(token, keep.id))
+    assert resp.status_code == 200, resp.text
+    detail = resp.json()
+    assert (detail["treasure_total"], detail["treasure_silver"], detail["treasure_copper"]) == (0, 0, 0)
+    assert detail["xp_earned"] == 0
+
+
+def _launched_party(client: TestClient, db: Session, username: str, names: list[str]) -> tuple[int, dict]:
+    """A new keep whose party of `names` has just set out. Returns its expedition id and the keep's headers."""
+    account, keep, token = create_account_and_keep(db, username=username, keep_name=f"{username}'s keep")
+    party = Party(name=f"{username}'s party", keep_id=keep.id)
+    db.add(party)
+    db.commit()
+    party.members.extend(create_adventurer_db(db, keep.id, name=n, xp=0, gold=100) for n in names)
+    db.commit()
+    headers = auth_headers(token, keep.id)
+    resp = client.post("/expeditions/", json={"party_id": party.id, "dungeon_level": 1}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["expedition_id"], headers
+
+
+def test_expedition_detail_describes_the_keeps_own_run(client: TestClient, db_session: Session):
+    """Two keeps launch one after the other. Each one's detail is its own party, still out."""
+    first_id, first_headers = _launched_party(client, db_session, "north", ["Ada", "Bryn"])
+    second_id, second_headers = _launched_party(client, db_session, "south", ["Cole", "Dara", "Edda", "Finn", "Gwen"])
+
+    for expedition_id, headers, size in ((first_id, first_headers, 2), (second_id, second_headers, 5)):
+        resp = client.get(f"/expeditions/{expedition_id}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        detail = resp.json()
+        assert detail["party_status"]["members_total"] == size
+        # Nothing of the run is on record until the party is home
+        assert (detail["turns"], detail["log"], detail["dead_members"]) == (0, [], [])
+        assert (detail["treasure_total"], detail["xp_earned"]) == (0, 0)
+
+    assert client.get(f"/expeditions/{second_id}", headers=first_headers).status_code == 404
