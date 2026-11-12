@@ -4,7 +4,7 @@ Three releases between here and the first strangers. Everything that does not ma
 safe to invite 10 people into, or legible enough for them to enter the core loop, waits for
 the evidence those 10 people produce.
 
-**Status as of 2026-11-03**
+**Status as of 2026-11-12**
 
 | | |
 | :--- | :--- |
@@ -12,7 +12,7 @@ the evidence those 10 people produce.
 | Previous release | **v0.9.2** (2026-10-07) |
 | In progress | **v1.0 — Let Them Delve** (not started) |
 | Done in v0.9.1 | Sentry on both sides; `player_events` with TPK capture, and the gate-query script; in-game feedback form and Buy Me a Coffee link; ghost adventurers fixed; XP pooled for survivors; armor as damage reduction; magic weapons per OSE; number appearing trimmed at the lethal end; buildings grant XP; items describe themselves; Village beside the roster; healing shown per member; round log in resolution order; test suite green on Postgres; restore drilled; `uv.lock`; dependency audits run and fixed; CORS and rate limiting confirmed in production |
-| Next up | Firefox and Safari smoke on the v0.9.3 build; one playthrough on the deployed build; the invites |
+| Next up | One playthrough on the deployed build; the invites |
 | Last code commit | 2026-11-03 |
 
 Legend: `[x]` done · `[~]` partial · `[ ]` not started.
@@ -361,12 +361,12 @@ this release rather than opening a fourth gate.
       to the real domain, not left at the `*` fallback. 12 rapid `POST /auth/login` requests
       returned `401` for the first 10 and `429` for the 11th and 12th, matching
       `auth_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)` exactly
-- [~] 30-minute smoke in Chrome, Firefox, Safari. Chrome done, last on the tagged `rc` build
+- [x] 30-minute smoke in Chrome and Firefox. Chrome done, last on the tagged `rc` build
       (2026-10-07): login, Dashboard, Village, Tavern (roster, Graveyard, Debtor's Prison), a
       character sheet, Parties, Expeditions, form a party, launch, event popups, a retreat and
       its summary, a feedback submission, Skip to Event and sign-out — zero console errors,
-      zero failed network requests, no server errors. Firefox and Safari still need a manual
-      pass; nothing here drives those engines
+      zero failed network requests, no server errors. Firefox passed by hand on the v0.9.3
+      build (Cody, 2026-11-12). Safari is not tested (Cody, 2026-11-12)
 
 ### The two links that are the point
 - [x] In-game feedback form per `buildplans/feedback-form-spec.md` and the
@@ -547,8 +547,8 @@ Chrome playthrough on a fresh keep:
 - the reset script
 - the traversal probes
 
-The live site was confirmed serving `v0.9.3` with the new sign-up. The Firefox and Safari smoke
-is still to do.
+The live site was confirmed serving `v0.9.3` with the new sign-up. The Firefox smoke passed on
+2026-11-12; Safari is not tested.
 
 ### Already on `qa` — merged 2026-10-07
 
